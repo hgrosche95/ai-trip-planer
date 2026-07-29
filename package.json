@@ -2,7 +2,8 @@
   "name": "ai-trip-planner",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "e2e"
   ],
   "engines": {
     "node": ">=20"
