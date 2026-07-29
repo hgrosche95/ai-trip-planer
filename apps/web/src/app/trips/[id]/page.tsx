@@ -1,3 +1,6 @@
+import DeleteTripButton from './delete-trip-button';
+import DeleteStopButton from './delete-stop-button';
+
 interface Stop {
   id: string;
   dayNumber: number;
@@ -40,7 +43,10 @@ export default async function TripDetailPage({
 
   return (
     <div className="mx-auto max-w-2xl p-4">
-      <h1 className="text-2xl font-semibold">{itinerary.destination}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">{itinerary.destination}</h1>
+        <DeleteTripButton itineraryId={itinerary.id} />
+      </div>
       <p className="mb-6 text-sm text-zinc-500">
         {new Date(itinerary.startDate).toLocaleDateString('de-DE')} –{' '}
         {new Date(itinerary.endDate).toLocaleDateString('de-DE')} · Budget:{' '}
@@ -69,6 +75,9 @@ export default async function TripDetailPage({
                       {(stop.costCents / 100).toFixed(2)} {itinerary.currency}
                     </p>
                   )}
+                  <div className="mt-1 text-right">
+                    <DeleteStopButton itineraryId={itinerary.id} stopId={stop.id} />
+                  </div>
                 </li>
               ))}
           </ul>
