@@ -4,6 +4,9 @@ param location string
 @description('Basis-Name, aus dem die Ressourcennamen abgeleitet werden, z. B. "trip-planner-dev".')
 param namePrefix string
 
+@description('Name des Postgres-Servers. Eigener Parameter statt reiner Ableitung aus namePrefix, damit sich der Servername im Fehlerfall (z. B. nach einer fehlgeschlagenen Bereitstellung mit nachhängender Namens-/DNS-Sperre) unabhängig von den anderen Ressourcennamen ändern lässt.')
+param serverName string = '${namePrefix}-psql'
+
 @description('Name der Anwendungsdatenbank, die auf dem Server angelegt wird.')
 param databaseName string = 'trip_planner'
 
@@ -30,7 +33,7 @@ param postgresVersion string = '16'
 // General Purpose/Memory Optimized, weil man nur eine "Baseline"-CPU-Leistung gebucht hat
 // und kurzzeitig darüber hinaus "bursten" kann.
 resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
-  name: '${namePrefix}-psql'
+  name: serverName
   location: location
   sku: {
     name: skuName
