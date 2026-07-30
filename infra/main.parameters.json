@@ -9,7 +9,7 @@
       "value": "eastus2"
     },
     "postgresLocation": {
-      "value": "eastus2"
+      "value": "swedencentral"
     },
     "namePrefix": {
       "value": "trip-planner-dev"

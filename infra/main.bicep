@@ -7,7 +7,7 @@ param location string = resourceGroup().location
 param staticWebAppLocation string = 'eastus2'
 
 @description('Region für den PostgreSQL-Server. Eigener Parameter, weil Azure-Subscriptions (v. a. neue/Trial-Subscriptions) für einzelne Dienste unterschiedliche Regionen sperren können - "location" kann daher für Postgres ungeeignet sein, obwohl sie für andere Ressourcen funktioniert.')
-param postgresLocation string = 'eastus2'
+param postgresLocation string = 'swedencentral'
 
 @description('Basis-Name für alle Ressourcen, z. B. "trip-planner-dev". Fließt in global-eindeutige Namen (Postgres-Server, Static Web App) mit ein, daher niedrig halten und ggf. um ein Zufalls-Suffix ergänzen.')
 param namePrefix string
