@@ -50,7 +50,7 @@ module postgres 'modules/postgres.bicep' = {
   params: {
     location: postgresLocation
     namePrefix: namePrefix
-    serverName: '${namePrefix}-psql2'
+    serverName: '${namePrefix}-psql3'
     databaseName: databaseName
     administratorLogin: postgresAdminLogin
     administratorPassword: postgresAdminPassword
