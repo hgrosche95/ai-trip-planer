@@ -84,3 +84,6 @@ module staticWebApp 'modules/static-web-app.bicep' = {
 output containerAppUrl string = containerApp.outputs.containerAppUrl
 output staticWebAppName string = staticWebApp.outputs.staticWebAppName
 output staticWebAppDefaultHostname string = staticWebApp.outputs.staticWebAppDefaultHostname
+output postgresServerName string = postgres.outputs.serverName
+output postgresServerFqdn string = postgres.outputs.serverFqdn
+output postgresDatabaseName string = postgres.outputs.databaseName

@@ -81,11 +81,29 @@ jobs:
 
           echo "container_app_url=$(echo "$OUTPUTS" | jq -r '.containerAppUrl.value')" >> "$GITHUB_OUTPUT"
           echo "static_web_app_name=$(echo "$OUTPUTS" | jq -r '.staticWebAppName.value')" >> "$GITHUB_OUTPUT"
+          echo "postgres_server_name=$(echo "$OUTPUTS" | jq -r '.postgresServerName.value')" >> "$GITHUB_OUTPUT"
+          echo "postgres_server_fqdn=$(echo "$OUTPUTS" | jq -r '.postgresServerFqdn.value')" >> "$GITHUB_OUTPUT"
+          echo "postgres_database_name=$(echo "$OUTPUTS" | jq -r '.postgresDatabaseName.value')" >> "$GITHUB_OUTPUT"
 
-      # --- 4. Frontend bauen ------------------------------------------------------------
-      # NEXT_PUBLIC_API_URL muss zur BUILD-Zeit gesetzt sein (landet im statischen JS-
-      # Bundle) - deshalb erst jetzt, nachdem wir die frisch deployte Container-App-URL
-      # aus Schritt 3 kennen.
+      # --- 3b. Datenbank-Migrationen anwenden -------------------------------------------
+      # Die Postgres-Firewall lässt nur Azure-interne Dienste durch (siehe postgres.bicep),
+      # der GitHub-Actions-Runner kommt von außen nicht durch. Deshalb: eigene IP kurz
+      # freischalten, migrieren, Regel wieder entfernen ("if: always()", damit das auch bei
+      # einem fehlschlagenden migrate deploy passiert und keine offene Regel liegen bleibt).
+      - name: Runner-IP ermitteln
+        id: runner-ip
+        run: echo "ip=$(curl -s https://api.ipify.org)" >> "$GITHUB_OUTPUT"
+
+      - name: Firewall-Regel für Migrationen öffnen
+        run: |
+          az postgres flexible-server firewall-rule create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "${{ steps.infra.outputs.postgres_server_name }}" \
+            --rule-name github-actions-runner \
+            --start-ip-address "${{ steps.runner-ip.outputs.ip }}" \
+            --end-ip-address "${{ steps.runner-ip.outputs.ip }}" \
+            --output none
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -93,6 +111,26 @@ jobs:
 
       - run: npm ci
 
+      - name: Migrationen anwenden
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://${{ secrets.POSTGRES_ADMIN_LOGIN }}:${{ secrets.POSTGRES_ADMIN_PASSWORD }}@${{ steps.infra.outputs.postgres_server_fqdn }}:5432/${{ steps.infra.outputs.postgres_database_name }}?sslmode=require
+        run: npx prisma migrate deploy
+
+      - name: Firewall-Regel wieder entfernen
+        if: always()
+        run: |
+          az postgres flexible-server firewall-rule delete \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "${{ steps.infra.outputs.postgres_server_name }}" \
+            --rule-name github-actions-runner \
+            --yes \
+            --output none
+
+      # --- 4. Frontend bauen ------------------------------------------------------------
+      # NEXT_PUBLIC_API_URL muss zur BUILD-Zeit gesetzt sein (landet im statischen JS-
+      # Bundle) - deshalb erst jetzt, nachdem wir die frisch deployte Container-App-URL
+      # aus Schritt 3 kennen. Node/npm ci laufen schon oben für die Migrationen.
       - name: Frontend bauen
         working-directory: apps/web
         env:
