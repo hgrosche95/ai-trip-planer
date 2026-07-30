@@ -98,8 +98,8 @@ jobs:
         run: |
           az postgres flexible-server firewall-rule create \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "${{ steps.infra.outputs.postgres_server_name }}" \
-            --rule-name github-actions-runner \
+            --server-name "${{ steps.infra.outputs.postgres_server_name }}" \
+            --name github-actions-runner \
             --start-ip-address "${{ steps.runner-ip.outputs.ip }}" \
             --end-ip-address "${{ steps.runner-ip.outputs.ip }}" \
             --output none
@@ -122,8 +122,8 @@ jobs:
         run: |
           az postgres flexible-server firewall-rule delete \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "${{ steps.infra.outputs.postgres_server_name }}" \
-            --rule-name github-actions-runner \
+            --server-name "${{ steps.infra.outputs.postgres_server_name }}" \
+            --name github-actions-runner \
             --yes \
             --output none
 
