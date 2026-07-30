@@ -1,15 +1,17 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export default function DeleteTripButton({ itineraryId }: { itineraryId: string }) {
-  const router = useRouter();
-
+export default function DeleteTripButton({
+  itineraryId,
+  onDeleted,
+}: {
+  itineraryId: string;
+  onDeleted: () => void;
+}) {
   async function handleDelete() {
     await fetch(`${API_URL}/itineraries/${itineraryId}`, { method: 'DELETE' });
-    router.push('/trips');
+    onDeleted();
   }
 
   return (

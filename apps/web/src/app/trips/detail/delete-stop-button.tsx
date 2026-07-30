@@ -1,23 +1,21 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function DeleteStopButton({
   itineraryId,
   stopId,
+  onDeleted,
 }: {
   itineraryId: string;
   stopId: string;
+  onDeleted: () => void;
 }) {
-  const router = useRouter();
-
   async function handleDelete() {
     await fetch(`${API_URL}/itineraries/${itineraryId}/stops/${stopId}`, {
       method: 'DELETE',
     });
-    router.refresh();
+    onDeleted();
   }
 
   return (

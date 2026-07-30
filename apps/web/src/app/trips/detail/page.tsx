@@ -1,3 +1,7 @@
+'use client';
+
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import DeleteTripButton from './delete-trip-button';
 import DeleteStopButton from './delete-stop-button';
 
@@ -22,20 +26,40 @@ interface ItineraryDetail {
   stops: Stop[];
 }
 
-async function getItinerary(id: string): Promise<ItineraryDetail> {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/itineraries/${id}`, {
-    cache: 'no-store',
-  });
-  return res.json();
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export default async function TripDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const itinerary = await getItinerary(id);
+function TripDetail() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const id = searchParams.get('id');
+
+  const [itinerary, setItinerary] = useState<ItineraryDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadItinerary = useCallback(async () => {
+    if (!id) return;
+    const res = await fetch(`${API_URL}/itineraries/${id}`, { cache: 'no-store' });
+    setItinerary(await res.json());
+    setIsLoading(false);
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    fetch(`${API_URL}/itineraries/${id}`, { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        setItinerary(data);
+        setIsLoading(false);
+      });
+  }, [id]);
+
+  if (!id) {
+    return <p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">Keine Reise ausgewählt.</p>;
+  }
+
+  if (isLoading || !itinerary) {
+    return <p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">Lädt...</p>;
+  }
 
   const days = Array.from(new Set(itinerary.stops.map((s) => s.dayNumber))).sort(
     (a, b) => a - b,
@@ -45,7 +69,10 @@ export default async function TripDetailPage({
     <div className="mx-auto max-w-2xl p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{itinerary.destination}</h1>
-        <DeleteTripButton itineraryId={itinerary.id} />
+        <DeleteTripButton
+          itineraryId={itinerary.id}
+          onDeleted={() => router.push('/trips')}
+        />
       </div>
       <p className="mb-6 text-sm text-zinc-500">
         {new Date(itinerary.startDate).toLocaleDateString('de-DE')} –{' '}
@@ -76,7 +103,11 @@ export default async function TripDetailPage({
                     </p>
                   )}
                   <div className="mt-1 text-right">
-                    <DeleteStopButton itineraryId={itinerary.id} stopId={stop.id} />
+                    <DeleteStopButton
+                      itineraryId={itinerary.id}
+                      stopId={stop.id}
+                      onDeleted={loadItinerary}
+                    />
                   </div>
                 </li>
               ))}
@@ -84,5 +115,13 @@ export default async function TripDetailPage({
         </div>
       ))}
     </div>
+  );
+}
+
+export default function TripDetailPage() {
+  return (
+    <Suspense fallback={<p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">Lädt...</p>}>
+      <TripDetail />
+    </Suspense>
   );
 }
