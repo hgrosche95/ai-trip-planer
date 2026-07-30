@@ -3,10 +3,10 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "location": {
-      "value": "westeurope"
+      "value": "germanywestcentral"
     },
     "staticWebAppLocation": {
-      "value": "westeurope"
+      "value": "eastus2"
     },
     "namePrefix": {
       "value": "trip-planner-dev"

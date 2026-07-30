@@ -16,7 +16,7 @@ permissions:
 
 env:
   AZURE_RESOURCE_GROUP: trip-planner-dev-rg
-  AZURE_LOCATION: westeurope
+  AZURE_LOCATION: germanywestcentral
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/ai-trip-planner-api
 
 jobs:
