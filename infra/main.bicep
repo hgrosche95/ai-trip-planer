@@ -1,10 +1,13 @@
 targetScope = 'resourceGroup'
 
-@description('Azure-Region für die meisten Ressourcen (Postgres, Container Apps, Log Analytics).')
+@description('Azure-Region für die meisten Ressourcen (Container Apps, Log Analytics).')
 param location string = resourceGroup().location
 
 @description('Region für die Static Web App. Static Web Apps sind nur in wenigen Regionen verfügbar, deshalb ein eigener Parameter statt der allgemeinen "location".')
 param staticWebAppLocation string = 'eastus2'
+
+@description('Region für den PostgreSQL-Server. Eigener Parameter, weil Azure-Subscriptions (v. a. neue/Trial-Subscriptions) für einzelne Dienste unterschiedliche Regionen sperren können - "location" kann daher für Postgres ungeeignet sein, obwohl sie für andere Ressourcen funktioniert.')
+param postgresLocation string = 'eastus2'
 
 @description('Basis-Name für alle Ressourcen, z. B. "trip-planner-dev". Fließt in global-eindeutige Namen (Postgres-Server, Static Web App) mit ein, daher niedrig halten und ggf. um ein Zufalls-Suffix ergänzen.')
 param namePrefix string
@@ -45,7 +48,7 @@ module appInsights 'modules/app-insights.bicep' = {
 module postgres 'modules/postgres.bicep' = {
   name: 'postgres-deployment'
   params: {
-    location: location
+    location: postgresLocation
     namePrefix: namePrefix
     databaseName: databaseName
     administratorLogin: postgresAdminLogin
