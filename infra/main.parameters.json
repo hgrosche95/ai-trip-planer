@@ -8,6 +8,9 @@
     "staticWebAppLocation": {
       "value": "eastus2"
     },
+    "postgresLocation": {
+      "value": "eastus2"
+    },
     "namePrefix": {
       "value": "trip-planner-dev"
     },
