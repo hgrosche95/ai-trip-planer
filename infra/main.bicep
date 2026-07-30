@@ -62,6 +62,14 @@ module postgres 'modules/postgres.bicep' = {
 // sslmode=require, weil Flexible Server TLS-Verbindungen erzwingt.
 var databaseUrl = 'postgresql://${postgresAdminLogin}:${postgresAdminPassword}@${postgres.outputs.serverFqdn}:5432/${databaseName}?sslmode=require'
 
+module staticWebApp 'modules/static-web-app.bicep' = {
+  name: 'static-web-app-deployment'
+  params: {
+    location: staticWebAppLocation
+    namePrefix: namePrefix
+  }
+}
+
 module containerApp 'modules/container-app.bicep' = {
   name: 'container-app-deployment'
   params: {
@@ -74,14 +82,7 @@ module containerApp 'modules/container-app.bicep' = {
     registryPassword: registryPassword
     databaseUrl: databaseUrl
     anthropicApiKey: anthropicApiKey
-  }
-}
-
-module staticWebApp 'modules/static-web-app.bicep' = {
-  name: 'static-web-app-deployment'
-  params: {
-    location: staticWebAppLocation
-    namePrefix: namePrefix
+    corsOrigin: 'https://${staticWebApp.outputs.staticWebAppDefaultHostname}'
   }
 }
 
