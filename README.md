@@ -149,7 +149,26 @@ Region/Namens-Präfix lassen sich in `infra/main.parameters.json` anpassen.
 Die Konfiguration ist bewusst auf die günstigsten Optionen ausgelegt (Container Apps Scale-to-Zero, Postgres Burstable-Tier, Static Web Apps Free-Tier, gedeckelte Log-Analytics-Aufnahme) – trotzdem läuft der **PostgreSQL Flexible Server nicht automatisch in einen Nullkosten-Zustand**, wenn er nicht benutzt wird (anders als die Container App). Wer länger pausiert, sollte ihn manuell stoppen:
 
 ```bash
-az postgres flexible-server stop --name <server-name> --resource-group trip-planner-dev-rg
+az postgres flexible-server stop --name trip-planner-dev-psql3 --resource-group trip-planner-dev-rg
+```
+
+Wieder starten:
+
+```bash
+az postgres flexible-server start --name trip-planner-dev-psql3 --resource-group trip-planner-dev-rg
 ```
 
 Ein gestoppter Server startet sich nach 7 Tagen automatisch wieder (Azure-Limit) – bei längeren Pausen den Befehl ggf. wiederholen, oder die Ressourcen bei Nichtgebrauch mit `az group delete` komplett entfernen (dann müsste vor dem nächsten Deployment allerdings `npx prisma migrate deploy` erneut laufen, da eine neue, leere Datenbank entsteht).
+
+**Wichtig:** Das Stoppen von Postgres allein schützt **nicht** vor unautorisierter Nutzung des Anthropic-API-Keys – `/agent/chat` ruft die Anthropic-API auf, bevor überhaupt auf die Datenbank zugegriffen wird (nur `save_itinerary` braucht die DB). Die API hat aktuell keine Authentifizierung. Um wirklich jeden Zugriff zu unterbinden (z. B. bei längerer Pause oder wenn die URL versehentlich öffentlich geteilt wurde), die Container-App-Revision deaktivieren:
+
+```bash
+# aktuelle Revision ermitteln
+az containerapp revision list --name trip-planner-dev-api --resource-group trip-planner-dev-rg --query "[0].name" -o tsv
+
+# damit deaktivieren (ersetzt <revision-name> durch die Ausgabe von oben)
+az containerapp revision deactivate --revision <revision-name> --resource-group trip-planner-dev-rg
+
+# und wieder aktivieren
+az containerapp revision activate --revision <revision-name> --resource-group trip-planner-dev-rg
+```
