@@ -32,6 +32,9 @@ param databaseUrl string
 @secure()
 param anthropicApiKey string
 
+@description('Ursprung (Origin) des Frontends, den das Backend per CORS zulässt, z. B. https://<static-web-app>.azurestaticapps.net.')
+param corsOrigin string
+
 @description('Minimale Anzahl Replicas. 0 = Scale-to-Zero, spart Kosten in Ruhephasen.')
 param minReplicas int = 0
 
@@ -123,6 +126,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               secretRef: 'appinsights-connection-string'
             }
             { name: 'PORT', value: '3000' }
+            { name: 'CORS_ORIGIN', value: corsOrigin }
           ]
         }
       ]
