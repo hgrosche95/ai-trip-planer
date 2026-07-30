@@ -1,0 +1,158 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# id-token: write ermöglicht den OIDC-Login gegen Azure (azure/login tauscht das
+# GitHub-OIDC-Token gegen ein kurzlebiges Azure-Access-Token, ohne dass irgendwo ein
+# langlebiger Client-Secret-Key als GitHub-Secret liegen muss).
+# packages: write wird für den Push des Backend-Images nach GHCR gebraucht.
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+env:
+  AZURE_RESOURCE_GROUP: trip-planner-dev-rg
+  AZURE_LOCATION: westeurope
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/ai-trip-planner-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- 1. Backend-Image bauen und nach GHCR pushen -------------------------------
+      # Muss VOR dem Bicep-Deployment passieren: die Container App referenziert das
+      # Image über seinen Tag. Würde der Tag beim Deployment noch nicht existieren,
+      # würde die neue Revision beim Start fehlschlagen (Image-Pull-Error).
+      - name: In GitHub Container Registry einloggen
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Backend-Image bauen und pushen
+        run: |
+          IMAGE_TAG="${IMAGE_NAME,,}:${{ github.sha }}"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          docker build -f apps/api/Dockerfile -t "$IMAGE_TAG" .
+          docker push "$IMAGE_TAG"
+
+      # --- 2. Bei Azure einloggen (OIDC / Federated Credentials) ---------------------
+      - name: Bei Azure einloggen
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resource Group sicherstellen
+        run: |
+          az group create \
+            --name "$AZURE_RESOURCE_GROUP" \
+            --location "$AZURE_LOCATION" \
+            --output none
+
+      # --- 3. Infrastruktur deployen (Bicep) ------------------------------------------
+      # GHCR_PAT (nicht das ephemere GITHUB_TOKEN!) wird als Registry-Passwort in die
+      # Container App geschrieben, weil sie das Image ggf. Stunden/Tage später aus dem
+      # Stillstand heraus erneut zieht (Scale-to-Zero) - da ist GITHUB_TOKEN längst
+      # abgelaufen.
+      - name: Infrastruktur deployen
+        id: infra
+        run: |
+          OUTPUTS=$(az deployment group create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.parameters.json \
+            --parameters \
+              postgresAdminLogin="${{ secrets.POSTGRES_ADMIN_LOGIN }}" \
+              postgresAdminPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
+              anthropicApiKey="${{ secrets.ANTHROPIC_API_KEY }}" \
+              containerImage="$IMAGE_TAG" \
+              registryUsername="${{ github.actor }}" \
+              registryPassword="${{ secrets.GHCR_PAT }}" \
+            --query properties.outputs -o json)
+
+          echo "container_app_url=$(echo "$OUTPUTS" | jq -r '.containerAppUrl.value')" >> "$GITHUB_OUTPUT"
+          echo "static_web_app_name=$(echo "$OUTPUTS" | jq -r '.staticWebAppName.value')" >> "$GITHUB_OUTPUT"
+          echo "postgres_server_name=$(echo "$OUTPUTS" | jq -r '.postgresServerName.value')" >> "$GITHUB_OUTPUT"
+          echo "postgres_server_fqdn=$(echo "$OUTPUTS" | jq -r '.postgresServerFqdn.value')" >> "$GITHUB_OUTPUT"
+          echo "postgres_database_name=$(echo "$OUTPUTS" | jq -r '.postgresDatabaseName.value')" >> "$GITHUB_OUTPUT"
+
+      # --- 3b. Datenbank-Migrationen anwenden -------------------------------------------
+      # Die Postgres-Firewall lässt nur Azure-interne Dienste durch (siehe postgres.bicep),
+      # der GitHub-Actions-Runner kommt von außen nicht durch. Deshalb: eigene IP kurz
+      # freischalten, migrieren, Regel wieder entfernen ("if: always()", damit das auch bei
+      # einem fehlschlagenden migrate deploy passiert und keine offene Regel liegen bleibt).
+      - name: Runner-IP ermitteln
+        id: runner-ip
+        run: echo "ip=$(curl -s https://api.ipify.org)" >> "$GITHUB_OUTPUT"
+
+      - name: Firewall-Regel für Migrationen öffnen
+        run: |
+          az postgres flexible-server firewall-rule create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "${{ steps.infra.outputs.postgres_server_name }}" \
+            --rule-name github-actions-runner \
+            --start-ip-address "${{ steps.runner-ip.outputs.ip }}" \
+            --end-ip-address "${{ steps.runner-ip.outputs.ip }}" \
+            --output none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Migrationen anwenden
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://${{ secrets.POSTGRES_ADMIN_LOGIN }}:${{ secrets.POSTGRES_ADMIN_PASSWORD }}@${{ steps.infra.outputs.postgres_server_fqdn }}:5432/${{ steps.infra.outputs.postgres_database_name }}?sslmode=require
+        run: npx prisma migrate deploy
+
+      - name: Firewall-Regel wieder entfernen
+        if: always()
+        run: |
+          az postgres flexible-server firewall-rule delete \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "${{ steps.infra.outputs.postgres_server_name }}" \
+            --rule-name github-actions-runner \
+            --yes \
+            --output none
+
+      # --- 4. Frontend bauen ------------------------------------------------------------
+      # NEXT_PUBLIC_API_URL muss zur BUILD-Zeit gesetzt sein (landet im statischen JS-
+      # Bundle) - deshalb erst jetzt, nachdem wir die frisch deployte Container-App-URL
+      # aus Schritt 3 kennen. Node/npm ci laufen schon oben für die Migrationen.
+      - name: Frontend bauen
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: ${{ steps.infra.outputs.container_app_url }}
+        run: npm run build
+
+      # --- 5. Frontend zur Static Web App deployen --------------------------------------
+      - name: Deployment-Token abrufen
+        id: swa-token
+        run: |
+          TOKEN=$(az staticwebapp secrets list \
+            --name "${{ steps.infra.outputs.static_web_app_name }}" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --query "properties.apiKey" -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Frontend deployen
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa-token.outputs.token }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: apps/web/out
+          skip_app_build: true
