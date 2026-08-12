@@ -42,6 +42,15 @@ jobs:
       DATABASE_URL: postgresql://trip_planner:trip_planner@localhost:5432/trip_planner?schema=public
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       NEXT_PUBLIC_API_URL: http://localhost:3000
+      # Nur für diesen CI-Lauf gültig (ephemere Postgres-Instanz, kein echter Nutzer) -
+      # deshalb hier als Klartext statt als Repo-Secret, genau wie die Postgres-Zugangsdaten oben.
+      AUTH_USERNAME: e2e-test
+      AUTH_PASSWORD_HASH: $2b$10$zwnaSFwRDXWN8ARQ2MKCReoqD566HMLU2DDgb2BZwoNNXRS82H91C
+      JWT_SECRET: Ddo4z26AQj4WRfpebbv+9hVNMwlUzyLsUWo8Ejstgkg=
+      # Klartext-Gegenstück zu AUTH_PASSWORD_HASH oben - nur der Playwright-Prozess
+      # braucht das (zum Ausfüllen des Login-Formulars), das Backend kennt nur den Hash.
+      E2E_AUTH_USERNAME: e2e-test
+      E2E_AUTH_PASSWORD: e2e-test-password
     steps:
       - uses: actions/checkout@v4
 

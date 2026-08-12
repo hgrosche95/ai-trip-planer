@@ -65,9 +65,11 @@ Gespeicherte Reisepläne lassen sich auch mit `npx prisma studio` (in `apps/api`
 
 ## E2E-Tests (`e2e`)
 
-Playwright-Test, der den kompletten Flow gegen den echten Chat-Agenten prüft (Backend, Frontend und Postgres müssen laufen):
+Playwright-Test, der den kompletten Flow gegen den echten Chat-Agenten prüft (Backend, Frontend und Postgres müssen laufen). Der Test loggt sich zuerst ein, braucht dafür das Klartext-Gegenstück zu deinem `AUTH_PASSWORD_HASH` aus `apps/api/.env` (den Hash selbst kann man ja nicht zurückrechnen):
 
-```
+```bash
+export E2E_AUTH_USERNAME=dein-username   # gleicher Wert wie AUTH_USERNAME
+export E2E_AUTH_PASSWORD=dein-passwort   # das Passwort, aus dem AUTH_PASSWORD_HASH generiert wurde
 cd e2e && npx playwright test
 ```
 
