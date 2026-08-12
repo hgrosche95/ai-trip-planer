@@ -1,21 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 
+// Der Token ändert sich nie, während RequireAuth gemountet ist (Login/Logout
+// gehen über einen vollen Redirect) - subscribe() muss daher nie feuern.
+function subscribe() {
+  return () => {};
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
 export default function RequireAuth({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [isChecking, setIsChecking] = useState(true);
+  const hasToken = useSyncExternalStore(subscribe, () => !!getToken(), getServerSnapshot);
 
   useEffect(() => {
-    if (!getToken()) {
+    if (!hasToken) {
       router.replace('/login');
-      return;
     }
-    setIsChecking(false);
-  }, [router]);
+  }, [hasToken, router]);
 
-  if (isChecking) return null;
+  if (!hasToken) return null;
   return <>{children}</>;
 }
