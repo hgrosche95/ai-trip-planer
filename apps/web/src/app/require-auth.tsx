@@ -1,22 +1,20 @@
 'use client';
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 
-// Der Token ändert sich nie, während RequireAuth gemountet ist (Login/Logout
-// gehen über einen vollen Redirect) - subscribe() muss daher nie feuern.
-function subscribe() {
-  return () => {};
-}
-
-function getServerSnapshot() {
-  return false;
-}
-
 export default function RequireAuth({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const hasToken = useSyncExternalStore(subscribe, () => !!getToken(), getServerSnapshot);
+  // Bewusst kein useSyncExternalStore mit getServerSnapshot: dessen erster Render
+  // liefert beim Hydrieren immer false (kein window server-seitig), der Effekt aus
+  // genau diesem Render feuert dann router.replace('/login') - eine asynchrone
+  // Navigation, die auch bei einem eingeloggten Nutzer nicht mehr storniert wird,
+  // selbst wenn direkt danach mit dem echten Token-Wert neu gerendert wird. Der
+  // Lazy-useState-Initializer läuft dagegen genau einmal, mit dem echten
+  // Browser-Zustand - kostet nur eine harmlose Hydration-Mismatch-Warnung in der
+  // Konsole (kein window beim serverseitigen Render vs. echter Wert beim Client-Render).
+  const [hasToken] = useState(() => !!getToken());
 
   useEffect(() => {
     if (!hasToken) {
