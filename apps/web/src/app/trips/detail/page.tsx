@@ -2,6 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { authFetch } from '@/lib/auth';
+import RequireAuth from '../../require-auth';
 import DeleteTripButton from './delete-trip-button';
 import DeleteStopButton from './delete-stop-button';
 
@@ -38,14 +40,14 @@ function TripDetail() {
 
   const loadItinerary = useCallback(async () => {
     if (!id) return;
-    const res = await fetch(`${API_URL}/itineraries/${id}`, { cache: 'no-store' });
+    const res = await authFetch(`${API_URL}/itineraries/${id}`, { cache: 'no-store' });
     setItinerary(await res.json());
     setIsLoading(false);
   }, [id]);
 
   useEffect(() => {
     if (!id) return;
-    fetch(`${API_URL}/itineraries/${id}`, { cache: 'no-store' })
+    authFetch(`${API_URL}/itineraries/${id}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         setItinerary(data);
@@ -120,8 +122,10 @@ function TripDetail() {
 
 export default function TripDetailPage() {
   return (
-    <Suspense fallback={<p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">Lädt...</p>}>
-      <TripDetail />
-    </Suspense>
+    <RequireAuth>
+      <Suspense fallback={<p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">Lädt...</p>}>
+        <TripDetail />
+      </Suspense>
+    </RequireAuth>
   );
 }

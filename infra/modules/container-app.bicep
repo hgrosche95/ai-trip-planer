@@ -35,6 +35,17 @@ param anthropicApiKey string
 @description('Ursprung (Origin) des Frontends, den das Backend per CORS zulässt, z. B. https://<static-web-app>.azurestaticapps.net.')
 param corsOrigin string
 
+@description('Username fürs Login gegen /auth/login. Kein Geheimnis für sich (das Passwort ist der eigentliche Schutz), aber trotzdem kein Klartext-Fixwert im Code.')
+param authUsername string
+
+@description('bcrypt-Hash des Login-Passworts (nicht das Passwort selbst!), wird als Secret an den Container weitergereicht.')
+@secure()
+param authPasswordHash string
+
+@description('Geheimer Schlüssel, mit dem das Backend JWTs signiert/verifiziert.')
+@secure()
+param jwtSecret string
+
 @description('Minimale Anzahl Replicas. 0 = Scale-to-Zero, spart Kosten in Ruhephasen.')
 param minReplicas int = 0
 
@@ -105,6 +116,14 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'appinsights-connection-string'
           value: appInsightsConnectionString
         }
+        {
+          name: 'auth-password-hash'
+          value: authPasswordHash
+        }
+        {
+          name: 'jwt-secret'
+          value: jwtSecret
+        }
       ]
     }
     template: {
@@ -127,6 +146,9 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             }
             { name: 'PORT', value: '3000' }
             { name: 'CORS_ORIGIN', value: corsOrigin }
+            { name: 'AUTH_USERNAME', value: authUsername }
+            { name: 'AUTH_PASSWORD_HASH', secretRef: 'auth-password-hash' }
+            { name: 'JWT_SECRET', secretRef: 'jwt-secret' }
           ]
         }
       ]

@@ -1,7 +1,19 @@
 import { test, expect } from '@playwright/test';
 
 test('Chat-Nachricht führt zu gespeichertem und angezeigtem Reiseplan', async ({ page }) => {
-  await page.goto('/');
+  const username = process.env.E2E_AUTH_USERNAME;
+  const password = process.env.E2E_AUTH_PASSWORD;
+  if (!username || !password) {
+    throw new Error(
+      'E2E_AUTH_USERNAME/E2E_AUTH_PASSWORD nicht gesetzt - müssen zum lokalen AUTH_USERNAME/AUTH_PASSWORD_HASH in apps/api/.env passen.',
+    );
+  }
+
+  await page.goto('/login');
+  await page.getByPlaceholder('Username').fill(username);
+  await page.getByPlaceholder('Passwort').fill(password);
+  await page.getByRole('button', { name: 'Einloggen' }).click();
+  await page.waitForURL('/');
 
   const message =
     'Plane für mich eine 3-tägige Reise nach Wien ab 1. September, Gesamtbudget 500 Euro für alles. ' +

@@ -1,5 +1,6 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { AgentService } from './agent.service';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
 interface ChatRequest {
   sessionId: string;
@@ -7,6 +8,7 @@ interface ChatRequest {
 }
 
 @Controller('agent')
+@UseGuards(JwtAuthGuard)
 export class AgentController {
   constructor(private readonly agentService: AgentService) {}
 

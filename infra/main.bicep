@@ -37,6 +37,17 @@ param registryPassword string
 @secure()
 param anthropicApiKey string
 
+@description('Username fürs Login gegen /auth/login.')
+param authUsername string
+
+@description('bcrypt-Hash des Login-Passworts (nicht das Passwort selbst!).')
+@secure()
+param authPasswordHash string
+
+@description('Geheimer Schlüssel, mit dem das Backend JWTs signiert/verifiziert.')
+@secure()
+param jwtSecret string
+
 module appInsights 'modules/app-insights.bicep' = {
   name: 'app-insights-deployment'
   params: {
@@ -83,6 +94,9 @@ module containerApp 'modules/container-app.bicep' = {
     databaseUrl: databaseUrl
     anthropicApiKey: anthropicApiKey
     corsOrigin: 'https://${staticWebApp.outputs.staticWebAppDefaultHostname}'
+    authUsername: authUsername
+    authPasswordHash: authPasswordHash
+    jwtSecret: jwtSecret
   }
 }
 

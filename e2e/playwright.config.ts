@@ -2,7 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 120_000,
+  // War 120_000 - die Chat-Antwort allein darf schon bis zu 100s dauern (mehrere
+  // Tool-Calls), der neue Login-Schritt vor dem Chat hat das knappe Restbudget
+  // gesprengt (Timeout mitten im finalen .click(), obwohl das Element sichtbar war).
+  timeout: 150_000,
   use: {
     baseURL: 'http://localhost:3001',
   },
