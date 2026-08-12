@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { authFetch } from '@/lib/auth';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -24,7 +25,7 @@ export default function ChatWindow() {
     setInput('');
     setIsLoading(true);
 
-    const response = await fetch(`${API_URL}/agent/chat`, {
+    const response = await authFetch(`${API_URL}/agent/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, message: userMessage }),

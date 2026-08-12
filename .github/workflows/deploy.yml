@@ -77,6 +77,9 @@ jobs:
               containerImage="$IMAGE_TAG" \
               registryUsername="${{ github.actor }}" \
               registryPassword="${{ secrets.GHCR_PAT }}" \
+              authUsername="${{ secrets.AUTH_USERNAME }}" \
+              authPasswordHash="${{ secrets.AUTH_PASSWORD_HASH }}" \
+              jwtSecret="${{ secrets.JWT_SECRET }}" \
             --query properties.outputs -o json)
 
           echo "container_app_url=$(echo "$OUTPUTS" | jq -r '.containerAppUrl.value')" >> "$GITHUB_OUTPUT"

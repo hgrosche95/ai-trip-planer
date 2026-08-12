@@ -1,5 +1,7 @@
 'use client';
 
+import { authFetch } from '@/lib/auth';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function DeleteStopButton({
@@ -12,7 +14,7 @@ export default function DeleteStopButton({
   onDeleted: () => void;
 }) {
   async function handleDelete() {
-    await fetch(`${API_URL}/itineraries/${itineraryId}/stops/${stopId}`, {
+    await authFetch(`${API_URL}/itineraries/${itineraryId}/stops/${stopId}`, {
       method: 'DELETE',
     });
     onDeleted();

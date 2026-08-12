@@ -1,5 +1,7 @@
 'use client';
 
+import { authFetch } from '@/lib/auth';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function DeleteTripButton({
@@ -10,7 +12,7 @@ export default function DeleteTripButton({
   onDeleted: () => void;
 }) {
   async function handleDelete() {
-    await fetch(`${API_URL}/itineraries/${itineraryId}`, { method: 'DELETE' });
+    await authFetch(`${API_URL}/itineraries/${itineraryId}`, { method: 'DELETE' });
     onDeleted();
   }
 

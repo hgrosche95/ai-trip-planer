@@ -24,7 +24,17 @@ Voraussetzungen: Node.js 20+, Docker Desktop.
    ```
    docker compose up -d
    ```
-3. In `apps/api/.env` den `ANTHROPIC_API_KEY` eintragen (Key aus [console.anthropic.com](https://console.anthropic.com); wird separat vom Claude-Abo abgerechnet).
+3. In `apps/api/.env` den `ANTHROPIC_API_KEY` eintragen (Key aus [console.anthropic.com](https://console.anthropic.com); wird separat vom Claude-Abo abgerechnet), sowie die Login-Zugangsdaten für die eigene App:
+   ```
+   AUTH_USERNAME=dein-username
+   AUTH_PASSWORD_HASH=<bcrypt-Hash, siehe unten>
+   JWT_SECRET=<zufälliger String, siehe unten>
+   ```
+   Hash und Secret generieren:
+   ```bash
+   node -e "console.log(require('bcrypt').hashSync('DEIN_PASSWORT', 10))"
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   ```
 4. Datenbank-Migrationen anwenden (nur beim allerersten Setup nötig, danach nur bei Schema-Änderungen):
    ```
    cd apps/api && npx prisma migrate dev
@@ -41,12 +51,15 @@ Voraussetzungen: Node.js 20+, Docker Desktop.
 
 ## Backend-Endpunkte (`apps/api`)
 
-- `GET /health` – prüft die Datenbankverbindung
-- `POST /agent/chat` – Chat mit dem Reiseplaner-Agenten, Body: `{ "sessionId": "...", "message": "..." }`
-- `GET /itineraries` – Liste aller gespeicherten Reisen
-- `GET /itineraries/:id` – Details einer Reise inkl. Tagesplan-Punkte
-- `DELETE /itineraries/:id` – löscht eine Reise (inkl. ihrer Programmpunkte)
-- `DELETE /itineraries/:id/stops/:stopId` – löscht einen einzelnen Programmpunkt
+- `GET /health` – prüft die Datenbankverbindung (offen, kein Login nötig – Azure Container Apps pingt das ungeachtet von Auth)
+- `POST /auth/login` – Login, Body: `{ "username": "...", "password": "..." }`, gibt bei Erfolg `{ "accessToken": "..." }` zurück
+- `POST /agent/chat` 🔒 – Chat mit dem Reiseplaner-Agenten, Body: `{ "sessionId": "...", "message": "..." }`
+- `GET /itineraries` 🔒 – Liste aller gespeicherten Reisen
+- `GET /itineraries/:id` 🔒 – Details einer Reise inkl. Tagesplan-Punkte
+- `DELETE /itineraries/:id` 🔒 – löscht eine Reise (inkl. ihrer Programmpunkte)
+- `DELETE /itineraries/:id/stops/:stopId` 🔒 – löscht einen einzelnen Programmpunkt
+
+🔒 = verlangt einen gültigen JWT im `Authorization: Bearer <token>`-Header (per `POST /auth/login` erhalten). Das Frontend kümmert sich darum automatisch (Login-Seite unter `/login`, Token liegt im `localStorage`).
 
 Gespeicherte Reisepläne lassen sich auch mit `npx prisma studio` (in `apps/api`) im Browser unter `http://localhost:5555` einsehen.
 
@@ -139,6 +152,7 @@ Falls Federated Credentials im eigenen Tenant nicht eingerichtet werden können:
 | `POSTGRES_ADMIN_LOGIN`, `POSTGRES_ADMIN_PASSWORD` | Zugangsdaten für den Postgres Flexible Server |
 | `ANTHROPIC_API_KEY` | für den Agenten im Backend (existiert vermutlich schon aus der CI-Pipeline) |
 | `GHCR_PAT` | GitHub Personal Access Token mit Scope `read:packages` – wird als Registry-Pull-Credential in die Container App geschrieben (das kurzlebige `GITHUB_TOKEN` reicht dafür nicht, siehe Kommentar in `deploy.yml`) |
+| `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `JWT_SECRET` | Login-Zugangsdaten fürs deployte Backend (`POST /auth/login`) – gleiche Werte/gleiches Prinzip wie in `apps/api/.env` lokal, siehe [Lokales Setup](#lokales-setup) für die Generierung. Ruhig ein anderes Passwort als lokal verwenden. |
 
 **3. Deployen:** Push auf `main` (oder manuell über den "Run workflow"-Button bei `deploy.yml`) baut das Backend-Image, deployt die Bicep-Templates und veröffentlicht das Frontend – alles automatisch.
 
@@ -160,7 +174,7 @@ az postgres flexible-server start --name trip-planner-dev-psql3 --resource-group
 
 Ein gestoppter Server startet sich nach 7 Tagen automatisch wieder (Azure-Limit) – bei längeren Pausen den Befehl ggf. wiederholen, oder die Ressourcen bei Nichtgebrauch mit `az group delete` komplett entfernen (dann müsste vor dem nächsten Deployment allerdings `npx prisma migrate deploy` erneut laufen, da eine neue, leere Datenbank entsteht).
 
-**Wichtig:** Das Stoppen von Postgres allein schützt **nicht** vor unautorisierter Nutzung des Anthropic-API-Keys – `/agent/chat` ruft die Anthropic-API auf, bevor überhaupt auf die Datenbank zugegriffen wird (nur `save_itinerary` braucht die DB). Die API hat aktuell keine Authentifizierung. Um wirklich jeden Zugriff zu unterbinden (z. B. bei längerer Pause oder wenn die URL versehentlich öffentlich geteilt wurde), die Container-App-Revision deaktivieren:
+**Wichtig:** Das Stoppen von Postgres allein schützt **nicht** vor unautorisierter Nutzung des Anthropic-API-Keys – `/agent/chat` ruft die Anthropic-API auf, bevor überhaupt auf die Datenbank zugegriffen wird (nur `save_itinerary` braucht die DB). `/agent/chat` verlangt inzwischen einen gültigen Login (siehe [Backend-Endpunkte](#backend-endpunkte-appsapi)), das ist die eigentliche Absicherung gegen fremde Nutzung. Für den Fall, dass die Login-Zugangsdaten mal kompromittiert werden (oder man einfach jeden Zugriff inkl. `/health` unterbinden will, z. B. bei längerer Pause), bleibt die Container-App-Revision als zusätzlicher Not-Aus-Schalter:
 
 ```bash
 # aktuelle Revision ermitteln
