@@ -65,21 +65,37 @@ jobs:
       # abgelaufen.
       - name: Infrastruktur deployen
         id: infra
+        # Secrets kommen über env: rein statt direkt per ${{ }} in den Bash-Befehl
+        # interpoliert zu werden. Grund: ${{ secrets.X }} wird VOR der Bash-Ausführung
+        # als reiner Text eingesetzt - stünde der Wert direkt in doppelten
+        # Anführungszeichen im Skript, würde Bash "$"-Zeichen darin als (leere)
+        # Variablen interpretieren. bcrypt-Hashes fangen immer mit "$2b$" an, das hat
+        # AUTH_PASSWORD_HASH bisher bei jedem Deploy unbemerkt zerstört. Der Umweg über
+        # env: + "$VARNAME" liest den Wert dagegen unverändert aus der Umgebungsvariable,
+        # ohne ihn nochmal auf "$"-Sequenzen zu parsen.
+        env:
+          POSTGRES_ADMIN_LOGIN: ${{ secrets.POSTGRES_ADMIN_LOGIN }}
+          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          AUTH_USERNAME: ${{ secrets.AUTH_USERNAME }}
+          AUTH_PASSWORD_HASH: ${{ secrets.AUTH_PASSWORD_HASH }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           OUTPUTS=$(az deployment group create \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --template-file infra/main.bicep \
             --parameters infra/main.parameters.json \
             --parameters \
-              postgresAdminLogin="${{ secrets.POSTGRES_ADMIN_LOGIN }}" \
-              postgresAdminPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
-              anthropicApiKey="${{ secrets.ANTHROPIC_API_KEY }}" \
+              postgresAdminLogin="$POSTGRES_ADMIN_LOGIN" \
+              postgresAdminPassword="$POSTGRES_ADMIN_PASSWORD" \
+              anthropicApiKey="$ANTHROPIC_API_KEY" \
               containerImage="$IMAGE_TAG" \
               registryUsername="${{ github.actor }}" \
-              registryPassword="${{ secrets.GHCR_PAT }}" \
-              authUsername="${{ secrets.AUTH_USERNAME }}" \
-              authPasswordHash="${{ secrets.AUTH_PASSWORD_HASH }}" \
-              jwtSecret="${{ secrets.JWT_SECRET }}" \
+              registryPassword="$GHCR_PAT" \
+              authUsername="$AUTH_USERNAME" \
+              authPasswordHash="$AUTH_PASSWORD_HASH" \
+              jwtSecret="$JWT_SECRET" \
             --query properties.outputs -o json)
 
           echo "container_app_url=$(echo "$OUTPUTS" | jq -r '.containerAppUrl.value')" >> "$GITHUB_OUTPUT"
