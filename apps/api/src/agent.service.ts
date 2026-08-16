@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from './prisma.service';
 import { tools, searchFlights, searchHotels } from './agent-tools';
 import { StopCategory } from '../generated/prisma/client';
-import appInsights from 'applicationinsights';
+import * as appInsights from 'applicationinsights';
 
 interface SaveItineraryInput {
   destination: string;
