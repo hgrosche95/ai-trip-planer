@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from './prisma.service';
 import { tools, searchFlights, searchHotels } from './agent-tools';
 import { StopCategory } from '../generated/prisma/client';
+import * as appInsights from 'applicationinsights';
 
 interface SaveItineraryInput {
   destination: string;
@@ -171,7 +172,13 @@ export class AgentService {
       },
       include: { stops: true },
     });
-
+    appInsights.defaultClient?.trackEvent({
+      name: 'ItinerarySaved',
+      properties: {
+        destination: input.destination,
+        stopCount: String(input.stops.length),
+      },
+    });
     return { saved: true, itineraryId: itinerary.id };
   }
 }

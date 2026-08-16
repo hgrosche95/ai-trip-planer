@@ -29,6 +29,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "applicationinsights": "^3.16.0",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
     "passport": "^0.7.0",
