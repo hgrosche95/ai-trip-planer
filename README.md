@@ -118,7 +118,7 @@ Das Projekt lässt sich per Infrastructure-as-Code (Bicep, `infra/`) nach Azure 
 | **Azure Static Web Apps** | Hosting des Next.js-Frontends als statischer Export (HTML/JS/CSS, globales CDN, kostenloses TLS) |
 | **Azure Container Apps** | Laufzeitumgebung fürs NestJS-Backend, Scale-to-Zero (keine Kosten im Leerlauf) |
 | **Azure Database for PostgreSQL – Flexible Server** | Verwaltete Postgres-Datenbank, Burstable-Tier (günstigste SKU) |
-| **Application Insights + Log Analytics** | Monitoring/Logs des Backends (Connection-String ist als Secret hinterlegt; die App selbst sendet aktuell noch keine Telemetrie – dafür müsste noch das Application-Insights-SDK in `apps/api` eingebunden werden) |
+| **Application Insights + Log Analytics** | Monitoring/Logs des Backends – `applicationinsights`-SDK läuft in `apps/api` (Setup in `src/tracing.ts`, ganz am Anfang von `main.ts` geladen), erfasst automatisch Requests/Dependencies/Exceptions/Konsolen-Logs plus ein Custom Event `ItinerarySaved`. Abrufbar im Portal unter "Live Metrics"/"Logs" (KQL) oder per `az monitor app-insights query` |
 | **GitHub Container Registry (ghcr.io)** | Hostet das Backend-Docker-Image |
 
 Alle Ressourcen werden über `infra/main.bicep` (bindet die Module aus `infra/modules/` ein) in einer einzigen Resource Group angelegt.
@@ -159,6 +159,11 @@ Falls Federated Credentials im eigenen Tenant nicht eingerichtet werden können:
 **3. Deployen:** Push auf `main` (oder manuell über den "Run workflow"-Button bei `deploy.yml`) baut das Backend-Image, deployt die Bicep-Templates und veröffentlicht das Frontend – alles automatisch.
 
 Region/Namens-Präfix lassen sich in `infra/main.parameters.json` anpassen.
+
+**Secrets nachträglich ändern (z. B. Login-Passwort rotieren):** GitHub-Secret aktualisieren und `deploy.yml` erneut laufen lassen reicht **nicht automatisch** – Azure Container Apps legt bei einer reinen Secret-*Wert*-Änderung (ohne Änderung an Image-Tag/Env-Var-Namen) keine neue Revision an, der laufende Container behält seine beim Start eingelesenen (alten) Werte. Nach jeder Secret-Rotation zusätzlich eine neue Revision erzwingen:
+```bash
+az containerapp update --name trip-planner-dev-api --resource-group trip-planner-dev-rg --revision-suffix rotate$(date +%s)
+```
 
 ### Kosten im Blick behalten
 
