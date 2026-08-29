@@ -74,8 +74,7 @@ jobs:
         # env: + "$VARNAME" liest den Wert dagegen unverändert aus der Umgebungsvariable,
         # ohne ihn nochmal auf "$"-Sequenzen zu parsen.
         env:
-          POSTGRES_ADMIN_LOGIN: ${{ secrets.POSTGRES_ADMIN_LOGIN }}
-          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GHCR_PAT: ${{ secrets.GHCR_PAT }}
           AUTH_USERNAME: ${{ secrets.AUTH_USERNAME }}
@@ -87,8 +86,7 @@ jobs:
             --template-file infra/main.bicep \
             --parameters infra/main.parameters.json \
             --parameters \
-              postgresAdminLogin="$POSTGRES_ADMIN_LOGIN" \
-              postgresAdminPassword="$POSTGRES_ADMIN_PASSWORD" \
+              databaseUrl="$DATABASE_URL" \
               anthropicApiKey="$ANTHROPIC_API_KEY" \
               containerImage="$IMAGE_TAG" \
               registryUsername="${{ github.actor }}" \
@@ -100,29 +98,11 @@ jobs:
 
           echo "container_app_url=$(echo "$OUTPUTS" | jq -r '.containerAppUrl.value')" >> "$GITHUB_OUTPUT"
           echo "static_web_app_name=$(echo "$OUTPUTS" | jq -r '.staticWebAppName.value')" >> "$GITHUB_OUTPUT"
-          echo "postgres_server_name=$(echo "$OUTPUTS" | jq -r '.postgresServerName.value')" >> "$GITHUB_OUTPUT"
-          echo "postgres_server_fqdn=$(echo "$OUTPUTS" | jq -r '.postgresServerFqdn.value')" >> "$GITHUB_OUTPUT"
-          echo "postgres_database_name=$(echo "$OUTPUTS" | jq -r '.postgresDatabaseName.value')" >> "$GITHUB_OUTPUT"
 
       # --- 3b. Datenbank-Migrationen anwenden -------------------------------------------
-      # Die Postgres-Firewall lässt nur Azure-interne Dienste durch (siehe postgres.bicep),
-      # der GitHub-Actions-Runner kommt von außen nicht durch. Deshalb: eigene IP kurz
-      # freischalten, migrieren, Regel wieder entfernen ("if: always()", damit das auch bei
-      # einem fehlschlagenden migrate deploy passiert und keine offene Regel liegen bleibt).
-      - name: Runner-IP ermitteln
-        id: runner-ip
-        run: echo "ip=$(curl -s https://api.ipify.org)" >> "$GITHUB_OUTPUT"
-
-      - name: Firewall-Regel für Migrationen öffnen
-        run: |
-          az postgres flexible-server firewall-rule create \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --server-name "${{ steps.infra.outputs.postgres_server_name }}" \
-            --name github-actions-runner \
-            --start-ip-address "${{ steps.runner-ip.outputs.ip }}" \
-            --end-ip-address "${{ steps.runner-ip.outputs.ip }}" \
-            --output none
-
+      # Neon ist standardmäßig öffentlich erreichbar (kein IP-Firewall-Handshake wie bei
+      # Azure Postgres Flexible Server nötig), daher entfällt das Öffnen/Schließen einer
+      # Firewall-Regel für den Runner.
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -133,18 +113,8 @@ jobs:
       - name: Migrationen anwenden
         working-directory: apps/api
         env:
-          DATABASE_URL: postgresql://${{ secrets.POSTGRES_ADMIN_LOGIN }}:${{ secrets.POSTGRES_ADMIN_PASSWORD }}@${{ steps.infra.outputs.postgres_server_fqdn }}:5432/${{ steps.infra.outputs.postgres_database_name }}?sslmode=require
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma migrate deploy
-
-      - name: Firewall-Regel wieder entfernen
-        if: always()
-        run: |
-          az postgres flexible-server firewall-rule delete \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --server-name "${{ steps.infra.outputs.postgres_server_name }}" \
-            --name github-actions-runner \
-            --yes \
-            --output none
 
       # --- 4. Frontend bauen ------------------------------------------------------------
       # NEXT_PUBLIC_API_URL muss zur BUILD-Zeit gesetzt sein (landet im statischen JS-
