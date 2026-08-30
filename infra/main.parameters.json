@@ -8,14 +8,8 @@
     "staticWebAppLocation": {
       "value": "eastus2"
     },
-    "postgresLocation": {
-      "value": "swedencentral"
-    },
     "namePrefix": {
       "value": "trip-planner-dev"
-    },
-    "databaseName": {
-      "value": "trip_planner"
     }
   }
 }

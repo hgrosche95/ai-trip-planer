@@ -6,22 +6,8 @@ param location string = resourceGroup().location
 @description('Region für die Static Web App. Static Web Apps sind nur in wenigen Regionen verfügbar, deshalb ein eigener Parameter statt der allgemeinen "location".')
 param staticWebAppLocation string = 'eastus2'
 
-@description('Region für den PostgreSQL-Server. Eigener Parameter, weil Azure-Subscriptions (v. a. neue/Trial-Subscriptions) für einzelne Dienste unterschiedliche Regionen sperren können - "location" kann daher für Postgres ungeeignet sein, obwohl sie für andere Ressourcen funktioniert.')
-param postgresLocation string = 'swedencentral'
-
-@description('Basis-Name für alle Ressourcen, z. B. "trip-planner-dev". Fließt in global-eindeutige Namen (Postgres-Server, Static Web App) mit ein, daher niedrig halten und ggf. um ein Zufalls-Suffix ergänzen.')
+@description('Basis-Name für alle Ressourcen, z. B. "trip-planner-dev". Fließt in global-eindeutige Namen (Static Web App) mit ein, daher niedrig halten und ggf. um ein Zufalls-Suffix ergänzen.')
 param namePrefix string
-
-@description('Name der Anwendungsdatenbank.')
-param databaseName string = 'trip_planner'
-
-@description('Administrator-Benutzername für den PostgreSQL-Server.')
-@secure()
-param postgresAdminLogin string
-
-@description('Administrator-Passwort für den PostgreSQL-Server.')
-@secure()
-param postgresAdminPassword string
 
 @description('Vollständige Backend-Image-Referenz, z. B. ghcr.io/<owner>/<repo>-api:<tag>.')
 param containerImage string
@@ -32,6 +18,10 @@ param registryUsername string
 @description('Passwort/Token für den GHCR-Login (z. B. ein GitHub PAT mit read:packages).')
 @secure()
 param registryPassword string
+
+@description('Fertiger Postgres-Connection-String fürs Backend (z. B. von Neon), inkl. sslmode=require. Wird komplett von außen übergeben statt aus einzelnen Azure-Postgres-Parametern zusammengesetzt, weil die Datenbank nicht mehr von diesem Template provisioniert wird.')
+@secure()
+param databaseUrl string
 
 @description('Anthropic-API-Key fürs Backend.')
 @secure()
@@ -55,23 +45,6 @@ module appInsights 'modules/app-insights.bicep' = {
     namePrefix: namePrefix
   }
 }
-
-module postgres 'modules/postgres.bicep' = {
-  name: 'postgres-deployment'
-  params: {
-    location: postgresLocation
-    namePrefix: namePrefix
-    serverName: '${namePrefix}-psql3'
-    databaseName: databaseName
-    administratorLogin: postgresAdminLogin
-    administratorPassword: postgresAdminPassword
-  }
-}
-
-// Der eigentliche Connection-String wird hier zusammengesetzt (nicht im postgres-Modul
-// ausgegeben), damit das Passwort nie als Modul-Output durch die Deployment-Historie läuft.
-// sslmode=require, weil Flexible Server TLS-Verbindungen erzwingt.
-var databaseUrl = 'postgresql://${postgresAdminLogin}:${postgresAdminPassword}@${postgres.outputs.serverFqdn}:5432/${databaseName}?sslmode=require'
 
 module staticWebApp 'modules/static-web-app.bicep' = {
   name: 'static-web-app-deployment'
@@ -103,6 +76,3 @@ module containerApp 'modules/container-app.bicep' = {
 output containerAppUrl string = containerApp.outputs.containerAppUrl
 output staticWebAppName string = staticWebApp.outputs.staticWebAppName
 output staticWebAppDefaultHostname string = staticWebApp.outputs.staticWebAppDefaultHostname
-output postgresServerName string = postgres.outputs.serverName
-output postgresServerFqdn string = postgres.outputs.serverFqdn
-output postgresDatabaseName string = postgres.outputs.databaseName
