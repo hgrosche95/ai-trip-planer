@@ -3,6 +3,13 @@
 KI-gestützter Reiseplaner zum Lernen von Next.js, NestJS, Prisma/PostgreSQL,
 echten LLM-Tool-Use-Agent-Workflows und E2E-Testing mit Playwright.
 
+**Live-Demo:** https://witty-pond-0504bdc0f.7.azurestaticapps.net (Frontend, Azure Static Web Apps; siehe [Architektur](#architektur-azure))
+
+## Screenshot
+
+![Chat-Oberfläche des Reiseplaners](./docs/screenshots/chat.png)
+![Detailliertere Übersicht](./docs/screenshots/trip.png)
+
 ## Struktur
 
 - `apps/web` – Next.js Frontend (Chat-Oberfläche + Reiseplan-Anzeige unter `/trips`), als statischer Export gebaut
