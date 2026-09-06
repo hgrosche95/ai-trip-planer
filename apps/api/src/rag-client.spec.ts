@@ -11,20 +11,21 @@ describe('searchTravelKnowledge', () => {
   it('maps a successful response to the flattened hit shape', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        results: [
-          {
-            content: 'Pastéis de Nata sind das bekannteste Gebäck.',
-            score: 0.68,
-            document_title: 'Lissabon – Reiseziel-Überblick',
-            document_source: 'Eigene Recherche',
-            document_url: null,
-            document_license: 'Eigene Inhalte',
-          },
-        ],
-        reranked: false,
-      }),
-    }) as unknown as typeof fetch;
+      json: () =>
+        Promise.resolve({
+          results: [
+            {
+              content: 'Pastéis de Nata sind das bekannteste Gebäck.',
+              score: 0.68,
+              document_title: 'Lissabon – Reiseziel-Überblick',
+              document_source: 'Eigene Recherche',
+              document_url: null,
+              document_license: 'Eigene Inhalte',
+            },
+          ],
+          reranked: false,
+        }),
+    });
 
     const result = await searchTravelKnowledge('Was isst man in Lissabon?');
 
@@ -45,8 +46,8 @@ describe('searchTravelKnowledge', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 503,
-      json: async () => ({}),
-    }) as unknown as typeof fetch;
+      json: () => Promise.resolve({}),
+    });
 
     const result = await searchTravelKnowledge('Frage');
 
@@ -58,7 +59,7 @@ describe('searchTravelKnowledge', () => {
   it('returns a fallback instead of throwing when the RAG service is unreachable', async () => {
     global.fetch = jest
       .fn()
-      .mockRejectedValue(new Error('connect ECONNREFUSED')) as unknown as typeof fetch;
+      .mockRejectedValue(new Error('connect ECONNREFUSED'));
 
     const result = await searchTravelKnowledge('Frage');
 
