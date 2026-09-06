@@ -42,6 +42,7 @@ export interface LlmChatResult {
   toolCalls: LlmToolCall[];
   finishReason: LlmFinishReason;
   usage: LlmUsage;
+  model: string;
 }
 
 export interface LlmProvider {
