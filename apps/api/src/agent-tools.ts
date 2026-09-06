@@ -1,11 +1,11 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { LlmToolDefinition } from './llm/llm-provider.interface';
 
-export const tools: Anthropic.Tool[] = [
+export const tools: LlmToolDefinition[] = [
   {
     name: 'search_flights',
     description:
       'Sucht Flüge zu einem Reiseziel für einen bestimmten Zeitraum und ein Budget. Gibt eine Liste von Flugoptionen mit Preis zurück.',
-    input_schema: {
+    parameters: {
       type: 'object',
       properties: {
         destination: {
@@ -32,7 +32,7 @@ export const tools: Anthropic.Tool[] = [
     name: 'search_hotels',
     description:
       'Sucht Hotels an einem Reiseziel für einen bestimmten Zeitraum und ein Budget. Gibt eine Liste von Hotel-Optionen mit Preis zurück.',
-    input_schema: {
+    parameters: {
       type: 'object',
       properties: {
         destination: {

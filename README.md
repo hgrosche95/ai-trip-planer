@@ -14,7 +14,7 @@ echten LLM-Tool-Use-Agent-Workflows und E2E-Testing mit Playwright.
 ## Struktur
 
 - `apps/web` – Next.js Frontend (Chat-Oberfläche + Reiseplan-Anzeige unter `/trips`), als statischer Export gebaut
-- `apps/api` – NestJS Backend (inkl. `prisma/` Schema+Migrations, Prisma-Anbindung und Anthropic-Agent-Logik in `src/`), `Dockerfile` für den produktiven Container
+- `apps/api` – NestJS Backend (inkl. `prisma/` Schema+Migrations, Prisma-Anbindung und Agent-Logik in `src/`, LLM-Anbieter austauschbar über `src/llm/`), `Dockerfile` für den produktiven Container
 - `data/knowledge` – Markdown-Wissensbasis für RAG (Reiseziel-Dokumente, siehe [Datenherkunft & Lizenzen](#wissensbasis-datenherkunft))
 - `e2e` – Playwright End-to-End-Tests
 - `infra` – Bicep-Templates für das Azure-Deployment (siehe [Architektur](#architektur-azure))
@@ -33,17 +33,22 @@ Voraussetzungen: Node.js 20+, Docker Desktop.
    ```
    docker compose up -d
    ```
-3. In `apps/api/.env` den `ANTHROPIC_API_KEY` eintragen (Key aus [console.anthropic.com](https://console.anthropic.com); wird separat vom Claude-Abo abgerechnet), sowie die Login-Zugangsdaten für die eigene App:
+3. `apps/api/.env.example` nach `apps/api/.env` kopieren und ausfüllen:
    ```
-   AUTH_USERNAME=dein-username
-   AUTH_PASSWORD_HASH=<bcrypt-Hash, siehe unten>
-   JWT_SECRET=<zufälliger String, siehe unten>
+   cp apps/api/.env.example apps/api/.env
    ```
-   Hash und Secret generieren:
-   ```bash
-   node -e "console.log(require('bcrypt').hashSync('DEIN_PASSWORT', 10))"
-   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-   ```
+   - **LLM-Provider:** Standardmäßig `LLM_PROVIDER=groq` mit kostenlosem `GROQ_API_KEY` (siehe [console.groq.com/keys](https://console.groq.com/keys); Free Tier: 30 Requests/Minute, ca. 1.000/Tag, 8.000 Tokens/Minute). Alternativ `LLM_PROVIDER=anthropic` mit `ANTHROPIC_API_KEY` (siehe [console.anthropic.com](https://console.anthropic.com); wird separat abgerechnet).
+   - **Login-Zugangsdaten** für die eigene App:
+     ```
+     AUTH_USERNAME=dein-username
+     AUTH_PASSWORD_HASH=<bcrypt-Hash, siehe unten>
+     JWT_SECRET=<zufälliger String, siehe unten>
+     ```
+     Hash und Secret generieren:
+     ```bash
+     node -e "console.log(require('bcrypt').hashSync('DEIN_PASSWORT', 10))"
+     node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+     ```
 4. Datenbank-Migrationen anwenden (nur beim allerersten Setup nötig, danach nur bei Schema-Änderungen):
    ```
    cd apps/api && npx prisma migrate dev
