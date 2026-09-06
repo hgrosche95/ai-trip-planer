@@ -70,9 +70,7 @@ describe('RetryingLlmProvider', () => {
     const sleep = jest.fn().mockResolvedValue(undefined);
     const provider = new RetryingLlmProvider(inner, 2, sleep);
 
-    await expect(provider.chat([], [], { maxTokens: 10 })).rejects.toBe(
-      error,
-    );
+    await expect(provider.chat([], [], { maxTokens: 10 })).rejects.toBe(error);
     expect(chat).toHaveBeenCalledTimes(3); // initial attempt + 2 retries
   });
 
@@ -83,9 +81,7 @@ describe('RetryingLlmProvider', () => {
     const sleep = jest.fn();
     const provider = new RetryingLlmProvider(inner, 3, sleep);
 
-    await expect(provider.chat([], [], { maxTokens: 10 })).rejects.toBe(
-      error,
-    );
+    await expect(provider.chat([], [], { maxTokens: 10 })).rejects.toBe(error);
     expect(chat).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
   });

@@ -33,13 +33,17 @@ export class GroqProvider implements LlmProvider {
       max_completion_tokens: options.maxTokens,
       temperature: options.temperature,
       messages: messages.flatMap((m) => this.toOpenAiMessages(m)),
-      tools: tools.length ? tools.map((tool) => this.toOpenAiTool(tool)) : undefined,
+      tools: tools.length
+        ? tools.map((tool) => this.toOpenAiTool(tool))
+        : undefined,
     });
 
     return this.fromOpenAiResponse(response);
   }
 
-  private toOpenAiTool(tool: LlmToolDefinition): OpenAI.Chat.ChatCompletionTool {
+  private toOpenAiTool(
+    tool: LlmToolDefinition,
+  ): OpenAI.Chat.ChatCompletionTool {
     return {
       type: 'function',
       function: {
@@ -78,7 +82,7 @@ export class GroqProvider implements LlmProvider {
 
     return [
       {
-        role: message.role as 'system' | 'user' | 'assistant',
+        role: message.role,
         content: message.content ?? '',
       },
     ];
@@ -89,8 +93,9 @@ export class GroqProvider implements LlmProvider {
   ): LlmChatResult {
     const choice = response.choices[0];
     const toolCalls: LlmToolCall[] = (choice.message.tool_calls ?? [])
-      .filter((call): call is OpenAI.Chat.ChatCompletionMessageFunctionToolCall =>
-        call.type === 'function',
+      .filter(
+        (call): call is OpenAI.Chat.ChatCompletionMessageFunctionToolCall =>
+          call.type === 'function',
       )
       .map((call) => ({
         id: call.id,

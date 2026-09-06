@@ -13,7 +13,8 @@ export const tools: LlmToolDefinition[] = [
       properties: {
         query: {
           type: 'string',
-          description: 'Die Suchanfrage, z.B. "Was kann man in Lissabon essen?"',
+          description:
+            'Die Suchanfrage, z.B. "Was kann man in Lissabon essen?"',
         },
       },
       required: ['query'],

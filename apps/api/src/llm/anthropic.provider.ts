@@ -74,7 +74,7 @@ export class AnthropicProvider implements LlmProvider {
     }
 
     return {
-      role: message.role as 'user' | 'assistant',
+      role: message.role,
       content: message.content ?? '',
     };
   }
