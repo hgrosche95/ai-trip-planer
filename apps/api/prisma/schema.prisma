@@ -73,7 +73,16 @@ model Document {
   url       String?
   license   String
   language  String   @default("de")
+  // Relativer Dateiname in data/knowledge (z.B. "lissabon.md") - stabiler
+  // Schlüssel, über den die Python-Ingestion-Pipeline (services/rag) eine
+  // Markdown-Datei über mehrere Läufe hinweg wiedererkennt.
+  sourcePath String  @unique
+  // sha256 über den kompletten Datei-Inhalt (Frontmatter + Text). Ändert
+  // sich der Hash nicht, überspringt die Ingestion die Datei komplett -
+  // das macht sie idempotent, ohne bei jedem Lauf neu zu embedden.
+  contentHash String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   chunks DocumentChunk[]
 }
@@ -89,9 +98,12 @@ model DocumentChunk {
   // rohen Postgres-Typ unverändert durch die Migration durch, erzeugt aber
   // keine Felder im generierten Prisma Client - Lesen/Schreiben/Vektorsuche
   // läuft für diese Spalte über $queryRaw/$executeRaw (siehe Phase 3/4).
-  // 384 Dimensionen passend zum lokalen Embedding-Modell aus Phase 3
-  // (sentence-transformers/all-MiniLM-L6-v2); bei Modellwechsel muss diese
-  // Zahl und der bestehende Datenbestand neu embedded werden.
+  // 384 Dimensionen passend zum lokalen Embedding-Modell im RAG-Service
+  // (services/rag, sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+  // via fastembed - das einzige mehrsprachige Modell mit 384 Dimensionen in
+  // fastembeds Registry, siehe services/rag/src/rag_service/config.py);
+  // bei Modellwechsel muss diese Zahl und der bestehende Datenbestand neu
+  // embedded werden.
   embedding Unsupported("vector(384)")
 
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
