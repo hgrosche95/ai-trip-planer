@@ -17,6 +17,7 @@ echten LLM-Tool-Use-Agent-Workflows und E2E-Testing mit Playwright.
 - `apps/api` – NestJS Backend (inkl. `prisma/` Schema+Migrations, Prisma-Anbindung und Agent-Logik in `src/`, LLM-Anbieter austauschbar über `src/llm/`), `Dockerfile` für den produktiven Container
 - `data/knowledge` – Markdown-Wissensbasis für RAG (Reiseziel-Dokumente, siehe [Datenherkunft & Lizenzen](#wissensbasis-datenherkunft))
 - `services/rag` – Python/FastAPI-Service für lokale Embeddings und semantische Suche (siehe [services/rag/README.md](services/rag/README.md))
+- `packages/mcp-server` – MCP-Server, macht die Trip-Planner-Tools für Claude Code & Co. nutzbar (siehe [packages/mcp-server/README.md](packages/mcp-server/README.md))
 - `e2e` – Playwright End-to-End-Tests
 - `infra` – Bicep-Templates für das Azure-Deployment (siehe [Architektur](#architektur-azure))
 - `docker-compose.yml` – lokale PostgreSQL-Instanz + RAG-Service (siehe [Architektur](#architektur-lokal))
@@ -99,6 +100,7 @@ Voraussetzungen: Node.js 20+, Docker Desktop.
 - `GET /health` – prüft die Datenbankverbindung (offen, kein Login nötig – Azure Container Apps pingt das ungeachtet von Auth)
 - `POST /auth/login` – Login, Body: `{ "username": "...", "password": "..." }`, gibt bei Erfolg `{ "accessToken": "..." }` zurück
 - `POST /agent/chat` 🔒 – Chat mit dem Reiseplaner-Agenten, Body: `{ "sessionId": "...", "message": "..." }`
+- `POST /itineraries` 🔒 – Legt einen neuen Reiseplan mit Tagesplan an (dieselbe Logik, die auch der Agent per `save_itinerary`-Tool und der MCP-Server per `create_itinerary` nutzen)
 - `GET /itineraries` 🔒 – Liste aller gespeicherten Reisen
 - `GET /itineraries/:id` 🔒 – Details einer Reise inkl. Tagesplan-Punkte
 - `DELETE /itineraries/:id` 🔒 – löscht eine Reise (inkl. ihrer Programmpunkte)

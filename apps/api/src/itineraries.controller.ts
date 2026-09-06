@@ -1,11 +1,25 @@
-import { Controller, Get, Param, Delete, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
 import { ItinerariesService } from './itineraries.service';
+import type { CreateItineraryInput } from './itineraries.service';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
 @Controller('itineraries')
 @UseGuards(JwtAuthGuard)
 export class ItinerariesController {
   constructor(private readonly itinerariesService: ItinerariesService) {}
+
+  @Post()
+  create(@Body() body: CreateItineraryInput) {
+    return this.itinerariesService.create(body);
+  }
 
   @Get()
   findAll() {

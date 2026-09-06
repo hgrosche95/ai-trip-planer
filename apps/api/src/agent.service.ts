@@ -1,13 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
+import { ItinerariesService } from './itineraries.service';
+import type { CreateItineraryInput } from './itineraries.service';
 import {
   tools,
   searchFlights,
   searchHotels,
   searchTravelKnowledge,
 } from './agent-tools';
-import { StopCategory } from '../generated/prisma/client';
-import * as appInsights from 'applicationinsights';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import type {
   LlmMessage,
@@ -35,23 +34,6 @@ export interface ChatResult {
   // aber nichts Passendes gefunden" - im Frontend zwei unterschiedliche
   // UI-Botschaften (siehe apps/web).
   searchAttempted: boolean;
-}
-
-interface SaveItineraryInput {
-  destination: string;
-  startDate: string;
-  endDate: string;
-  budgetCents: number;
-  currency?: string;
-  preferences?: string[];
-  stops: {
-    dayNumber: number;
-    order: number;
-    title: string;
-    description?: string;
-    category?: StopCategory;
-    costCents?: number;
-  }[];
 }
 
 const SYSTEM_PROMPT = `Du bist ein Reiseplaner-Assistent. Du hilfst Nutzern dabei, einen Reiseplan zu erstellen, indem du im Dialog Ziel, Reisedaten, Budget und Präferenzen erfragst.
@@ -118,11 +100,14 @@ export class AgentService {
   private readonly conversations = new Map<string, LlmMessage[]>();
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly itinerariesService: ItinerariesService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
   ) {}
 
-  async sendMessage(sessionId: string, userMessage: string): Promise<ChatResult> {
+  async sendMessage(
+    sessionId: string,
+    userMessage: string,
+  ): Promise<ChatResult> {
     const history = this.getHistory(sessionId);
     history.push({ role: 'user', content: userMessage });
 
@@ -189,9 +174,13 @@ export class AgentService {
       { role: 'system', content: SYSTEM_PROMPT },
       ...trimHistory(history, MAX_HISTORY_MESSAGES),
     ];
-    const result = await this.llm.chat(messages, [...tools, saveItineraryTool], {
-      maxTokens: MAX_TOKENS,
-    });
+    const result = await this.llm.chat(
+      messages,
+      [...tools, saveItineraryTool],
+      {
+        maxTokens: MAX_TOKENS,
+      },
+    );
     this.logger.log(
       `LLM-Aufruf: ${result.usage.inputTokens} Input-Tokens, ${result.usage.outputTokens} Output-Tokens`,
     );
@@ -214,48 +203,14 @@ export class AgentService {
       case 'search_travel_knowledge':
         return searchTravelKnowledge((input as { query: string }).query);
       case 'save_itinerary':
-        return this.saveItinerary(input as SaveItineraryInput);
+        return this.saveItinerary(input as CreateItineraryInput);
       default:
         return { error: `Unbekanntes Tool: ${name}` };
     }
   }
 
-  private async saveItinerary(input: SaveItineraryInput) {
-    const user = await this.prisma.user.upsert({
-      where: { email: 'guest@local.dev' },
-      update: {},
-      create: { email: 'guest@local.dev' },
-    });
-
-    const itinerary = await this.prisma.itinerary.create({
-      data: {
-        destination: input.destination,
-        startDate: new Date(input.startDate),
-        endDate: new Date(input.endDate),
-        budgetCents: input.budgetCents,
-        currency: input.currency ?? 'EUR',
-        preferences: input.preferences ?? [],
-        userId: user.id,
-        stops: {
-          create: input.stops.map((s) => ({
-            dayNumber: s.dayNumber,
-            order: s.order,
-            title: s.title,
-            description: s.description,
-            category: s.category ?? 'OTHER',
-            costCents: s.costCents,
-          })),
-        },
-      },
-      include: { stops: true },
-    });
-    appInsights.defaultClient?.trackEvent({
-      name: 'ItinerarySaved',
-      properties: {
-        destination: input.destination,
-        stopCount: String(input.stops.length),
-      },
-    });
+  private async saveItinerary(input: CreateItineraryInput) {
+    const itinerary = await this.itinerariesService.create(input);
     return { saved: true, itineraryId: itinerary.id };
   }
 }
