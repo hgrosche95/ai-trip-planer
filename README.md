@@ -16,6 +16,7 @@ echten LLM-Tool-Use-Agent-Workflows und E2E-Testing mit Playwright.
 - `apps/web` – Next.js Frontend (Chat-Oberfläche + Reiseplan-Anzeige unter `/trips`), als statischer Export gebaut
 - `apps/api` – NestJS Backend (inkl. `prisma/` Schema+Migrations, Prisma-Anbindung und Agent-Logik in `src/`, LLM-Anbieter austauschbar über `src/llm/`), `Dockerfile` für den produktiven Container
 - `data/knowledge` – Markdown-Wissensbasis für RAG (Reiseziel-Dokumente, siehe [Datenherkunft & Lizenzen](#wissensbasis-datenherkunft))
+- `services/rag` – Python/FastAPI-Service für lokale Embeddings und semantische Suche (siehe [services/rag/README.md](services/rag/README.md))
 - `e2e` – Playwright End-to-End-Tests
 - `infra` – Bicep-Templates für das Azure-Deployment (siehe [Architektur](#architektur-azure))
 - `docker-compose.yml` – lokale PostgreSQL-Instanz

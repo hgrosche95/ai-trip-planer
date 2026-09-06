@@ -10,3 +10,10 @@ coverage/
 .turbo/
 playwright-report/
 test-results/
+
+# Python (services/rag)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
