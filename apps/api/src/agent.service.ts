@@ -1,6 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import { tools, searchFlights, searchHotels } from './agent-tools';
+import {
+  tools,
+  searchFlights,
+  searchHotels,
+  searchTravelKnowledge,
+} from './agent-tools';
 import { StopCategory } from '../generated/prisma/client';
 import * as appInsights from 'applicationinsights';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
@@ -32,6 +37,7 @@ interface SaveItineraryInput {
 const SYSTEM_PROMPT = `Du bist ein Reiseplaner-Assistent. Du hilfst Nutzern dabei, einen Reiseplan zu erstellen, indem du im Dialog Ziel, Reisedaten, Budget und Präferenzen erfragst.
 
 Nutze die verfügbaren Werkzeuge:
+- search_travel_knowledge, um Faktenfragen zu einem Reiseziel (Sehenswürdigkeiten, Essen & Trinken, Transport) zu beantworten. Nutze es, BEVOR du aus dem Gedächtnis antwortest, und belege deine Aussage mit der zurückgegebenen Quelle (Titel + Quelle). Liefert es keine passenden Treffer, sag das ehrlich, statt zu raten oder zu spekulieren.
 - search_flights und search_hotels, um passende Optionen zu finden, sobald du Ziel, Zeitraum (Start-/Enddatum) und Budget kennst.
 - save_itinerary, um den fertigen Plan zu speichern, sobald du gemeinsam mit dem Nutzer einen konkreten Tagesplan mit einzelnen Programmpunkten erarbeitet hast.
 
@@ -156,6 +162,8 @@ export class AgentService {
         return searchFlights(input as Parameters<typeof searchFlights>[0]);
       case 'search_hotels':
         return searchHotels(input as Parameters<typeof searchHotels>[0]);
+      case 'search_travel_knowledge':
+        return searchTravelKnowledge((input as { query: string }).query);
       case 'save_itinerary':
         return this.saveItinerary(input as SaveItineraryInput);
       default:
