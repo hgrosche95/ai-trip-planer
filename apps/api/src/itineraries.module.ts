@@ -5,5 +5,6 @@ import { ItinerariesService } from './itineraries.service';
 @Module({
   controllers: [ItinerariesController],
   providers: [ItinerariesService],
+  exports: [ItinerariesService],
 })
 export class ItinerariesModule {}

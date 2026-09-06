@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AgentController } from './agent.controller';
 import { AgentService } from './agent.service';
+import { ItinerariesModule } from './itineraries.module';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { AnthropicProvider } from './llm/anthropic.provider';
 import { GroqProvider } from './llm/groq.provider';
 import { RetryingLlmProvider } from './llm/retrying-llm-provider';
 
 @Module({
+  imports: [ItinerariesModule],
   controllers: [AgentController],
   providers: [
     AgentService,
