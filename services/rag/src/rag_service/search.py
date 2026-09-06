@@ -10,6 +10,7 @@ class ChunkCandidateLike(Protocol):
     document_title: str
     document_source: str
     document_url: str | None
+    document_license: str
 
 
 class ChunkRepository(Protocol):
@@ -36,6 +37,7 @@ class SearchHit:
     document_title: str
     document_source: str
     document_url: str | None
+    document_license: str
 
 
 def perform_search(
@@ -70,6 +72,7 @@ def perform_search(
             document_title=c.document_title,
             document_source=c.document_source,
             document_url=c.document_url,
+            document_license=c.document_license,
         )
         for c in candidates
     ]
@@ -89,6 +92,7 @@ def perform_search(
                 document_title=hit.document_title,
                 document_source=hit.document_source,
                 document_url=hit.document_url,
+                document_license=hit.document_license,
             )
             for hit, score in reranked
         ]

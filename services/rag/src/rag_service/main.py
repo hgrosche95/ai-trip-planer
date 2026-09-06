@@ -96,6 +96,7 @@ def search(request: SearchRequest) -> SearchResponse:
                 document_title=hit.document_title,
                 document_source=hit.document_source,
                 document_url=hit.document_url,
+                document_license=hit.document_license,
             )
             for hit in hits
         ],

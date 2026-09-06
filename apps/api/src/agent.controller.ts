@@ -14,10 +14,6 @@ export class AgentController {
 
   @Post('chat')
   async chat(@Body() body: ChatRequest) {
-    const reply = await this.agentService.sendMessage(
-      body.sessionId,
-      body.message,
-    );
-    return { reply };
+    return this.agentService.sendMessage(body.sessionId, body.message);
   }
 }

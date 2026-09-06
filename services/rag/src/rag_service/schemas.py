@@ -56,6 +56,7 @@ class SearchResult(BaseModel):
     document_title: str
     document_source: str
     document_url: str | None
+    document_license: str
 
 
 class SearchResponse(BaseModel):

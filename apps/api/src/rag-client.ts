@@ -4,6 +4,7 @@ interface RagServiceSearchResult {
   document_title: string;
   document_source: string;
   document_url: string | null;
+  document_license: string;
 }
 
 interface RagServiceSearchResponse {
@@ -15,6 +16,7 @@ export interface TravelKnowledgeHit {
   content: string;
   title: string;
   source: string;
+  license: string;
   url: string | null;
   score: number;
 }
@@ -67,6 +69,7 @@ export async function searchTravelKnowledge(
         content: r.content,
         title: r.document_title,
         source: r.document_source,
+        license: r.document_license,
         url: r.document_url,
         score: r.score,
       })),

@@ -42,6 +42,7 @@ def _candidate(content: str, distance: float) -> ChunkCandidate:
         document_title=f"Titel für {content}",
         document_source="Testquelle",
         document_url=None,
+        document_license="Eigene Inhalte",
     )
 
 
@@ -139,6 +140,7 @@ class _RealEmbeddingFakeRepo:
                 document_title=self._titles[i],
                 document_source="Testwissensbasis",
                 document_url=None,
+                document_license="Eigene Inhalte",
             )
             for i in order
         ]
