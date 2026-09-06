@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:0.8.6-pg16
         env:
           POSTGRES_USER: trip_planner
           POSTGRES_PASSWORD: trip_planner
