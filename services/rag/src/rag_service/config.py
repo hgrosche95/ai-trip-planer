@@ -45,6 +45,23 @@ class Settings(BaseSettings):
     # Embedding-Aufruf).
     chunk_overlap_tokens: int = 20
 
+    search_default_top_k: int = 5
+    # Bei aktivem Reranking werden mehr Kandidaten per Vektorsuche geholt als
+    # am Ende zurückgegeben werden (schneller Bi-Encoder filtert grob vor,
+    # der langsamere Cross-Encoder sortiert nur die engere Auswahl neu) -
+    # Faktor 4, gedeckelt auf 50, damit ein hoher top_k den Cross-Encoder
+    # nicht mit zu vielen Kandidaten auf einmal belastet.
+    rerank_candidate_multiplier: int = 4
+    rerank_max_candidates: int = 50
+
+    # Standardmäßig AUS: das einzige mehrsprachige Reranking-Modell in
+    # fastembeds Registry (jinaai/jina-reranker-v2-base-multilingual) steht
+    # unter CC-BY-NC-4.0 (nicht-kommerziell) - für dieses Lern-/Portfolio-
+    # projekt unproblematisch, aber keine Lizenz, die man stillschweigend
+    # aktiv haben sollte. Bewusstes Opt-in per Env.
+    rerank_enabled: bool = False
+    rerank_model: str = "jinaai/jina-reranker-v2-base-multilingual"
+
 
 @lru_cache
 def get_settings() -> Settings:

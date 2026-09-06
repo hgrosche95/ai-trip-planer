@@ -1,9 +1,9 @@
 # RAG-Service
 
-FastAPI-Service für lokale Embeddings, Ingestion und (ab Schritt 3.3)
-semantische Suche über die Wissensbasis in `data/knowledge/`. Läuft
-komplett lokal über [fastembed](https://github.com/qdrant/fastembed) (ONNX,
-CPU) - kein API-Key, keine laufenden Kosten.
+FastAPI-Service für lokale Embeddings, Ingestion und semantische Suche über
+die Wissensbasis in `data/knowledge/`. Läuft komplett lokal über
+[fastembed](https://github.com/qdrant/fastembed) (ONNX, CPU) - kein
+API-Key, keine laufenden Kosten.
 
 ## Setup & Start
 
@@ -28,6 +28,8 @@ Siehe `.env.example`. Alle Variablen haben den Präfix `RAG_`:
 | `DATABASE_URL` | lokale Postgres aus `docker-compose.yml` | Dieselbe Datenbank wie `apps/api` - bewusst ohne `RAG_`-Präfix. Nur für die Ingestion-CLI relevant, `/health`/`/embed` brauchen keine DB |
 | `RAG_CHUNK_MAX_TOKENS` | `100` | Maximale Chunk-Größe in Tokens (Modell schneidet bei 128 hart ab, siehe unten) |
 | `RAG_CHUNK_OVERLAP_TOKENS` | `20` | Überlappung zwischen aufeinanderfolgenden Chunks in Tokens |
+| `RAG_RERANK_ENABLED` | `false` | Cross-Encoder-Reranking für `/search` an/aus (Lizenzgrund, siehe unten) |
+| `RAG_RERANK_MODEL` | `jinaai/jina-reranker-v2-base-multilingual` | Nur relevant, wenn Reranking aktiv ist |
 
 ## Wissensbasis einlesen (Ingestion)
 
@@ -51,6 +53,38 @@ Puffer, weil deutsche Komposita in mehr Subword-Tokens zerfallen als
 vergleichbare englische Wörter. Chunks werden an Absatzgrenzen gebildet
 (nicht mitten im Satz), 20 Tokens Overlap verhindern, dass ein Gedanke genau
 auf einer Chunk-Grenze ohne Kontext landet.
+
+## Suche (`POST /search`)
+
+```json
+{ "query": "Was kann man in Wien essen?", "top_k": 5, "min_score": 0.0 }
+```
+
+Embedded die Frage, holt per pgvector-Cosine-Distanz die ähnlichsten Chunks
+und gibt Text, Score, Dokumenttitel und Quelle zurück. `score` bedeutet je
+nach Modus etwas anderes: ohne Reranking `1 - Cosine-Distanz` (ungefähr
+0 bis 1, höher = ähnlicher), mit Reranking der rohe Cross-Encoder-Score
+(andere Skala, ebenfalls höher = besser) - die Antwort trägt ein `reranked`-
+Flag, damit Aufrufer wissen, welche Skala gerade gilt.
+
+**Bi-Encoder vs. Cross-Encoder:** Unser Embedding-Modell (ein Bi-Encoder)
+bildet Frage und Chunk *unabhängig voneinander* in denselben Vektorraum ab -
+einmal pro Text, das macht Vektorsuche über tausende Chunks überhaupt
+praktikabel, ist aber ungenauer. Ein Cross-Encoder bewertet Frage und Chunk
+*gemeinsam* in einem Modelldurchlauf - genauer, aber ein eigener Durchlauf
+pro Kandidat, also nicht für die ganze Datenbank pro Anfrage machbar.
+Deshalb der zweistufige Ablauf bei aktivem Reranking: der Bi-Encoder holt
+eine breite Vorauswahl (`top_k * RAG_RERANK_CANDIDATE_MULTIPLIER`, gedeckelt
+auf `RAG_RERANK_MAX_CANDIDATES`), der Cross-Encoder sortiert nur diese
+engere Auswahl neu.
+
+**Reranking ist standardmäßig deaktiviert:** Das einzige mehrsprachige
+Cross-Encoder-Modell in fastembeds Registry
+(`jinaai/jina-reranker-v2-base-multilingual`) steht unter
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.de)
+(nicht-kommerziell). Für dieses Lern-/Portfolio-Projekt unproblematisch,
+aber keine Lizenz, die stillschweigend aktiv sein sollte - deshalb bewusstes
+Opt-in per `RAG_RERANK_ENABLED=true`.
 
 ## Warum dieses Modell
 

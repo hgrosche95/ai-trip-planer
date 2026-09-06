@@ -18,6 +18,15 @@ class DocumentMetadata:
     language: str
 
 
+@dataclass
+class ChunkCandidate:
+    content: str
+    distance: float
+    document_title: str
+    document_source: str
+    document_url: str | None
+
+
 class DocumentRepository:
     """Schreibzugriff auf Document/DocumentChunk. Bewusst rohes SQL statt
     eines ORMs: es ist derselbe Postgres-Server wie apps/api (Prisma bleibt
@@ -109,6 +118,37 @@ class DocumentRepository:
                     """,
                     (content, index, embedding, document_id),
                 )
+
+    def search_chunks(self, query_vector: list[float], limit: int) -> list[ChunkCandidate]:
+        """Top-`limit` Chunks per Cosine-Distanz. register_vector() reicht
+        für diese Ad-hoc-Query nicht aus (kein Spaltenkontext, aus dem
+        psycopg den Zieltyp ableiten könnte) - der Vektor wird deshalb
+        explizit auf vector gecastet. Live beim manuellen Testen entdeckt:
+        ohne den Cast meldet Postgres "operator does not exist: vector <=>
+        double precision[]", weil der Python-float-Array sonst als generisches
+        Postgres-Array statt als vector interpretiert wird."""
+        with self._conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.content, c.embedding <=> %s::vector AS distance,
+                       d.title, d.source, d.url
+                FROM "DocumentChunk" c
+                JOIN "Document" d ON d.id = c."documentId"
+                ORDER BY distance ASC
+                LIMIT %s
+                """,
+                (query_vector, limit),
+            )
+            return [
+                ChunkCandidate(
+                    content=row[0],
+                    distance=row[1],
+                    document_title=row[2],
+                    document_source=row[3],
+                    document_url=row[4],
+                )
+                for row in cur.fetchall()
+            ]
 
     def commit(self) -> None:
         self._conn.commit()

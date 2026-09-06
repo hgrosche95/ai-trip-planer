@@ -34,3 +34,30 @@ class EmbedResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     model: str
+
+
+class SearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    top_k: int = Field(default=5, ge=1, le=50)
+    min_score: float = Field(
+        default=0.0,
+        description="Minimaler Ähnlichkeits-Score (siehe SearchResult.score). 0.0 = keine Filterung.",
+    )
+
+
+class SearchResult(BaseModel):
+    content: str
+    score: float = Field(
+        description=(
+            "Ohne Reranking: 1 - Cosine-Distanz (ungefähr 0..1, höher = ähnlicher). "
+            "Mit Reranking: roher Cross-Encoder-Score (andere Skala, ebenfalls höher = besser)."
+        )
+    )
+    document_title: str
+    document_source: str
+    document_url: str | None
+
+
+class SearchResponse(BaseModel):
+    results: list[SearchResult]
+    reranked: bool
