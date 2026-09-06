@@ -198,7 +198,8 @@ Falls Federated Credentials im eigenen Tenant nicht eingerichtet werden können:
 | --- | --- |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | OIDC-Login gegen Azure |
 | `POSTGRES_ADMIN_LOGIN`, `POSTGRES_ADMIN_PASSWORD` | Zugangsdaten für den Postgres Flexible Server |
-| `ANTHROPIC_API_KEY` | für den Agenten im Backend (existiert vermutlich schon aus der CI-Pipeline) |
+| `GROQ_API_KEY` | Standard-LLM-Provider fürs Backend (kostenloses Tier, siehe [Lokales Setup](#lokales-setup)) |
+| `ANTHROPIC_API_KEY` | Fallback-Provider fürs Backend, umschaltbar per `LLM_PROVIDER`-Env-Var ohne neues Secret (existiert vermutlich schon aus der CI-Pipeline) |
 | `GHCR_PAT` | GitHub Personal Access Token mit Scope `read:packages` – wird als Registry-Pull-Credential in die Container App geschrieben (das kurzlebige `GITHUB_TOKEN` reicht dafür nicht, siehe Kommentar in `deploy.yml`) |
 | `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `JWT_SECRET` | Login-Zugangsdaten fürs deployte Backend (`POST /auth/login`) – gleiche Werte/gleiches Prinzip wie in `apps/api/.env` lokal, siehe [Lokales Setup](#lokales-setup) für die Generierung. Ruhig ein anderes Passwort als lokal verwenden. |
 

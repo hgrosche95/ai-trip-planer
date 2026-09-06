@@ -28,9 +28,13 @@ param registryPassword string
 @secure()
 param databaseUrl string
 
-@description('Anthropic-API-Key fürs Backend, wird als Secret an den Container weitergereicht.')
+@description('Anthropic-API-Key fürs Backend, wird als Secret an den Container weitergereicht. Fallback-Provider, siehe LLM_PROVIDER weiter unten.')
 @secure()
 param anthropicApiKey string
+
+@description('Groq-API-Key fürs Backend, wird als Secret an den Container weitergereicht. Standard-Provider (kostenloses Tier).')
+@secure()
+param groqApiKey string
 
 @description('Ursprung (Origin) des Frontends, den das Backend per CORS zulässt, z. B. https://<static-web-app>.azurestaticapps.net.')
 param corsOrigin string
@@ -113,6 +117,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           value: anthropicApiKey
         }
         {
+          name: 'groq-api-key'
+          value: groqApiKey
+        }
+        {
           name: 'appinsights-connection-string'
           value: appInsightsConnectionString
         }
@@ -139,6 +147,13 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           }
           env: [
             { name: 'DATABASE_URL', secretRef: 'database-url' }
+            // Groq ist der Standard-Provider (kostenloses Tier) - explizit
+            // gesetzt statt sich auf den App-Default zu verlassen, damit die
+            // Absicht auch im Infra-Code sichtbar ist. ANTHROPIC_API_KEY
+            // bleibt als Fallback verdrahtet, umschaltbar per Env-Update
+            // ohne neues Secret.
+            { name: 'LLM_PROVIDER', value: 'groq' }
+            { name: 'GROQ_API_KEY', secretRef: 'groq-api-key' }
             { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
             {
               name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
