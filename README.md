@@ -15,6 +15,7 @@ echten LLM-Tool-Use-Agent-Workflows und E2E-Testing mit Playwright.
 
 - `apps/web` – Next.js Frontend (Chat-Oberfläche + Reiseplan-Anzeige unter `/trips`), als statischer Export gebaut
 - `apps/api` – NestJS Backend (inkl. `prisma/` Schema+Migrations, Prisma-Anbindung und Anthropic-Agent-Logik in `src/`), `Dockerfile` für den produktiven Container
+- `data/knowledge` – Markdown-Wissensbasis für RAG (Reiseziel-Dokumente, siehe [Datenherkunft & Lizenzen](#wissensbasis-datenherkunft))
 - `e2e` – Playwright End-to-End-Tests
 - `infra` – Bicep-Templates für das Azure-Deployment (siehe [Architektur](#architektur-azure))
 - `docker-compose.yml` – lokale PostgreSQL-Instanz
@@ -70,6 +71,38 @@ Voraussetzungen: Node.js 20+, Docker Desktop.
 🔒 = verlangt einen gültigen JWT im `Authorization: Bearer <token>`-Header (per `POST /auth/login` erhalten). Das Frontend kümmert sich darum automatisch (Login-Seite unter `/login`, Token liegt im `localStorage`).
 
 Gespeicherte Reisepläne lassen sich auch mit `npx prisma studio` (in `apps/api`) im Browser unter `http://localhost:5555` einsehen.
+
+## Wissensbasis: Datenherkunft & Lizenzen (`data/knowledge`) <a name="wissensbasis-datenherkunft"></a>
+
+Für die RAG-Funktion (Phase 3/4 des Erweiterungsplans) liegen unter
+`data/knowledge/` Markdown-Dokumente zu Reisezielen, die später in Chunks
+zerlegt und embedded werden (Format siehe [`data/knowledge/README.md`](data/knowledge/README.md)).
+Woher diese Inhalte stammen, ist bewusst kein Detail, sondern Teil der
+Datenbasis selbst:
+
+- **Eigene Inhalte** (die vier Beispieldokumente): selbst formulierte
+  Kurzüberblicke zu Sehenswürdigkeiten, Essen und Transport. Keine
+  Lizenzfragen, da nichts aus einer fremden Quelle übernommen wurde.
+- **Optionaler Import aus frei lizenzierten Quellen** (z.B. Wikivoyage,
+  standardmäßig unter [CC BY-SA](https://creativecommons.org/licenses/by-sa/4.0/deed.de)
+  lizenziert): erlaubt, aber an Bedingungen geknüpft. CC-BY-SA verlangt
+  **Namensnennung** (Autor:innen bzw. Projektname, i.d.R. "Wikivoyage-Autoren"
+  plus Link auf die Originalseite) **und** dass abgeleitete Inhalte unter
+  derselben Lizenz weitergegeben werden ("Share-Alike") - ein importiertes
+  Dokument darf also nicht als "Eigene Inhalte" deklariert werden, und ein
+  daraus erzeugtes Produkt (z.B. eine Zusammenfassung) muss dieselbe Lizenz
+  tragen. Jedes importierte Dokument braucht deshalb vollständig ausgefüllte
+  `source`-, `url`- und `license`-Frontmatter-Felder - das ist die Grundlage
+  für eine korrekte Attribution, nicht nur ein Metadatum. Es gibt aktuell
+  keinen Import-Code in diesem Repo, nur die Struktur dafür.
+
+"Wir haben einfach alles gecrawlt" ist im Gespräch keine gute Antwort, weil es
+zwei Dinge verwechselt: technisch möglich (Scraping ist meist trivial) und
+rechtlich zulässig (Urheberrecht, Nutzungsbedingungen der Quelle, bei
+personenbezogenen Daten zusätzlich Datenschutzrecht) sind unabhängige Fragen.
+Gerade im regulierten Umfeld (Gesundheits-/Abrechnungsdaten bei opta data)
+ist die Fähigkeit, Datenherkunft und Lizenzlage sauber zu dokumentieren,
+selbst Teil der fachlichen Anforderung - nicht nur Compliance-Kosmetik.
 
 ## E2E-Tests (`e2e`)
 
