@@ -32,6 +32,7 @@
     "applicationinsights": "^3.16.0",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
+    "openai": "^7.10.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",

@@ -79,7 +79,6 @@ const saveItineraryTool: LlmToolDefinition = {
   },
 };
 
-const MODEL = 'claude-haiku-4-5';
 const MAX_TOKENS = 4096;
 
 @Injectable()
@@ -127,7 +126,6 @@ export class AgentService {
       ...history,
     ];
     return this.llm.chat(messages, [...tools, saveItineraryTool], {
-      model: MODEL,
       maxTokens: MAX_TOKENS,
     });
   }

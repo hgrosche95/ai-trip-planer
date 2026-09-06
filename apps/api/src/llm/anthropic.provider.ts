@@ -22,8 +22,11 @@ export class AnthropicProvider implements LlmProvider {
     const system = messages.find((m) => m.role === 'system')?.content;
     const conversation = messages.filter((m) => m.role !== 'system');
 
+    const model =
+      options.model ?? process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5';
+
     const response = await this.client.messages.create({
-      model: options.model,
+      model,
       max_tokens: options.maxTokens,
       temperature: options.temperature,
       system,

@@ -25,7 +25,7 @@ export interface LlmToolDefinition {
 }
 
 export interface LlmChatOptions {
-  model: string;
+  model?: string;
   maxTokens: number;
   temperature?: number;
 }
