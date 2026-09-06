@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { tools, searchFlights, searchHotels } from './agent-tools';
 import { StopCategory } from '../generated/prisma/client';
@@ -10,6 +10,7 @@ import type {
   LlmToolDefinition,
   LlmToolResult,
 } from './llm/llm-provider.interface';
+import { trimHistory, truncateToolResult } from './llm/conversation-history';
 
 interface SaveItineraryInput {
   destination: string;
@@ -79,10 +80,15 @@ const saveItineraryTool: LlmToolDefinition = {
   },
 };
 
-const MAX_TOKENS = 4096;
+const MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS ?? 4096);
+const MAX_HISTORY_MESSAGES = Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20);
+const MAX_TOOL_RESULT_CHARS = Number(
+  process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 2000,
+);
 
 @Injectable()
 export class AgentService {
+  private readonly logger = new Logger(AgentService.name);
   private readonly conversations = new Map<string, LlmMessage[]>();
 
   constructor(
@@ -108,7 +114,10 @@ export class AgentService {
         const output = await this.executeTool(call.name, call.arguments);
         toolResults.push({
           toolCallId: call.id,
-          content: JSON.stringify(output),
+          content: truncateToolResult(
+            JSON.stringify(output),
+            MAX_TOOL_RESULT_CHARS,
+          ),
         });
       }
       history.push({ role: 'tool', toolResults });
@@ -120,14 +129,18 @@ export class AgentService {
     return result.content ?? '';
   }
 
-  private callLlm(history: LlmMessage[]) {
+  private async callLlm(history: LlmMessage[]) {
     const messages: LlmMessage[] = [
       { role: 'system', content: SYSTEM_PROMPT },
-      ...history,
+      ...trimHistory(history, MAX_HISTORY_MESSAGES),
     ];
-    return this.llm.chat(messages, [...tools, saveItineraryTool], {
+    const result = await this.llm.chat(messages, [...tools, saveItineraryTool], {
       maxTokens: MAX_TOKENS,
     });
+    this.logger.log(
+      `LLM-Aufruf: ${result.usage.inputTokens} Input-Tokens, ${result.usage.outputTokens} Output-Tokens`,
+    );
+    return result;
   }
 
   private getHistory(sessionId: string): LlmMessage[] {
