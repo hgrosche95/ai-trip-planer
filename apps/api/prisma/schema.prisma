@@ -73,7 +73,16 @@ model Document {
   url       String?
   license   String
   language  String   @default("de")
+  // Relativer Dateiname in data/knowledge (z.B. "lissabon.md") - stabiler
+  // Schlüssel, über den die Python-Ingestion-Pipeline (services/rag) eine
+  // Markdown-Datei über mehrere Läufe hinweg wiedererkennt.
+  sourcePath String  @unique
+  // sha256 über den kompletten Datei-Inhalt (Frontmatter + Text). Ändert
+  // sich der Hash nicht, überspringt die Ingestion die Datei komplett -
+  // das macht sie idempotent, ohne bei jedem Lauf neu zu embedden.
+  contentHash String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   chunks DocumentChunk[]
 }

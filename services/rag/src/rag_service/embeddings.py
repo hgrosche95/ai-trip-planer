@@ -41,9 +41,21 @@ class EmbeddingService:
         # Vektorlänge des geladenen Modells zu kennen, statt sie hart zu
         # kodieren und bei einem Modellwechsel stillschweigend falsch zu sein.
         self.dimensions = len(next(self._model.embed(["init"])))
+        # fastembed hat keine öffentliche API, um an Tokenizer/Max-Länge des
+        # geladenen Modells zu kommen - .model.tokenizer ist ein interner
+        # Pfad in die aktuelle fastembed-Version. Für die Ingestion (Schritt
+        # 3.2) brauchen wir aber genau das, um Chunks token-genau statt nach
+        # Zeichen zu schneiden. Bewusste, dokumentierte Kopplung an eine
+        # interne Struktur statt Zeichen-basiertem Raten.
+        self.tokenizer = self._model.model.tokenizer
+        self.max_sequence_length: int = self.tokenizer.truncation["max_length"]
         logger.info(
             "Embedding-Modell geladen",
-            extra={"model": model_name, "dimensions": self.dimensions},
+            extra={
+                "model": model_name,
+                "dimensions": self.dimensions,
+                "max_sequence_length": self.max_sequence_length,
+            },
         )
 
     def embed(self, texts: list[str], input_type: InputType) -> list[list[float]]:
