@@ -19,8 +19,38 @@ echten LLM-Tool-Use-Agent-Workflows und E2E-Testing mit Playwright.
 - `services/rag` – Python/FastAPI-Service für lokale Embeddings und semantische Suche (siehe [services/rag/README.md](services/rag/README.md))
 - `e2e` – Playwright End-to-End-Tests
 - `infra` – Bicep-Templates für das Azure-Deployment (siehe [Architektur](#architektur-azure))
-- `docker-compose.yml` – lokale PostgreSQL-Instanz
+- `docker-compose.yml` – lokale PostgreSQL-Instanz + RAG-Service (siehe [Architektur](#architektur-lokal))
 - `.github/workflows` – CI-Pipeline (Lint, Test, Build, E2E) und Azure-Deployment-Workflow
+
+## Architektur (lokal) <a name="architektur-lokal"></a>
+
+```
+┌─────────────┐        ┌──────────────────────┐        ┌───────────────────┐
+│  apps/web   │──────▶ │       apps/api        │──────▶ │  Groq / Anthropic  │
+│  (Next.js)  │        │  (NestJS, Agent +     │        │  (LLM_PROVIDER)    │
+│  Port 3001  │        │   LlmProvider)        │        └───────────────────┘
+└─────────────┘        │       Port 3000       │
+                        └───────────┬───────────┘
+                                    │ Reisepläne
+                                    ▼
+                        ┌───────────────────────┐        ┌───────────────────┐
+                        │   Postgres + pgvector  │ ◀───── │   services/rag     │
+                        │  Itinerary-Tabellen +  │ Chunks │   (FastAPI)        │
+                        │  Document/DocumentChunk│ Suche  │   Port 8001        │
+                        │       Port 5432        │──────▶ │                    │
+                        └────────────────────────┘        └─────────┬──────────┘
+                                                                     │ liest (Ingestion)
+                                                                     ▼
+                                                            ┌───────────────────┐
+                                                            │  data/knowledge    │
+                                                            │  (Markdown-Dateien)│
+                                                            └───────────────────┘
+```
+
+`apps/api` ruft `services/rag` aktuell **noch nicht** auf (das ist Phase 4) -
+beide Services laufen bereits nebeneinander über `docker compose up`, sind
+aber noch nicht verdrahtet. `apps/web` und `apps/api` laufen lokal nativ mit
+Hot-Reload (siehe unten), `postgres` und `rag` über Docker Compose.
 
 ## Lokales Setup
 
@@ -30,7 +60,7 @@ Voraussetzungen: Node.js 20+, Docker Desktop.
    ```
    npm install
    ```
-2. PostgreSQL starten:
+2. Postgres + RAG-Service starten (baut `services/rag` beim ersten Mal, dauert etwas):
    ```
    docker compose up -d
    ```

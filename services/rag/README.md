@@ -17,6 +17,35 @@ uv run uvicorn rag_service.main:app --reload --port 8001
 
 Swagger-UI unter `http://localhost:8001/docs`.
 
+## Mit Docker (empfohlen für "einfach mal alles starten")
+
+```bash
+docker compose up -d       # im Repo-Root - baut das Image beim ersten Mal
+docker compose run --rm rag rag-ingest   # Wissensbasis einlesen
+```
+
+Das Dockerfile ist mehrstufig (`deps` → `model` → `build` → `runtime`):
+Abhängigkeiten und das Embedding-Modell werden in eigenen, gecachten Layern
+installiert bzw. heruntergeladen, das Laufzeit-Image läuft als non-root User
+und enthält das Modell bereits fertig geladen (kein Download beim ersten
+Request - siehe "Warum das Modell vorladen" unten). `docker compose` startet
+zusätzlich `postgres` mit; `apps/api`/`apps/web` laufen weiterhin nativ
+(siehe [Architektur](../../README.md#architektur-lokal) in der Haupt-README).
+
+**Warum das Modell ins Image vorladen statt beim ersten Request laden?**
+Container sind flüchtig - ohne Vorladen würde nicht nur der allererste
+Start, sondern **jeder** Neustart (Redeploy, Crash-Restart, Skalierung)
+erneut einen Download von HuggingFace auslösen, bevor der Service
+antwortet. Das macht die Boot-Zeit unvorhersehbar und hängt von einer
+Netzwerkverbindung ab, die es beim Start eigentlich nicht bräuchte -
+vorgeladen ist der Boot dagegen immer gleich schnell (~1-2 Sekunden) und
+funktioniert auch offline.
+
+OpenAPI-Schema exportieren (bei laufendem Service):
+```bash
+curl -s http://localhost:8001/openapi.json | python -m json.tool > ../../docs/rag-service-openapi.json
+```
+
 ## Konfiguration
 
 Siehe `.env.example`. Alle Variablen haben den Präfix `RAG_`:

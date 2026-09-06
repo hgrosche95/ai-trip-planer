@@ -9,3 +9,9 @@
 **/playwright-report
 **/test-results
 .git
+
+# Python (services/rag)
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.fastembed_cache

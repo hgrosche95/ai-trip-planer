@@ -11,6 +11,36 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trip_planner"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # apps/api und apps/web laufen bewusst NICHT hier: beide werden aktiv
+  # weiterentwickelt und laufen nativ mit Hot-Reload (siehe "Lokales Setup"
+  # in der README) - ein Container-Rebuild pro Codeänderung wäre für die
+  # tägliche Arbeit ein Rückschritt. rag steht hier, weil es (wie postgres)
+  # eher unterstützende Infrastruktur für die anderen beiden ist.
+  rag:
+    build:
+      context: .
+      dockerfile: services/rag/Dockerfile
+    container_name: ai-trip-planner-rag
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://trip_planner:trip_planner@postgres:5432/trip_planner
+    ports:
+      - "8001:8001"
+    volumes:
+      # Read-only: die Ingestion-Pipeline (uv run rag-ingest) braucht
+      # Zugriff auf data/knowledge, ohne dass der Container es verändern
+      # könnte. `docker compose run rag uv run rag-ingest` liest damit
+      # immer den aktuellen Stand vom Host, ohne Image-Rebuild.
+      - ./data/knowledge:/app/data/knowledge:ro
 
 volumes:
   postgres_data:
