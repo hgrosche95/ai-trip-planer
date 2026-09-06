@@ -139,6 +139,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           }
           env: [
             { name: 'DATABASE_URL', secretRef: 'database-url' }
+            // Kein GROQ_API_KEY-Secret in der Produktionsumgebung hinterlegt -
+            // deshalb explizit auf anthropic statt auf dem App-seitigen
+            // Groq-Default bleiben (siehe LLM_PROVIDER in agent.module.ts).
+            { name: 'LLM_PROVIDER', value: 'anthropic' }
             { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
             {
               name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
