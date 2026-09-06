@@ -1,9 +1,16 @@
-import { Injectable } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { tools, searchFlights, searchHotels } from './agent-tools';
 import { StopCategory } from '../generated/prisma/client';
 import * as appInsights from 'applicationinsights';
+import { LLM_PROVIDER } from './llm/llm-provider.interface';
+import type {
+  LlmMessage,
+  LlmProvider,
+  LlmToolDefinition,
+  LlmToolResult,
+} from './llm/llm-provider.interface';
+import { trimHistory, truncateToolResult } from './llm/conversation-history';
 
 interface SaveItineraryInput {
   destination: string;
@@ -30,11 +37,11 @@ Nutze die verfügbaren Werkzeuge:
 
 Frag aktiv nach fehlenden Informationen, bevor du ein Werkzeug aufrufst. Antworte immer auf Deutsch.`;
 
-const saveItineraryTool: Anthropic.Tool = {
+const saveItineraryTool: LlmToolDefinition = {
   name: 'save_itinerary',
   description:
     'Speichert einen fertigen Reiseplan in der Datenbank. Nur aufrufen, wenn Ziel, Zeitraum, Budget und mindestens ein paar Programmpunkte feststehen.',
-  input_schema: {
+  parameters: {
     type: 'object',
     properties: {
       destination: { type: 'string' },
@@ -73,57 +80,70 @@ const saveItineraryTool: Anthropic.Tool = {
   },
 };
 
+const MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS ?? 4096);
+const MAX_HISTORY_MESSAGES = Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20);
+const MAX_TOOL_RESULT_CHARS = Number(
+  process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 2000,
+);
+
 @Injectable()
 export class AgentService {
-  private readonly anthropic = new Anthropic();
-  private readonly conversations = new Map<string, Anthropic.MessageParam[]>();
+  private readonly logger = new Logger(AgentService.name);
+  private readonly conversations = new Map<string, LlmMessage[]>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
+  ) {}
 
   async sendMessage(sessionId: string, userMessage: string): Promise<string> {
     const history = this.getHistory(sessionId);
     history.push({ role: 'user', content: userMessage });
 
-    let response = await this.callClaude(history);
+    let result = await this.callLlm(history);
 
-    while (response.stop_reason === 'tool_use') {
-      history.push({ role: 'assistant', content: response.content });
+    while (result.finishReason === 'tool_calls') {
+      history.push({
+        role: 'assistant',
+        content: result.content ?? undefined,
+        toolCalls: result.toolCalls,
+      });
 
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-      for (const block of response.content) {
-        if (block.type === 'tool_use') {
-          const result = await this.executeTool(block.name, block.input);
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: JSON.stringify(result),
-          });
-        }
+      const toolResults: LlmToolResult[] = [];
+      for (const call of result.toolCalls) {
+        const output = await this.executeTool(call.name, call.arguments);
+        toolResults.push({
+          toolCallId: call.id,
+          content: truncateToolResult(
+            JSON.stringify(output),
+            MAX_TOOL_RESULT_CHARS,
+          ),
+        });
       }
-      history.push({ role: 'user', content: toolResults });
+      history.push({ role: 'tool', toolResults });
 
-      response = await this.callClaude(history);
+      result = await this.callLlm(history);
     }
 
-    history.push({ role: 'assistant', content: response.content });
-
-    const textBlock = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === 'text',
-    );
-    return textBlock?.text ?? '';
+    history.push({ role: 'assistant', content: result.content ?? '' });
+    return result.content ?? '';
   }
 
-  private callClaude(history: Anthropic.MessageParam[]) {
-    return this.anthropic.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      tools: [...tools, saveItineraryTool],
-      messages: history,
+  private async callLlm(history: LlmMessage[]) {
+    const messages: LlmMessage[] = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...trimHistory(history, MAX_HISTORY_MESSAGES),
+    ];
+    const result = await this.llm.chat(messages, [...tools, saveItineraryTool], {
+      maxTokens: MAX_TOKENS,
     });
+    this.logger.log(
+      `LLM-Aufruf: ${result.usage.inputTokens} Input-Tokens, ${result.usage.outputTokens} Output-Tokens`,
+    );
+    return result;
   }
 
-  private getHistory(sessionId: string): Anthropic.MessageParam[] {
+  private getHistory(sessionId: string): LlmMessage[] {
     if (!this.conversations.has(sessionId)) {
       this.conversations.set(sessionId, []);
     }
