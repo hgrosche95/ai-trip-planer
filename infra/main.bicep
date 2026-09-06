@@ -23,9 +23,13 @@ param registryPassword string
 @secure()
 param databaseUrl string
 
-@description('Anthropic-API-Key fürs Backend.')
+@description('Anthropic-API-Key fürs Backend (Fallback-Provider, siehe LLM_PROVIDER).')
 @secure()
 param anthropicApiKey string
+
+@description('Groq-API-Key fürs Backend (Standard-Provider, kostenloses Tier).')
+@secure()
+param groqApiKey string
 
 @description('Username fürs Login gegen /auth/login.')
 param authUsername string
@@ -66,6 +70,7 @@ module containerApp 'modules/container-app.bicep' = {
     registryPassword: registryPassword
     databaseUrl: databaseUrl
     anthropicApiKey: anthropicApiKey
+    groqApiKey: groqApiKey
     corsOrigin: 'https://${staticWebApp.outputs.staticWebAppDefaultHostname}'
     authUsername: authUsername
     authPasswordHash: authPasswordHash

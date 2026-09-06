@@ -76,6 +76,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GHCR_PAT: ${{ secrets.GHCR_PAT }}
           AUTH_USERNAME: ${{ secrets.AUTH_USERNAME }}
           AUTH_PASSWORD_HASH: ${{ secrets.AUTH_PASSWORD_HASH }}
@@ -88,6 +89,7 @@ jobs:
             --parameters \
               databaseUrl="$DATABASE_URL" \
               anthropicApiKey="$ANTHROPIC_API_KEY" \
+              groqApiKey="$GROQ_API_KEY" \
               containerImage="$IMAGE_TAG" \
               registryUsername="${{ github.actor }}" \
               registryPassword="$GHCR_PAT" \
