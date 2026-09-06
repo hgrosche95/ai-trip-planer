@@ -10,16 +10,20 @@ import { RetryingLlmProvider } from './llm/retrying-llm-provider';
   controllers: [AgentController],
   providers: [
     AgentService,
-    AnthropicProvider,
-    GroqProvider,
     {
       provide: LLM_PROVIDER,
-      useFactory: (anthropic: AnthropicProvider, groq: GroqProvider) => {
+      // Bewusst mit `new` statt über Nest-DI erzeugt: würden AnthropicProvider
+      // und GroqProvider selbst als Provider registriert (damit die Factory
+      // sie injizieren kann), würde Nest BEIDE beim Bootstrap instanziieren -
+      // und beide SDK-Clients würden sofort einen gültigen API-Key verlangen,
+      // selbst wenn nur einer der beiden Anbieter tatsächlich genutzt wird.
+      useFactory: () => {
         const selected =
-          process.env.LLM_PROVIDER === 'anthropic' ? anthropic : groq;
+          process.env.LLM_PROVIDER === 'anthropic'
+            ? new AnthropicProvider()
+            : new GroqProvider();
         return new RetryingLlmProvider(selected);
       },
-      inject: [AnthropicProvider, GroqProvider],
     },
   ],
 })
