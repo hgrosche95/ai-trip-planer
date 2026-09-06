@@ -114,6 +114,7 @@ export class GroqProvider implements LlmProvider {
         inputTokens: response.usage?.prompt_tokens ?? 0,
         outputTokens: response.usage?.completion_tokens ?? 0,
       },
+      model: response.model,
     };
   }
 

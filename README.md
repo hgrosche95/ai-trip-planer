@@ -110,6 +110,53 @@ Voraussetzungen: Node.js 20+, Docker Desktop.
 
 Gespeicherte Reisepläne lassen sich auch mit `npx prisma studio` (in `apps/api`) im Browser unter `http://localhost:5555` einsehen.
 
+## Observability: Tracing mit Langfuse
+
+Jeder Agentenlauf (`POST /agent/chat`) wird als [Langfuse](https://langfuse.com)-Trace
+aufgezeichnet: ein Span pro Chat-Nachricht, darin verschachtelt ein
+`generation`-Span je LLM-Aufruf (Modell, Token-Usage, Latenz, Finish-Reason)
+sowie ein `tool`- bzw. `retriever`-Span je Tool-Aufruf - Letzteres speziell
+für `search_travel_knowledge`, inklusive der Titel/Quellen/Scores der
+gefundenen Wissensbasis-Treffer.
+
+**Setup (optional):** kostenloser Account auf
+[cloud.langfuse.com](https://cloud.langfuse.com) (50.000 Units/Monat, keine
+Kreditkarte), dann in `apps/api/.env`:
+
+```
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+```
+
+**Warum das aktuelle JS-SDK statt eines OpenAI-Wrappers:** Langfuse bewirbt
+für Node/TypeScript primär den OpenTelemetry-basierten SDK-Ansatz
+(`@langfuse/tracing` + `@langfuse/otel`, siehe
+[Langfuse-Doku](https://langfuse.com/docs/observability/get-started)) mit
+manuellen `startActiveObservation`/`propagateAttributes`-Aufrufen statt eines
+Wrappers wie `observeOpenAI`. Das passt hier besser: der Agent läuft über
+Groq **oder** Anthropic (`LlmProvider`-Abstraktion in `apps/api/src/llm/`),
+ein OpenAI-SDK-spezifischer Wrapper würde nur einen der beiden Anbieter
+erfassen. Die manuelle Instrumentierung in `agent.service.ts` ist dagegen
+anbieterneutral, weil sie am bereits normalisierten `LlmChatResult` ansetzt.
+
+**Sauber deaktiviert ohne Account:** `apps/api/src/tracing.ts` registriert den
+`LangfuseSpanProcessor` nur, wenn beide Keys gesetzt sind. Fehlen sie, bleibt
+der globale OpenTelemetry-Tracer der eingebaute No-Op-Tracer - alle
+`startActiveObservation`/`propagateAttributes`-Aufrufe im Agent-Code laufen
+dann folgenlos durch, ohne Fehler und ohne Sonderfall-`if`s an den Aufrufstellen.
+
+**Was bewusst nicht getraced wird:** Weder die rohe Nutzernachricht noch die
+volle Antwort des Agenten landen als Trace-Input/-Output in Langfuse - beides
+kann Reisepräferenzen oder andere indirekt personenbezogene Angaben enthalten,
+die nichts in einem Drittanbieter-Dashboard verloren haben. Getraced wird nur
+die *Form* des Laufs: Modellname, Token-Zahlen, Latenz, welche Tools mit wie
+vielen Treffern liefen. In einem echten Gesundheitsdaten-Kontext (wie bei
+opta data) würde dieselbe Überlegung zusätzlich für Tool-Argumente und
+-Ergebnisse gelten (z.B. Reiseziel, Zeitraum, Budget bei `save_itinerary`) -
+im Zweifel maskiert man nicht einzelne Freitext-Felder nachträglich, sondern
+lässt sie wie hier von vornherein weg.
+
 ## Wissensbasis: Datenherkunft & Lizenzen (`data/knowledge`) <a name="wissensbasis-datenherkunft"></a>
 
 Für die RAG-Funktion (Phase 3/4 des Erweiterungsplans) liegen unter

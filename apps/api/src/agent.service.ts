@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { propagateAttributes, startActiveObservation } from '@langfuse/tracing';
 import { ItinerariesService } from './itineraries.service';
 import type { CreateItineraryInput } from './itineraries.service';
 import {
@@ -108,46 +109,64 @@ export class AgentService {
     sessionId: string,
     userMessage: string,
   ): Promise<ChatResult> {
-    const history = this.getHistory(sessionId);
-    history.push({ role: 'user', content: userMessage });
+    // propagateAttributes markiert alle Spans dieses Trace mit der Session -
+    // so lassen sich in Langfuse alle Agentenläufe einer Konversation
+    // zusammenhängend ansehen. Bewusst KEIN userMessage/reply-Text als
+    // Trace-Input/Output (siehe README "Was wird nicht getraced und warum"):
+    // Chat-Nachrichten können Reisepräferenzen oder andere persönliche
+    // Angaben enthalten, die nichts in einem Drittanbieter-Dashboard
+    // verloren haben. Getraced wird nur die Form des Laufs - Tokens,
+    // Latenz, welche Tools mit welchem Ergebnis-Umfang liefen.
+    return propagateAttributes({ sessionId }, () =>
+      startActiveObservation('chat-message', async (turn) => {
+        const history = this.getHistory(sessionId);
+        history.push({ role: 'user', content: userMessage });
 
-    let result = await this.callLlm(history);
-    const sources = new Map<string, ChatSource>();
-    let searchAttempted = false;
+        let result = await this.callLlm(history);
+        const sources = new Map<string, ChatSource>();
+        let searchAttempted = false;
 
-    while (result.finishReason === 'tool_calls') {
-      history.push({
-        role: 'assistant',
-        content: result.content ?? undefined,
-        toolCalls: result.toolCalls,
-      });
+        while (result.finishReason === 'tool_calls') {
+          history.push({
+            role: 'assistant',
+            content: result.content ?? undefined,
+            toolCalls: result.toolCalls,
+          });
 
-      const toolResults: LlmToolResult[] = [];
-      for (const call of result.toolCalls) {
-        const output = await this.executeTool(call.name, call.arguments);
-        if (call.name === 'search_travel_knowledge') {
-          searchAttempted = true;
-          this.collectSources(output as TravelKnowledgeSearchResult, sources);
+          const toolResults: LlmToolResult[] = [];
+          for (const call of result.toolCalls) {
+            const output = await this.executeTool(call.name, call.arguments);
+            if (call.name === 'search_travel_knowledge') {
+              searchAttempted = true;
+              this.collectSources(
+                output as TravelKnowledgeSearchResult,
+                sources,
+              );
+            }
+            toolResults.push({
+              toolCallId: call.id,
+              content: truncateToolResult(
+                JSON.stringify(output),
+                MAX_TOOL_RESULT_CHARS,
+              ),
+            });
+          }
+          history.push({ role: 'tool', toolResults });
+
+          result = await this.callLlm(history);
         }
-        toolResults.push({
-          toolCallId: call.id,
-          content: truncateToolResult(
-            JSON.stringify(output),
-            MAX_TOOL_RESULT_CHARS,
-          ),
+
+        history.push({ role: 'assistant', content: result.content ?? '' });
+        turn.update({
+          metadata: { searchAttempted, sourceCount: sources.size },
         });
-      }
-      history.push({ role: 'tool', toolResults });
-
-      result = await this.callLlm(history);
-    }
-
-    history.push({ role: 'assistant', content: result.content ?? '' });
-    return {
-      reply: result.content ?? '',
-      sources: [...sources.values()].sort((a, b) => b.score - a.score),
-      searchAttempted,
-    };
+        return {
+          reply: result.content ?? '',
+          sources: [...sources.values()].sort((a, b) => b.score - a.score),
+          searchAttempted,
+        };
+      }),
+    );
   }
 
   private collectSources(
@@ -174,17 +193,31 @@ export class AgentService {
       { role: 'system', content: SYSTEM_PROMPT },
       ...trimHistory(history, MAX_HISTORY_MESSAGES),
     ];
-    const result = await this.llm.chat(
-      messages,
-      [...tools, saveItineraryTool],
-      {
-        maxTokens: MAX_TOKENS,
+    return startActiveObservation(
+      'llm-call',
+      async (generation) => {
+        const result = await this.llm.chat(
+          messages,
+          [...tools, saveItineraryTool],
+          {
+            maxTokens: MAX_TOKENS,
+          },
+        );
+        generation.update({
+          model: result.model,
+          usageDetails: {
+            input: result.usage.inputTokens,
+            output: result.usage.outputTokens,
+          },
+          metadata: { finishReason: result.finishReason },
+        });
+        this.logger.log(
+          `LLM-Aufruf: ${result.usage.inputTokens} Input-Tokens, ${result.usage.outputTokens} Output-Tokens`,
+        );
+        return result;
       },
+      { asType: 'generation' },
     );
-    this.logger.log(
-      `LLM-Aufruf: ${result.usage.inputTokens} Input-Tokens, ${result.usage.outputTokens} Output-Tokens`,
-    );
-    return result;
   }
 
   private getHistory(sessionId: string): LlmMessage[] {
@@ -195,13 +228,52 @@ export class AgentService {
   }
 
   private async executeTool(name: string, input: unknown) {
+    // search_travel_knowledge bekommt einen eigenen Observation-Typ
+    // ("retriever" statt "tool"), weil es der Retrieval-Schritt aus dem
+    // Plan ist - in Langfuse taucht er dadurch mit den Top-Treffern
+    // (Titel/Quelle/Score, keine Nutzerdaten) statt als generischer
+    // Tool-Aufruf auf.
+    if (name === 'search_travel_knowledge') {
+      return startActiveObservation(
+        'search_travel_knowledge',
+        async (retriever) => {
+          const result = await searchTravelKnowledge(
+            (input as { query: string }).query,
+          );
+          retriever.update({
+            output: result.results.map((hit) => ({
+              title: hit.title,
+              source: hit.source,
+              score: hit.score,
+            })),
+            metadata: {
+              available: result.available,
+              hitCount: result.results.length,
+            },
+          });
+          return result;
+        },
+        { asType: 'retriever' },
+      );
+    }
+
+    return startActiveObservation(
+      name,
+      async (tool) => {
+        const output = await this.runTool(name, input);
+        tool.update({ metadata: { hasError: 'error' in (output as object) } });
+        return output;
+      },
+      { asType: 'tool' },
+    );
+  }
+
+  private async runTool(name: string, input: unknown) {
     switch (name) {
       case 'search_flights':
         return searchFlights(input as Parameters<typeof searchFlights>[0]);
       case 'search_hotels':
         return searchHotels(input as Parameters<typeof searchHotels>[0]);
-      case 'search_travel_knowledge':
-        return searchTravelKnowledge((input as { query: string }).query);
       case 'save_itinerary':
         return this.saveItinerary(input as CreateItineraryInput);
       default:

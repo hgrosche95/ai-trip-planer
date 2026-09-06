@@ -45,6 +45,7 @@ describe('RetryingLlmProvider', () => {
     toolCalls: [],
     finishReason: 'stop',
     usage: { inputTokens: 1, outputTokens: 1 },
+    model: 'test-model',
   };
 
   it('retries on a 429 and returns the eventual success', async () => {

@@ -101,6 +101,7 @@ export class AnthropicProvider implements LlmProvider {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
       },
+      model: response.model,
     };
   }
 
