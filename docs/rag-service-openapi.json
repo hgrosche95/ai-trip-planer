@@ -115,7 +115,7 @@
                     },
                     "input_type": {
                         "$ref": "#/components/schemas/InputType",
-                        "description": "query f\u00fcr Suchanfragen, passage f\u00fcr zu indexierende Dokumente",
+                        "description": "query f\u00c3\u00bcr Suchanfragen, passage f\u00c3\u00bcr zu indexierende Dokumente",
                         "default": "passage"
                     }
                 },
@@ -192,7 +192,7 @@
                     "passage"
                 ],
                 "title": "InputType",
-                "description": "Ob ein Text eine Suchanfrage oder ein zu indexierendes Dokument ist.\n\nBei Pr\u00e4fix-Modellen wie der E5-Familie (intfloat/multilingual-e5-*)\nwerden Anfrage- und Dokumenttexte unterschiedlich vorverarbeitet - siehe\nembeddings.py. F\u00fcr das aktuell konfigurierte Modell hat dieses Feld\nkeine Auswirkung, existiert aber, damit ein Modellwechsel sp\u00e4ter keine\nBreaking Change am API-Vertrag ist."
+                "description": "Ob ein Text eine Suchanfrage oder ein zu indexierendes Dokument ist.\n\nBei Pr\u00c3\u00a4fix-Modellen wie der E5-Familie (intfloat/multilingual-e5-*)\nwerden Anfrage- und Dokumenttexte unterschiedlich vorverarbeitet - siehe\nembeddings.py. F\u00c3\u00bcr das aktuell konfigurierte Modell hat dieses Feld\nkeine Auswirkung, existiert aber, damit ein Modellwechsel sp\u00c3\u00a4ter keine\nBreaking Change am API-Vertrag ist."
             },
             "SearchRequest": {
                 "properties": {
@@ -211,7 +211,7 @@
                     "min_score": {
                         "type": "number",
                         "title": "Min Score",
-                        "description": "Minimaler \u00c4hnlichkeits-Score (siehe SearchResult.score). 0.0 = keine Filterung.",
+                        "description": "Minimaler \u00c3\u201ehnlichkeits-Score (siehe SearchResult.score). 0.0 = keine Filterung.",
                         "default": 0.0
                     }
                 },
@@ -251,7 +251,7 @@
                     "score": {
                         "type": "number",
                         "title": "Score",
-                        "description": "Ohne Reranking: 1 - Cosine-Distanz (ungef\u00e4hr 0..1, h\u00f6her = \u00e4hnlicher). Mit Reranking: roher Cross-Encoder-Score (andere Skala, ebenfalls h\u00f6her = besser)."
+                        "description": "Ohne Reranking: 1 - Cosine-Distanz (ungef\u00c3\u00a4hr 0..1, h\u00c3\u00b6her = \u00c3\u00a4hnlicher). Mit Reranking: roher Cross-Encoder-Score (andere Skala, ebenfalls h\u00c3\u00b6her = besser)."
                     },
                     "document_title": {
                         "type": "string",
@@ -271,6 +271,10 @@
                             }
                         ],
                         "title": "Document Url"
+                    },
+                    "document_license": {
+                        "type": "string",
+                        "title": "Document License"
                     }
                 },
                 "type": "object",
@@ -279,7 +283,8 @@
                     "score",
                     "document_title",
                     "document_source",
-                    "document_url"
+                    "document_url",
+                    "document_license"
                 ],
                 "title": "SearchResult"
             },

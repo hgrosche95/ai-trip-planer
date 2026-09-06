@@ -25,6 +25,7 @@ class ChunkCandidate:
     document_title: str
     document_source: str
     document_url: str | None
+    document_license: str
 
 
 class DocumentRepository:
@@ -131,7 +132,7 @@ class DocumentRepository:
             cur.execute(
                 """
                 SELECT c.content, c.embedding <=> %s::vector AS distance,
-                       d.title, d.source, d.url
+                       d.title, d.source, d.url, d.license
                 FROM "DocumentChunk" c
                 JOIN "Document" d ON d.id = c."documentId"
                 ORDER BY distance ASC
@@ -146,6 +147,7 @@ class DocumentRepository:
                     document_title=row[2],
                     document_source=row[3],
                     document_url=row[4],
+                    document_license=row[5],
                 )
                 for row in cur.fetchall()
             ]

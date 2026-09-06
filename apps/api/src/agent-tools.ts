@@ -1,6 +1,24 @@
 import { LlmToolDefinition } from './llm/llm-provider.interface';
+import { searchTravelKnowledge } from './rag-client';
+
+export { searchTravelKnowledge };
 
 export const tools: LlmToolDefinition[] = [
+  {
+    name: 'search_travel_knowledge',
+    description:
+      'Durchsucht eine kuratierte Wissensbasis zu Reisezielen (Sehenswürdigkeiten, Essen & Trinken, Transport) nach Fakten. Bei Faktenfragen zu einem konkreten Reiseziel immer zuerst dieses Tool nutzen, statt aus dem Gedächtnis zu antworten - die Treffer enthalten Quellenangaben, mit denen du deine Aussage belegen kannst. Liefert das Tool keine passenden Treffer, sag das dem Nutzer ehrlich, statt zu raten.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Die Suchanfrage, z.B. "Was kann man in Lissabon essen?"',
+        },
+      },
+      required: ['query'],
+    },
+  },
   {
     name: 'search_flights',
     description:

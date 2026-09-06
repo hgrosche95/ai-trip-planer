@@ -45,6 +45,13 @@ jobs:
       LLM_PROVIDER: anthropic
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       NEXT_PUBLIC_API_URL: http://localhost:3000
+      # services: kann nur fertige Images ziehen, nicht aus einem lokalen
+      # Dockerfile bauen - der RAG-Service wird deshalb weiter unten per
+      # docker build/run gestartet, nicht über den services-Block wie
+      # postgres. --network host (nur auf Linux-Runnern verfügbar, hier
+      # der Fall) lässt den Container direkt "localhost" des Runners sehen,
+      # genau wie die restlichen Prozesse in diesem Job.
+      RAG_SERVICE_URL: http://localhost:8001
       # Nur für diesen CI-Lauf gültig (ephemere Postgres-Instanz, kein echter Nutzer) -
       # deshalb hier als Klartext statt als Repo-Secret, genau wie die Postgres-Zugangsdaten oben.
       AUTH_USERNAME: e2e-test
@@ -67,6 +74,30 @@ jobs:
       - name: Datenbank-Migrationen anwenden
         run: npx prisma migrate deploy
         working-directory: apps/api
+
+      - name: RAG-Service bauen
+        run: docker build -f services/rag/Dockerfile -t rag-service:ci .
+
+      - name: RAG-Service starten
+        run: |
+          # DATABASE_URL enthält "?schema=public" (ein Prisma-Query-Param) -
+          # psycopg/libpq kennen den nicht und lehnen unbekannte URI-Query-
+          # Parameter ab, deshalb hier abgeschnitten statt 1:1 übernommen.
+          RAG_DATABASE_URL="${DATABASE_URL%%\?*}"
+          docker run -d --name rag-service --network host \
+            -e DATABASE_URL="$RAG_DATABASE_URL" \
+            -v "$(pwd)/data/knowledge:/app/data/knowledge:ro" \
+            rag-service:ci
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8001/health && exit 0
+            sleep 2
+          done
+          echo "RAG-Service nicht rechtzeitig hochgekommen" >&2
+          docker logs rag-service
+          exit 1
+
+      - name: Wissensbasis einlesen
+        run: docker exec rag-service rag-ingest
 
       - name: Playwright-Browser installieren
         run: npx playwright install --with-deps chromium

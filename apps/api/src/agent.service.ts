@@ -1,6 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import { tools, searchFlights, searchHotels } from './agent-tools';
+import {
+  tools,
+  searchFlights,
+  searchHotels,
+  searchTravelKnowledge,
+} from './agent-tools';
 import { StopCategory } from '../generated/prisma/client';
 import * as appInsights from 'applicationinsights';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
@@ -11,6 +16,26 @@ import type {
   LlmToolResult,
 } from './llm/llm-provider.interface';
 import { trimHistory, truncateToolResult } from './llm/conversation-history';
+import type { TravelKnowledgeSearchResult } from './rag-client';
+
+export interface ChatSource {
+  title: string;
+  source: string;
+  license: string;
+  url: string | null;
+  score: number;
+}
+
+export interface ChatResult {
+  reply: string;
+  sources: ChatSource[];
+  // true, sobald search_travel_knowledge mindestens einmal aufgerufen wurde -
+  // unabhängig davon, ob es Treffer geliefert hat. Trennt "Frage brauchte
+  // keine Wissensbasis" (z.B. Small Talk) von "Wissensbasis wurde befragt,
+  // aber nichts Passendes gefunden" - im Frontend zwei unterschiedliche
+  // UI-Botschaften (siehe apps/web).
+  searchAttempted: boolean;
+}
 
 interface SaveItineraryInput {
   destination: string;
@@ -32,6 +57,7 @@ interface SaveItineraryInput {
 const SYSTEM_PROMPT = `Du bist ein Reiseplaner-Assistent. Du hilfst Nutzern dabei, einen Reiseplan zu erstellen, indem du im Dialog Ziel, Reisedaten, Budget und Präferenzen erfragst.
 
 Nutze die verfügbaren Werkzeuge:
+- search_travel_knowledge, um Faktenfragen zu einem Reiseziel (Sehenswürdigkeiten, Essen & Trinken, Transport) zu beantworten. Nutze es, BEVOR du aus dem Gedächtnis antwortest, und belege deine Aussage mit der zurückgegebenen Quelle (Titel + Quelle). Liefert es keine passenden Treffer, sag das ehrlich, statt zu raten oder zu spekulieren.
 - search_flights und search_hotels, um passende Optionen zu finden, sobald du Ziel, Zeitraum (Start-/Enddatum) und Budget kennst.
 - save_itinerary, um den fertigen Plan zu speichern, sobald du gemeinsam mit dem Nutzer einen konkreten Tagesplan mit einzelnen Programmpunkten erarbeitet hast.
 
@@ -96,11 +122,13 @@ export class AgentService {
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
   ) {}
 
-  async sendMessage(sessionId: string, userMessage: string): Promise<string> {
+  async sendMessage(sessionId: string, userMessage: string): Promise<ChatResult> {
     const history = this.getHistory(sessionId);
     history.push({ role: 'user', content: userMessage });
 
     let result = await this.callLlm(history);
+    const sources = new Map<string, ChatSource>();
+    let searchAttempted = false;
 
     while (result.finishReason === 'tool_calls') {
       history.push({
@@ -112,6 +140,10 @@ export class AgentService {
       const toolResults: LlmToolResult[] = [];
       for (const call of result.toolCalls) {
         const output = await this.executeTool(call.name, call.arguments);
+        if (call.name === 'search_travel_knowledge') {
+          searchAttempted = true;
+          this.collectSources(output as TravelKnowledgeSearchResult, sources);
+        }
         toolResults.push({
           toolCallId: call.id,
           content: truncateToolResult(
@@ -126,7 +158,30 @@ export class AgentService {
     }
 
     history.push({ role: 'assistant', content: result.content ?? '' });
-    return result.content ?? '';
+    return {
+      reply: result.content ?? '',
+      sources: [...sources.values()].sort((a, b) => b.score - a.score),
+      searchAttempted,
+    };
+  }
+
+  private collectSources(
+    knowledgeResult: TravelKnowledgeSearchResult,
+    sources: Map<string, ChatSource>,
+  ): void {
+    for (const hit of knowledgeResult.results) {
+      // Dedupe-Schlüssel aus Titel+Score statt Content: mehrere
+      // search_travel_knowledge-Aufrufe in derselben Runde (z.B. eine Frage
+      // zu Essen UND Transport) liefern oft überlappende Chunks - die
+      // Quellenliste im Frontend soll jede Quelle nur einmal zeigen.
+      sources.set(`${hit.title}|${hit.score}`, {
+        title: hit.title,
+        source: hit.source,
+        license: hit.license,
+        url: hit.url,
+        score: hit.score,
+      });
+    }
   }
 
   private async callLlm(history: LlmMessage[]) {
@@ -156,6 +211,8 @@ export class AgentService {
         return searchFlights(input as Parameters<typeof searchFlights>[0]);
       case 'search_hotels':
         return searchHotels(input as Parameters<typeof searchHotels>[0]);
+      case 'search_travel_knowledge':
+        return searchTravelKnowledge((input as { query: string }).query);
       case 'save_itinerary':
         return this.saveItinerary(input as SaveItineraryInput);
       default:
