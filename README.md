@@ -211,11 +211,11 @@ volle Antwort des Agenten landen als Trace-Input/-Output in Langfuse - beides
 kann Reisepräferenzen oder andere indirekt personenbezogene Angaben enthalten,
 die nichts in einem Drittanbieter-Dashboard verloren haben. Getraced wird nur
 die *Form* des Laufs: Modellname, Token-Zahlen, Latenz, welche Tools mit wie
-vielen Treffern liefen. In einem echten Gesundheitsdaten-Kontext (wie bei
-opta data) würde dieselbe Überlegung zusätzlich für Tool-Argumente und
--Ergebnisse gelten (z.B. Reiseziel, Zeitraum, Budget bei `save_itinerary`) -
-im Zweifel maskiert man nicht einzelne Freitext-Felder nachträglich, sondern
-lässt sie wie hier von vornherein weg.
+vielen Treffern liefen. In einem Kontext mit sensibleren Daten würde dieselbe
+Überlegung zusätzlich für Tool-Argumente und -Ergebnisse gelten (z.B.
+Reiseziel, Zeitraum, Budget bei `save_itinerary`) - im Zweifel maskiert man
+nicht einzelne Freitext-Felder nachträglich, sondern lässt sie wie hier von
+vornherein weg.
 
 ## Wissensbasis: Datenherkunft & Lizenzen (`data/knowledge`) <a name="wissensbasis-datenherkunft"></a>
 
@@ -240,13 +240,12 @@ stammen, ist bewusst kein Detail, sondern Teil der Datenbasis selbst:
   für eine korrekte Attribution, nicht nur ein Metadatum. Es gibt aktuell
   keinen Import-Code in diesem Repo, nur die Struktur dafür.
 
-"Wir haben einfach alles gecrawlt" ist im Gespräch keine gute Antwort, weil es
-zwei Dinge verwechselt: technisch möglich (Scraping ist meist trivial) und
-rechtlich zulässig (Urheberrecht, Nutzungsbedingungen der Quelle, bei
-personenbezogenen Daten zusätzlich Datenschutzrecht) sind unabhängige Fragen.
-Gerade im regulierten Umfeld (Gesundheits-/Abrechnungsdaten bei opta data)
-ist die Fähigkeit, Datenherkunft und Lizenzlage sauber zu dokumentieren,
-selbst Teil der fachlichen Anforderung - nicht nur Compliance-Kosmetik.
+"Einfach alles crawlen" verwechselt zwei unabhängige Fragen: technisch
+möglich (Scraping ist meist trivial) und rechtlich zulässig (Urheberrecht,
+Nutzungsbedingungen der Quelle, bei personenbezogenen Daten zusätzlich
+Datenschutzrecht). Datenherkunft und Lizenzlage sauber zu dokumentieren ist
+deshalb Teil der fachlichen Arbeit, nicht nachträgliche Compliance-Kosmetik -
+besonders in regulierten Umfeldern mit Gesundheits- oder Abrechnungsdaten.
 
 ## Architekturentscheidungen
 
