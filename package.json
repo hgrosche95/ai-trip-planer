@@ -4,7 +4,8 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "e2e"
+    "e2e",
+    "evals"
   ],
   "engines": {
     "node": ">=20"

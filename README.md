@@ -19,6 +19,7 @@ echten LLM-Tool-Use-Agent-Workflows und E2E-Testing mit Playwright.
 - `services/rag` – Python/FastAPI-Service für lokale Embeddings und semantische Suche (siehe [services/rag/README.md](services/rag/README.md))
 - `packages/mcp-server` – MCP-Server, macht die Trip-Planner-Tools für Claude Code & Co. nutzbar (siehe [packages/mcp-server/README.md](packages/mcp-server/README.md))
 - `e2e` – Playwright End-to-End-Tests
+- `evals` – Eval-Harness mit Golden Dataset (Recall@k, MRR, Tool-Genauigkeit, optional LLM-as-Judge, siehe [evals/README.md](evals/README.md))
 - `infra` – Bicep-Templates für das Azure-Deployment (siehe [Architektur](#architektur-azure))
 - `docker-compose.yml` – lokale PostgreSQL-Instanz + RAG-Service (siehe [Architektur](#architektur-lokal))
 - `.github/workflows` – CI-Pipeline (Lint, Test, Build, E2E) und Azure-Deployment-Workflow

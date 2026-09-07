@@ -1,0 +1,14 @@
+{
+  "name": "evals",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "eval": "tsx src/run.ts",
+    "test": "tsx --test src/metrics.spec.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.23.13"
+  }
+}
