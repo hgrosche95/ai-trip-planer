@@ -12,6 +12,9 @@ param namePrefix string
 @description('Vollständige Backend-Image-Referenz, z. B. ghcr.io/<owner>/<repo>-api:<tag>.')
 param containerImage string
 
+@description('Vollständige RAG-Service-Image-Referenz, z. B. ghcr.io/<owner>/<repo>-rag:<tag>.')
+param ragContainerImage string
+
 @description('Benutzername für den GHCR-Login (z. B. GitHub-Benutzer-/Orgname).')
 param registryUsername string
 
@@ -41,6 +44,12 @@ param authPasswordHash string
 @description('Geheimer Schlüssel, mit dem das Backend JWTs signiert/verifiziert.')
 @secure()
 param jwtSecret string
+
+// psycopg (RAG-Service) kennt Prisma-Query-Parameter wie ?schema=public nicht
+// (derselbe Fix wie im e2e-CI-Job) - einmalig hier statt im aufrufenden
+// Workflow abgeschnitten, weil beide Container denselben databaseUrl-Parameter
+// als Basis nehmen.
+var ragDatabaseUrl = split(databaseUrl, '?')[0]
 
 module appInsights 'modules/app-insights.bicep' = {
   name: 'app-insights-deployment'
@@ -75,6 +84,19 @@ module containerApp 'modules/container-app.bicep' = {
     authUsername: authUsername
     authPasswordHash: authPasswordHash
     jwtSecret: jwtSecret
+  }
+}
+
+module ragContainerApp 'modules/rag-container-app.bicep' = {
+  name: 'rag-container-app-deployment'
+  params: {
+    location: location
+    namePrefix: namePrefix
+    containerAppEnvironmentName: containerApp.outputs.containerAppEnvironmentName
+    containerImage: ragContainerImage
+    registryUsername: registryUsername
+    registryPassword: registryPassword
+    databaseUrl: ragDatabaseUrl
   }
 }
 

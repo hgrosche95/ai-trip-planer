@@ -18,6 +18,7 @@ env:
   AZURE_RESOURCE_GROUP: trip-planner-dev-rg
   AZURE_LOCATION: germanywestcentral
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/ai-trip-planner-api
+  RAG_IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/ai-trip-planner-rag
 
 jobs:
   deploy:
@@ -42,6 +43,13 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
           docker build -f apps/api/Dockerfile -t "$IMAGE_TAG" .
           docker push "$IMAGE_TAG"
+
+      - name: RAG-Image bauen und pushen
+        run: |
+          RAG_IMAGE_TAG="${RAG_IMAGE_NAME,,}:${{ github.sha }}"
+          echo "RAG_IMAGE_TAG=$RAG_IMAGE_TAG" >> "$GITHUB_ENV"
+          docker build -f services/rag/Dockerfile -t "$RAG_IMAGE_TAG" .
+          docker push "$RAG_IMAGE_TAG"
 
       # --- 2. Bei Azure einloggen (OIDC / Federated Credentials) ---------------------
       - name: Bei Azure einloggen
@@ -91,6 +99,7 @@ jobs:
               anthropicApiKey="$ANTHROPIC_API_KEY" \
               groqApiKey="$GROQ_API_KEY" \
               containerImage="$IMAGE_TAG" \
+              ragContainerImage="$RAG_IMAGE_TAG" \
               registryUsername="${{ github.actor }}" \
               registryPassword="$GHCR_PAT" \
               authUsername="$AUTH_USERNAME" \
