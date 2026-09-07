@@ -1,9 +1,13 @@
 # AI Trip Planner
 
-KI-gestützter Reiseplaner zum Lernen von Next.js, NestJS, Prisma/PostgreSQL,
-echten LLM-Tool-Use-Agent-Workflows und E2E-Testing mit Playwright.
+Ein Chat-Agent, der einen Reiseplan im Dialog erarbeitet, Faktenfragen zu
+Reisezielen mit belegten Quellen statt Vermutungen beantwortet und das
+Ergebnis speichert. Gebaut als Lernprojekt für produktionsnahe LLM-Anwendungen:
+Tool-Use-Agenten, Retrieval-Augmented Generation, austauschbare LLM-Anbieter,
+ein eigener MCP-Server, automatisierte Qualitätsmessung und ein
+Cloud-Deployment, das bei Nichtnutzung nichts kostet.
 
-**Live-Demo:** https://witty-pond-0504bdc0f.7.azurestaticapps.net (Frontend, Azure Static Web Apps; siehe [Architektur](#architektur-azure))
+**Live-Demo:** https://witty-pond-0504bdc0f.7.azurestaticapps.net
 
 ## Screenshots
 
@@ -11,90 +15,131 @@ echten LLM-Tool-Use-Agent-Workflows und E2E-Testing mit Playwright.
 | --- | --- |
 | ![Chat-Oberfläche des Reiseplaners](./docs/screenshots/chat.png) | ![Detailliertere Übersicht](./docs/screenshots/trip.png) |
 
-## Struktur
+## Features
 
-- `apps/web` – Next.js Frontend (Chat-Oberfläche + Reiseplan-Anzeige unter `/trips`), als statischer Export gebaut
-- `apps/api` – NestJS Backend (inkl. `prisma/` Schema+Migrations, Prisma-Anbindung und Agent-Logik in `src/`, LLM-Anbieter austauschbar über `src/llm/`), `Dockerfile` für den produktiven Container
-- `data/knowledge` – Markdown-Wissensbasis für RAG (Reiseziel-Dokumente, siehe [Datenherkunft & Lizenzen](#wissensbasis-datenherkunft))
-- `services/rag` – Python/FastAPI-Service für lokale Embeddings und semantische Suche (siehe [services/rag/README.md](services/rag/README.md))
-- `packages/mcp-server` – MCP-Server, macht die Trip-Planner-Tools für Claude Code & Co. nutzbar (siehe [packages/mcp-server/README.md](packages/mcp-server/README.md))
-- `e2e` – Playwright End-to-End-Tests
-- `evals` – Eval-Harness mit Golden Dataset (Recall@k, MRR, Tool-Genauigkeit, optional LLM-as-Judge, siehe [evals/README.md](evals/README.md))
-- `infra` – Bicep-Templates für das Azure-Deployment (siehe [Architektur](#architektur-azure))
-- `docker-compose.yml` – lokale PostgreSQL-Instanz + RAG-Service (siehe [Architektur](#architektur-lokal))
-- `.github/workflows` – CI-Pipeline (Lint, Test, Build, E2E) und Azure-Deployment-Workflow
+- **Dialogbasierte Reiseplanung**: der Agent fragt aktiv nach Ziel, Zeitraum,
+  Budget und Präferenzen, statt eine Eingabemaske auszufüllen
+- **Belegte Faktenantworten statt Vermutungen**: Fragen zu Sehenswürdigkeiten,
+  Essen und Transport werden über eine eigene RAG-Wissensbasis beantwortet,
+  inklusive sichtbarer Quelle im Frontend - findet sich nichts Passendes,
+  sagt der Agent das, statt zu spekulieren
+- **Gespeicherte, wiederauffindbare Reisepläne** unter `/trips`, mit
+  Tagesprogramm und Kategorien pro Programmpunkt
+- **Austauschbarer LLM-Anbieter** (Groq oder Anthropic) per einer
+  Env-Variable, kein Codeeingriff nötig
+- **MCP-Server**: dieselben Fähigkeiten (Wissenssuche, Reiseplan anlegen/
+  auflisten) direkt aus Claude Code, Claude Desktop oder jedem anderen
+  MCP-Client nutzbar - stdio- und abgesicherter HTTP-Transport
+- **Tracing** jedes Agentenlaufs (Langfuse), bewusst ohne Freitext-Inhalte
+- **Automatisierte Qualitätsmessung**: ein Eval-Harness misst Retrieval- und
+  Tool-Genauigkeit gegen ein festes Golden Dataset, nachts gegen Groq
+  wiederholt, Report als CI-Artefakt
+- **Cloud-Deployment** (Azure, Infrastructure-as-Code) mit Scale-to-Zero -
+  keine laufenden Kosten ohne Nutzung
 
 ## Architektur (lokal) <a name="architektur-lokal"></a>
 
-```
-┌─────────────┐        ┌──────────────────────┐        ┌───────────────────┐
-│  apps/web   │──────▶ │       apps/api        │──────▶ │  Groq / Anthropic  │
-│  (Next.js)  │        │  (NestJS, Agent +     │        │  (LLM_PROVIDER)    │
-│  Port 3001  │        │   LlmProvider)        │        └───────────────────┘
-└─────────────┘        │       Port 3000       │
-                        └───────────┬───────────┘
-                                    │ Reisepläne
-                                    ▼
-                        ┌───────────────────────┐        ┌───────────────────┐
-                        │   Postgres + pgvector  │ ◀───── │   services/rag     │
-                        │  Itinerary-Tabellen +  │ Chunks │   (FastAPI)        │
-                        │  Document/DocumentChunk│ Suche  │   Port 8001        │
-                        │       Port 5432        │──────▶ │                    │
-                        └────────────────────────┘        └─────────┬──────────┘
-                                                                     │ liest (Ingestion)
-                                                                     ▼
-                                                            ┌───────────────────┐
-                                                            │  data/knowledge    │
-                                                            │  (Markdown-Dateien)│
-                                                            └───────────────────┘
+```mermaid
+flowchart LR
+    Web["apps/web (Next.js)<br/>Chat + Reiseplan"]
+    Api["apps/api (NestJS)<br/>Agent, Tool-Registry,<br/>Itineraries-CRUD"]
+    Prov["LlmProvider<br/>Groq | Anthropic"]
+    Rag["services/rag (FastAPI)<br/>Chunking, Embeddings, Suche"]
+    Db[("Postgres + pgvector")]
+    Kb["data/knowledge<br/>(Markdown)"]
+    Mcp["packages/mcp-server<br/>Trip-Tools via MCP"]
+    Obs["Langfuse<br/>Tracing (optional)"]
+
+    Web --> Api
+    Api --> Prov
+    Api -- "search_travel_knowledge" --> Rag
+    Api --> Db
+    Rag --> Db
+    Rag -- Ingestion --> Kb
+    Mcp --> Api
+    Mcp -.-> Rag
+    Api -.Traces.-> Obs
 ```
 
-`apps/api` ruft `services/rag` aktuell **noch nicht** auf (das ist Phase 4) -
-beide Services laufen bereits nebeneinander über `docker compose up`, sind
-aber noch nicht verdrahtet. `apps/web` und `apps/api` laufen lokal nativ mit
-Hot-Reload (siehe unten), `postgres` und `rag` über Docker Compose.
+`apps/web` und `apps/api` laufen lokal nativ mit Hot-Reload, `postgres` und
+`rag` über `docker compose` (siehe `docker-compose.yml` - bewusst nur
+unterstützende Infrastruktur, kein Container-Rebuild pro Codeänderung für die
+beiden aktiv entwickelten Apps).
+
+## Technologien
+
+| Bereich | Wahl | Warum |
+| --- | --- | --- |
+| Frontend | Next.js, statischer Export | Kein eigener Node-Server für das Frontend nötig - passt zu Azure Static Web Apps (CDN, kostenloses TLS, Free Tier) |
+| Backend | NestJS | Modulare DI-Struktur passt zum Tool-Registry-/Provider-Pattern des Agenten, TypeScript durchgehend mit dem Frontend geteilt |
+| Datenbank | PostgreSQL + pgvector | Eine Datenbank für Anwendungsdaten (Reisepläne) und Vektorsuche statt einer zusätzlichen dedizierten Vektor-DB |
+| LLM | Groq (Standard) / Anthropic (Fallback) | Groq: kostenloses Tier, OpenAI-kompatible Schnittstelle (`openai`-Paket statt `groq-sdk` - ein Adapter für jeden OpenAI-kompatiblen Endpunkt). Beide hinter einem `LlmProvider`-Interface austauschbar |
+| RAG-Service | Python/FastAPI, eigener Prozess | Embedding-Ökosystem lebt in Python - echte polyglotte Systemintegration statt alles in eine Sprache zu zwingen |
+| Embeddings | fastembed, lokal (ONNX) | Kein API-Key, keine laufenden Kosten, volle Datenhoheit - relevant im Gesundheits-/Abrechnungsumfeld |
+| Agent-Fähigkeiten extern | MCP-Server | Macht dieselbe Tool-Logik ohne Duplikation auch außerhalb des eigenen Frontends nutzbar (Claude Code, Claude Desktop, ...) |
+| Observability | Langfuse (OpenTelemetry-basiertes SDK) | Anbieterneutral instrumentiert (Groq **und** Anthropic), sauber deaktiviert ohne Account |
+| Qualitätsmessung | Eigener Eval-Harness (Recall@k, MRR, Tool-Genauigkeit) | Ohne Messung ist RAG-Qualität eine Meinung - Grundlage für ein CI-Gate |
+| E2E-Tests | Playwright | Prüft den kompletten Flow gegen den echten Agenten, nicht nur einzelne Komponenten |
+| Infrastruktur | Bicep, Azure Container Apps | Scale-to-Zero passt zu unregelmäßiger Portfolio-Nutzung; Infrastructure-as-Code statt Klick-Ops |
+
+## Eval-Ergebnisse
+
+Letzter Lauf gegen den echten Stack (`nightly-eval.yml`, Modell
+`groq/openai/gpt-oss-120b`), 8 Fragen im Golden Dataset:
+
+| Metrik | Ergebnis | Schwelle |
+| --- | --- | --- |
+| Recall@3 | 100,0 % | ≥ 80,0 % |
+| MRR | 1,00 | ≥ 0,60 |
+| Tool-Genauigkeit | 100,0 % | ≥ 80,0 % |
+| LLM-as-Judge | 5,00 / 5 | - |
+
+Metriken, Golden Dataset und Interpretation (insbesondere der Unterschied
+zwischen Recall@k und MRR): [evals/README.md](evals/README.md).
 
 ## Lokales Setup
 
 Voraussetzungen: Node.js 20+, Docker Desktop.
 
-1. Abhängigkeiten installieren (installiert automatisch auch den generierten Prisma-Client via `postinstall`):
-   ```
-   npm install
-   ```
-2. Postgres + RAG-Service starten (baut `services/rag` beim ersten Mal, dauert etwas):
-   ```
-   docker compose up -d
-   ```
-3. `apps/api/.env.example` nach `apps/api/.env` kopieren und ausfüllen:
-   ```
-   cp apps/api/.env.example apps/api/.env
-   ```
-   - **LLM-Provider:** Standardmäßig `LLM_PROVIDER=groq` mit kostenlosem `GROQ_API_KEY` (siehe [console.groq.com/keys](https://console.groq.com/keys); Free Tier: 30 Requests/Minute, ca. 1.000/Tag, 8.000 Tokens/Minute). Alternativ `LLM_PROVIDER=anthropic` mit `ANTHROPIC_API_KEY` (siehe [console.anthropic.com](https://console.anthropic.com); wird separat abgerechnet).
-   - **Login-Zugangsdaten** für die eigene App:
-     ```
-     AUTH_USERNAME=dein-username
-     AUTH_PASSWORD_HASH=<bcrypt-Hash, siehe unten>
-     JWT_SECRET=<zufälliger String, siehe unten>
-     ```
-     Hash und Secret generieren:
-     ```bash
-     node -e "console.log(require('bcrypt').hashSync('DEIN_PASSWORT', 10))"
-     node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-     ```
-4. Datenbank-Migrationen anwenden (nur beim allerersten Setup nötig, danach nur bei Schema-Änderungen):
-   ```
-   cd apps/api && npx prisma migrate dev
-   ```
-5. Backend starten (Port 3000):
-   ```
-   cd apps/api && npm run start:dev
-   ```
-6. Frontend starten (Port 3001, in einem zweiten Terminal; braucht `apps/web/.env.local` mit `NEXT_PUBLIC_API_URL=http://localhost:3000`):
-   ```
-   cd apps/web && npm run dev
-   ```
-7. Chat unter `http://localhost:3001`, gespeicherte Reisen unter `http://localhost:3001/trips`.
+```bash
+npm install
+docker compose up -d          # Postgres + RAG-Service (baut rag beim ersten Mal)
+cp apps/api/.env.example apps/api/.env
+```
+
+In `apps/api/.env` ausfüllen:
+- **LLM-Provider:** Standardmäßig `LLM_PROVIDER=groq` mit kostenlosem
+  `GROQ_API_KEY` ([console.groq.com/keys](https://console.groq.com/keys);
+  Free Tier: 30 Requests/Minute, ca. 1.000/Tag, 8.000 Tokens/Minute).
+  Alternativ `LLM_PROVIDER=anthropic` mit `ANTHROPIC_API_KEY`.
+- **Login-Zugangsdaten:**
+  ```
+  AUTH_USERNAME=dein-username
+  AUTH_PASSWORD_HASH=<bcrypt-Hash>
+  JWT_SECRET=<zufälliger String>
+  ```
+  Generieren:
+  ```bash
+  node -e "console.log(require('bcrypt').hashSync('DEIN_PASSWORT', 10))"
+  node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+  ```
+
+Danach:
+
+```bash
+cd apps/api && npx prisma migrate dev   # nur beim ersten Setup nötig
+npm run start:dev                        # Backend, Port 3000
+```
+
+Frontend in einem zweiten Terminal (braucht `apps/web/.env.local` mit
+`NEXT_PUBLIC_API_URL=http://localhost:3000`):
+
+```bash
+cd apps/web && npm run dev              # Port 3001
+```
+
+Chat unter `http://localhost:3001`, gespeicherte Reisen unter
+`http://localhost:3001/trips`.
 
 ## Backend-Endpunkte (`apps/api`)
 
@@ -110,6 +155,20 @@ Voraussetzungen: Node.js 20+, Docker Desktop.
 🔒 = verlangt einen gültigen JWT im `Authorization: Bearer <token>`-Header (per `POST /auth/login` erhalten). Das Frontend kümmert sich darum automatisch (Login-Seite unter `/login`, Token liegt im `localStorage`).
 
 Gespeicherte Reisepläne lassen sich auch mit `npx prisma studio` (in `apps/api`) im Browser unter `http://localhost:5555` einsehen.
+
+## Struktur & weiterführende READMEs
+
+- `apps/web` – Next.js Frontend (Chat-Oberfläche + Reiseplan-Anzeige unter `/trips`), als statischer Export gebaut
+- `apps/api` – NestJS Backend (Prisma-Schema/Migrations, Agent-Logik in `src/`, LLM-Anbieter austauschbar über `src/llm/`), `Dockerfile` für den produktiven Container
+- `data/knowledge` – Markdown-Wissensbasis für RAG, siehe [data/knowledge/README.md](data/knowledge/README.md) und [Datenherkunft & Lizenzen](#wissensbasis-datenherkunft)
+- `services/rag` – Python/FastAPI-Service für lokale Embeddings, Ingestion und semantische Suche, siehe [services/rag/README.md](services/rag/README.md)
+- `packages/mcp-server` – MCP-Server für die Trip-Planner-Tools, siehe [packages/mcp-server/README.md](packages/mcp-server/README.md)
+- `evals` – Eval-Harness mit Golden Dataset, siehe [evals/README.md](evals/README.md)
+- `e2e` – Playwright End-to-End-Tests
+- `infra` – Bicep-Templates für das Azure-Deployment, siehe [Architektur (Azure)](#architektur-azure)
+- `docs/deployment.md` – Kosten und Groq-Free-Tier-Grenzen im Produktivbetrieb
+- `docker-compose.yml` – lokale PostgreSQL-Instanz + RAG-Service
+- `.github/workflows` – CI/CD, siehe [CI/CD](#cicd)
 
 ## Observability: Tracing mit Langfuse
 
@@ -160,11 +219,10 @@ lässt sie wie hier von vornherein weg.
 
 ## Wissensbasis: Datenherkunft & Lizenzen (`data/knowledge`) <a name="wissensbasis-datenherkunft"></a>
 
-Für die RAG-Funktion (Phase 3/4 des Erweiterungsplans) liegen unter
-`data/knowledge/` Markdown-Dokumente zu Reisezielen, die später in Chunks
-zerlegt und embedded werden (Format siehe [`data/knowledge/README.md`](data/knowledge/README.md)).
-Woher diese Inhalte stammen, ist bewusst kein Detail, sondern Teil der
-Datenbasis selbst:
+Unter `data/knowledge/` liegen Markdown-Dokumente zu Reisezielen, die der
+RAG-Service in Chunks zerlegt und embedded (Format siehe
+[`data/knowledge/README.md`](data/knowledge/README.md)). Woher diese Inhalte
+stammen, ist bewusst kein Detail, sondern Teil der Datenbasis selbst:
 
 - **Eigene Inhalte** (die vier Beispieldokumente): selbst formulierte
   Kurzüberblicke zu Sehenswürdigkeiten, Essen und Transport. Keine
@@ -190,6 +248,47 @@ Gerade im regulierten Umfeld (Gesundheits-/Abrechnungsdaten bei opta data)
 ist die Fähigkeit, Datenherkunft und Lizenzlage sauber zu dokumentieren,
 selbst Teil der fachlichen Anforderung - nicht nur Compliance-Kosmetik.
 
+## Architekturentscheidungen
+
+Es gibt (noch) keine separaten ADR-Dateien in diesem Repo - die Begründungen
+stehen stattdessen direkt bei den jeweiligen Themen (verlinkt unten). Die
+wichtigsten Entscheidungen im Überblick:
+
+- **LLM hinter einem `LlmProvider`-Interface** statt direkter Anthropic- oder
+  Groq-Kopplung: der Wechsel des Standard-Anbieters war dadurch eine
+  Env-Variable plus ein Adapter, kein Umbau des Agenten. Details:
+  `apps/api/src/llm/llm-provider.interface.ts`.
+- **RAG als separater Python-Service statt In-Process-Bibliothek**: das
+  Embedding-Ökosystem (fastembed, ONNX) lebt in Python, die
+  Agent-Orchestrierung in TypeScript - eine dokumentierte HTTP-Schnittstelle
+  zwischen beiden statt eines Sprachkompromisses für alles. Details:
+  [services/rag/README.md](services/rag/README.md).
+- **RAG als Agent-*Tool*, nicht als starre Vorschaltsuche**: das Modell
+  entscheidet selbst, wann es die Wissensbasis braucht, statt jede Anfrage
+  unabhängig vom Inhalt erst durch die Suche zu schicken.
+- **RAG-Container ohne öffentliche Erreichbarkeit** im Azure-Deployment
+  (`ingress.external: false`): `/search` und `/embed` haben keine eigene
+  Authentifizierung, das Backend erreicht den Service stattdessen intern über
+  seinen Namen. Details: [docs/deployment.md](docs/deployment.md).
+- **Tracing ohne Freitext-Inhalte**: Trace-Daten beschreiben die Form eines
+  Agentenlaufs (Tokens, Latenz, Tool-Nutzung), nicht dessen Inhalt. Details
+  siehe [Observability](#observability-tracing-mit-langfuse) oben.
+- **Kein MCP-Tool für destruktive Aktionen**: `DELETE /itineraries/:id`
+  existiert als REST-Endpunkt, aber bewusst nicht als MCP-Tool - ein Modell
+  soll nicht autonom unwiderruflich Daten löschen können. Details:
+  [packages/mcp-server/README.md](packages/mcp-server/README.md).
+
+## CI/CD <a name="cicd"></a>
+
+| Workflow | Trigger | Zweck |
+| --- | --- | --- |
+| `ci.yml` → `lint-test-build` | Push/PR | Lint, Unit-Tests, Build über alle Node-Workspaces |
+| `ci.yml` → `rag-lint-test` | Push/PR | Ruff, mypy (strict), pytest für `services/rag` - unabhängig vom Node-Job |
+| `ci.yml` → `docker-build` | Push/PR | Baut `apps/api`- und `services/rag`-Dockerfiles, bevor gemerged wird |
+| `ci.yml` → `e2e` | Push/PR | Playwright-Test gegen den kompletten Stack (siehe [E2E-Tests](#e2e-tests-e2e)) |
+| `nightly-eval.yml` | täglich 03:00 UTC + manuell | Eval-Harness gegen den echten Stack, Report als Artefakt. Übersprungen (nicht rot), solange kein `GROQ_API_KEY`-Secret gesetzt ist |
+| `deploy.yml` | Push auf `main` + manuell | Baut beide Images, deployt die Bicep-Templates, veröffentlicht das Frontend |
+
 ## E2E-Tests (`e2e`)
 
 Playwright-Test, der den kompletten Flow gegen den echten Chat-Agenten prüft (Backend, Frontend und Postgres müssen laufen). Der Test loggt sich zuerst ein, braucht dafür das Klartext-Gegenstück zu deinem `AUTH_PASSWORD_HASH` aus `apps/api/.env` (den Hash selbst kann man ja nicht zurückrechnen):
@@ -200,53 +299,44 @@ export E2E_AUTH_PASSWORD=dein-passwort   # das Passwort, aus dem AUTH_PASSWORD_H
 cd e2e && npx playwright test
 ```
 
-Läuft auch automatisch in der CI-Pipeline (eigener `e2e`-Job mit Postgres-Service-Container und dem `ANTHROPIC_API_KEY`-Repository-Secret).
-
 ## Architektur (Azure) <a name="architektur-azure"></a>
 
-Das Projekt lässt sich per Infrastructure-as-Code (Bicep, `infra/`) nach Azure deployen:
+```mermaid
+flowchart TB
+    GH["GitHub Actions: deploy.yml<br/>OIDC-Login gegen Azure"]
+    Ghcr[("ghcr.io<br/>API- + RAG-Image")]
+    GH -->|docker push| Ghcr
+    GH -->|az deployment group create| RG
 
-```
-                 ┌──────────────────────────────┐
-                 │   GitHub Actions (CI/CD)      │
-                 │   .github/workflows/deploy.yml│
-                 │   Login via OIDC              │
-                 └───────────────┬────────────────┘
-                                 │
-                 ┌───────────────┼────────────────────────────┐
-                 │               ▼                             │
-                 │   docker push          az deployment group  │
-                 │       │                    create           │
-                 ▼       │                       │              │
-   ghcr.io (Backend-Image)                       ▼              │
-                 │                 Azure Resource Group          │
-                 │        ┌─────────────────────────────────┐   │
-                 └───────▶│ Container Apps Environment       │   │
-                          │   └─ Container App (NestJS API)  │   │
-                          │        │              │           │  │
-                          │        │              └─────▶ Application Insights
-                          │        │                          │       ▲
-                          │        ▼                          │       │
-                          │  PostgreSQL Flexible Server        │  Log Analytics
-                          │  (Burstable B1ms, Firewall:        │   Workspace
-                          │   nur Azure-interne Dienste)        │
-                          └─────────────────────────────────┘   │
-                                        ▲                        │
-                                        │ NEXT_PUBLIC_API_URL     │
-                          ┌──────────────────────┐               │
-              Browser ───▶│ Static Web App (Free)│───────────────┘
-                          │ Next.js, statischer   │
-                          │ Export aus apps/web    │
-                          └──────────────────────┘
+    subgraph RG["Azure Resource Group"]
+        subgraph Env["Container Apps Environment"]
+            ApiApp["Container App: api<br/>ingress: external"]
+            RagApp["Container App: rag<br/>ingress: internal"]
+            ApiApp -- "http://&lt;name&gt;-rag" --> RagApp
+        end
+        AI["Application Insights +<br/>Log Analytics"]
+        ApiApp --> AI
+    end
+
+    Ghcr --> ApiApp
+    Ghcr --> RagApp
+
+    SWA["Static Web App (Free)<br/>Next.js, statischer Export"]
+    Browser(("Browser")) --> SWA
+    SWA -- NEXT_PUBLIC_API_URL --> ApiApp
+
+    Neon[("Neon Postgres<br/>Free Tier")]
+    ApiApp --> Neon
+    RagApp --> Neon
 ```
 
 | Dienst | Zweck |
 | --- | --- |
 | **Azure Static Web Apps** | Hosting des Next.js-Frontends als statischer Export (HTML/JS/CSS, globales CDN, kostenloses TLS) |
-| **Azure Container Apps** | Laufzeitumgebung fürs NestJS-Backend UND den RAG-Service (zweite Container App in derselben Environment, `ingress.external: false` - nur intern über ihren Namen erreichbar, keine eigene Auth), beide Scale-to-Zero. Details und Kosten: [docs/deployment.md](docs/deployment.md) |
-| **Azure Database for PostgreSQL – Flexible Server** | Verwaltete Postgres-Datenbank, Burstable-Tier (günstigste SKU) |
-| **Application Insights + Log Analytics** | Monitoring/Logs des Backends – `applicationinsights`-SDK läuft in `apps/api` (Setup in `src/tracing.ts`, ganz am Anfang von `main.ts` geladen), erfasst automatisch Requests/Dependencies/Exceptions/Konsolen-Logs plus ein Custom Event `ItinerarySaved`. Abrufbar im Portal unter "Live Metrics"/"Logs" (KQL) oder per `az monitor app-insights query` |
-| **GitHub Container Registry (ghcr.io)** | Hostet das Backend-Docker-Image |
+| **Azure Container Apps** | Laufzeitumgebung fürs NestJS-Backend und den RAG-Service (zweite Container App in derselben Environment, `ingress.external: false` - nur intern über ihren Namen erreichbar, keine eigene Auth), beide Scale-to-Zero. Details und Kosten: [docs/deployment.md](docs/deployment.md) |
+| **Neon (PostgreSQL + pgvector)** | Verwaltete Postgres-Datenbank, Free Tier, öffentlich erreichbar (kein VNet-Firewall-Handshake nötig) |
+| **Application Insights + Log Analytics** | Monitoring/Logs des Backends – erfasst automatisch Requests/Dependencies/Exceptions/Konsolen-Logs plus ein Custom Event `ItinerarySaved` |
+| **GitHub Container Registry (ghcr.io)** | Hostet beide Docker-Images (Backend, RAG-Service) |
 
 Alle Ressourcen werden über `infra/main.bicep` (bindet die Module aus `infra/modules/` ein) in einer einzigen Resource Group angelegt.
 
@@ -278,38 +368,31 @@ Falls Federated Credentials im eigenen Tenant nicht eingerichtet werden können:
 | Secret | Zweck |
 | --- | --- |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | OIDC-Login gegen Azure |
-| `POSTGRES_ADMIN_LOGIN`, `POSTGRES_ADMIN_PASSWORD` | Zugangsdaten für den Postgres Flexible Server |
-| `GROQ_API_KEY` | Standard-LLM-Provider fürs Backend (kostenloses Tier, siehe [Lokales Setup](#lokales-setup)) |
-| `ANTHROPIC_API_KEY` | Fallback-Provider fürs Backend, umschaltbar per `LLM_PROVIDER`-Env-Var ohne neues Secret (existiert vermutlich schon aus der CI-Pipeline) |
-| `GHCR_PAT` | GitHub Personal Access Token mit Scope `read:packages` – wird als Registry-Pull-Credential in die Container App geschrieben (das kurzlebige `GITHUB_TOKEN` reicht dafür nicht, siehe Kommentar in `deploy.yml`) |
-| `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `JWT_SECRET` | Login-Zugangsdaten fürs deployte Backend (`POST /auth/login`) – gleiche Werte/gleiches Prinzip wie in `apps/api/.env` lokal, siehe [Lokales Setup](#lokales-setup) für die Generierung. Ruhig ein anderes Passwort als lokal verwenden. |
+| `DATABASE_URL` | Fertiger Neon-Connection-String (inkl. `sslmode=require`) für Backend **und** RAG-Service |
+| `GROQ_API_KEY` | Standard-LLM-Provider fürs Backend (kostenloses Tier) und für `nightly-eval.yml` - fehlt dieses Secret, wird der nächtliche Eval-Lauf sauber übersprungen statt die Pipeline rot zu färben |
+| `ANTHROPIC_API_KEY` | Fallback-Provider fürs Backend, umschaltbar per `LLM_PROVIDER`-Env-Var ohne neues Secret |
+| `GHCR_PAT` | GitHub Personal Access Token mit Scope `read:packages` – wird als Registry-Pull-Credential in beide Container Apps geschrieben (das kurzlebige `GITHUB_TOKEN` reicht dafür nicht, siehe Kommentar in `deploy.yml`) |
+| `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `JWT_SECRET` | Login-Zugangsdaten fürs deployte Backend (`POST /auth/login`) – gleiche Werte/gleiches Prinzip wie in `apps/api/.env` lokal. Ruhig ein anderes Passwort als lokal verwenden. |
 
-**3. Deployen:** Push auf `main` (oder manuell über den "Run workflow"-Button bei `deploy.yml`) baut das Backend-Image, deployt die Bicep-Templates und veröffentlicht das Frontend – alles automatisch.
+**3. Deployen:** Push auf `main` (oder manuell über den "Run workflow"-Button bei `deploy.yml`) baut beide Images, deployt die Bicep-Templates und veröffentlicht das Frontend – alles automatisch.
 
 Region/Namens-Präfix lassen sich in `infra/main.parameters.json` anpassen.
 
 **Secrets nachträglich ändern (z. B. Login-Passwort rotieren):** GitHub-Secret aktualisieren und `deploy.yml` erneut laufen lassen reicht **nicht automatisch** – Azure Container Apps legt bei einer reinen Secret-*Wert*-Änderung (ohne Änderung an Image-Tag/Env-Var-Namen) keine neue Revision an, der laufende Container behält seine beim Start eingelesenen (alten) Werte. Nach jeder Secret-Rotation zusätzlich eine neue Revision erzwingen:
+
 ```bash
 az containerapp update --name trip-planner-dev-api --resource-group trip-planner-dev-rg --revision-suffix rotate$(date +%s)
 ```
 
 ### Kosten im Blick behalten
 
-Die Konfiguration ist bewusst auf die günstigsten Optionen ausgelegt (Container Apps Scale-to-Zero, Postgres Burstable-Tier, Static Web Apps Free-Tier, gedeckelte Log-Analytics-Aufnahme) – trotzdem läuft der **PostgreSQL Flexible Server nicht automatisch in einen Nullkosten-Zustand**, wenn er nicht benutzt wird (anders als die Container App). Wer länger pausiert, sollte ihn manuell stoppen:
+Container Apps (beide, Scale-to-Zero) und Neon (Free Tier, pausiert bei
+Inaktivität automatisch) verursachen im Leerlauf keine Kosten - anders als
+frühere Setups mit einem dauerhaft laufenden Azure-Postgres-Server gibt es
+hier keinen manuellen Stop/Start-Schritt mehr. Details inkl. konkreter
+Zahlen: [docs/deployment.md](docs/deployment.md).
 
-```bash
-az postgres flexible-server stop --name trip-planner-dev-psql3 --resource-group trip-planner-dev-rg
-```
-
-Wieder starten:
-
-```bash
-az postgres flexible-server start --name trip-planner-dev-psql3 --resource-group trip-planner-dev-rg
-```
-
-Ein gestoppter Server startet sich nach 7 Tagen automatisch wieder (Azure-Limit) – bei längeren Pausen den Befehl ggf. wiederholen, oder die Ressourcen bei Nichtgebrauch mit `az group delete` komplett entfernen (dann müsste vor dem nächsten Deployment allerdings `npx prisma migrate deploy` erneut laufen, da eine neue, leere Datenbank entsteht).
-
-**Wichtig:** Das Stoppen von Postgres allein schützt **nicht** vor unautorisierter Nutzung des Anthropic-API-Keys – `/agent/chat` ruft die Anthropic-API auf, bevor überhaupt auf die Datenbank zugegriffen wird (nur `save_itinerary` braucht die DB). `/agent/chat` verlangt inzwischen einen gültigen Login (siehe [Backend-Endpunkte](#backend-endpunkte-appsapi)), das ist die eigentliche Absicherung gegen fremde Nutzung. Für den Fall, dass die Login-Zugangsdaten mal kompromittiert werden (oder man einfach jeden Zugriff inkl. `/health` unterbinden will, z. B. bei längerer Pause), bleibt die Container-App-Revision als zusätzlicher Not-Aus-Schalter:
+**Wichtig:** Das reicht allein **nicht** als Schutz gegen unautorisierte Nutzung der LLM-API-Keys – `/agent/chat` verlangt bereits einen gültigen Login (siehe [Backend-Endpunkte](#backend-endpunkte-appsapi)), das ist die eigentliche Absicherung. Für den Fall, dass Zugangsdaten kompromittiert werden (oder man jeden Zugriff inkl. `/health` unterbinden will, z. B. bei längerer Pause), bleibt die Container-App-Revision als zusätzlicher Not-Aus-Schalter:
 
 ```bash
 # aktuelle Revision ermitteln
