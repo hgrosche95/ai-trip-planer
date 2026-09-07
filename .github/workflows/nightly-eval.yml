@@ -1,0 +1,129 @@
+name: Nightly Eval
+
+on:
+  schedule:
+    # Täglich nachts statt bei jedem Push: ein Lauf macht pro golden case
+    # mindestens einen echten Groq-Aufruf (Agent-Chat), mit
+    # EVAL_JUDGE_ENABLED=true zusätzlich einen Judge-Aufruf - bei 8 Fällen
+    # grob 15-25 Aufrufe pro Lauf. Gegen Groqs Free-Tier-Limit von ca.
+    # 1.000 Requests/Tag (siehe Plan, Anhang A) würde ein Lauf pro Push an
+    # einem aktiven Tag spürbar vom Budget für den eigentlichen Chat-Betrieb
+    # abgehen. Ein Lauf pro Nacht reicht, um Qualitätsverschlechterungen zu
+    # erkennen.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  # secrets sind laut GitHub-Actions-Doku NICHT im Kontext von
+  # jobs.<job_id>.if verfügbar (nur github/needs/vars/inputs) - dieser
+  # vorgeschaltete, billige Job liest das Secret stattdessen in einem
+  # run:-Schritt (dort ist secrets erlaubt) und gibt nur true/false weiter,
+  # nie den Wert selbst.
+  check-secret:
+    runs-on: ubuntu-latest
+    outputs:
+      has_groq_key: ${{ steps.check.outputs.has_groq_key }}
+    steps:
+      - id: check
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          if [ -n "$GROQ_API_KEY" ]; then
+            echo "has_groq_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_groq_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  nightly-eval:
+    needs: check-secret
+    if: needs.check-secret.outputs.has_groq_key == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg16
+        env:
+          POSTGRES_USER: trip_planner
+          POSTGRES_PASSWORD: trip_planner
+          POSTGRES_DB: trip_planner
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trip_planner"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://trip_planner:trip_planner@localhost:5432/trip_planner?schema=public
+      LLM_PROVIDER: groq
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      RAG_SERVICE_URL: http://localhost:8001
+      TRIP_PLANNER_API_URL: http://localhost:3000
+      # Ephemere Postgres-Instanz dieses CI-Laufs, kein echter Nutzer -
+      # dieselben Werte wie im e2e-Job in ci.yml, aus demselben Grund als
+      # Klartext statt Repo-Secret.
+      AUTH_USERNAME: e2e-test
+      AUTH_PASSWORD_HASH: $2b$10$zwnaSFwRDXWN8ARQ2MKCReoqD566HMLU2DDgb2BZwoNNXRS82H91C
+      JWT_SECRET: Ddo4z26AQj4WRfpebbv+9hVNMwlUzyLsUWo8Ejstgkg=
+      TRIP_PLANNER_USERNAME: e2e-test
+      TRIP_PLANNER_PASSWORD: e2e-test-password
+      EVAL_JUDGE_ENABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Datenbank-Migrationen anwenden
+        run: npx prisma migrate deploy
+        working-directory: apps/api
+
+      - name: RAG-Service bauen
+        run: docker build -f services/rag/Dockerfile -t rag-service:ci .
+
+      - name: RAG-Service starten
+        run: |
+          RAG_DATABASE_URL="${DATABASE_URL%%\?*}"
+          docker run -d --name rag-service --network host \
+            -e DATABASE_URL="$RAG_DATABASE_URL" \
+            -v "$(pwd)/data/knowledge:/app/data/knowledge:ro" \
+            rag-service:ci
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8001/health && exit 0
+            sleep 2
+          done
+          echo "RAG-Service nicht rechtzeitig hochgekommen" >&2
+          docker logs rag-service
+          exit 1
+
+      - name: Wissensbasis einlesen
+        run: docker exec rag-service rag-ingest
+
+      - name: Backend starten
+        working-directory: apps/api
+        run: |
+          npm run start:dev > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && exit 0
+            sleep 2
+          done
+          echo "Backend nicht rechtzeitig hochgekommen" >&2
+          cat /tmp/api.log
+          exit 1
+
+      - name: Eval-Harness ausführen
+        run: npm run eval --workspace=evals
+
+      # if: always() - der Report soll auch dann hochgeladen werden (und vor
+      # allem dann interessant sein), wenn der vorige Schritt wegen
+      # unterschrittener Schwellen mit Exit-Code 1 fehlgeschlagen ist.
+      - name: Report als Artefakt hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: evals/reports/*.md
+          if-no-files-found: warn

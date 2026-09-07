@@ -99,7 +99,9 @@ class DocumentRepository:
                     "content_hash": content_hash,
                 },
             )
-            (document_id,) = cur.fetchone()
+            row = cur.fetchone()
+            assert row is not None, "INSERT ... RETURNING id lieferte keine Zeile zurück"
+            document_id: str = row[0]
             return document_id
 
     def replace_chunks(self, document_id: str, chunks: list[tuple[str, list[float]]]) -> None:

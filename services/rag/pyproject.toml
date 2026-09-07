@@ -26,5 +26,26 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "mypy>=2.3.1",
     "pytest>=9.1.1",
+    "ruff>=0.16.6",
 ]
+
+[tool.ruff]
+# 120 statt Default 88/100: die deutschen Docstrings/Kommentare in diesem
+# Service sind bewusst ausführlich (siehe Repo-weiter Stil), 100 hätte an
+# etlichen bestehenden, inhaltlich sinnvollen Zeilen erzwungene Umbrüche
+# verlangt statt echte Probleme zu finden.
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+# fastembed/pgvector liefern keine Typangaben - ohne diese Ausnahme würde
+# jeder Import daraus strict-mode fehlschlagen, obwohl der eigene Code
+# vollständig typisiert ist.
+ignore_missing_imports = true

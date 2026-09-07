@@ -21,6 +21,41 @@ jobs:
       - run: npm run test
       - run: npm run build
 
+  # Unabhängig vom Node-Job (kein needs): der Python-Service teilt sich
+  # keine Abhängigkeiten mit apps/api, apps/web oder den Node-Packages -
+  # muss also nicht auf npm ci/lint/test/build warten, um Feedback zu geben.
+  rag-lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/rag
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - run: uv sync --all-groups
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+
+  # Baut beide Dockerfiles bei jedem PR statt erst bei deploy.yml nach dem
+  # Merge auf main - eine kaputte Dockerfile wird so vor dem Merge sichtbar.
+  # apps/web hat kein eigenes Dockerfile (statischer Export, kein Container).
+  # Baut services/rag ein zweites Mal parallel zum e2e-Job (der es für seinen
+  # eigenen Testlauf ohnehin bauen muss) - bewusst in Kauf genommene
+  # Redundanz statt Docker-Layer-Cache zwischen Jobs zu teilen, für ein
+  # Projekt dieser Größe die einfachere Wahl.
+  docker-build:
+    needs: lint-test-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f apps/api/Dockerfile -t api:ci .
+      - run: docker build -f services/rag/Dockerfile -t rag-service:ci .
+
   e2e:
     needs: lint-test-build
     runs-on: ubuntu-latest
