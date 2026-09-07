@@ -243,7 +243,7 @@ Das Projekt lässt sich per Infrastructure-as-Code (Bicep, `infra/`) nach Azure 
 | Dienst | Zweck |
 | --- | --- |
 | **Azure Static Web Apps** | Hosting des Next.js-Frontends als statischer Export (HTML/JS/CSS, globales CDN, kostenloses TLS) |
-| **Azure Container Apps** | Laufzeitumgebung fürs NestJS-Backend, Scale-to-Zero (keine Kosten im Leerlauf) |
+| **Azure Container Apps** | Laufzeitumgebung fürs NestJS-Backend UND den RAG-Service (zweite Container App in derselben Environment, `ingress.external: false` - nur intern über ihren Namen erreichbar, keine eigene Auth), beide Scale-to-Zero. Details und Kosten: [docs/deployment.md](docs/deployment.md) |
 | **Azure Database for PostgreSQL – Flexible Server** | Verwaltete Postgres-Datenbank, Burstable-Tier (günstigste SKU) |
 | **Application Insights + Log Analytics** | Monitoring/Logs des Backends – `applicationinsights`-SDK läuft in `apps/api` (Setup in `src/tracing.ts`, ganz am Anfang von `main.ts` geladen), erfasst automatisch Requests/Dependencies/Exceptions/Konsolen-Logs plus ein Custom Event `ItinerarySaved`. Abrufbar im Portal unter "Live Metrics"/"Logs" (KQL) oder per `az monitor app-insights query` |
 | **GitHub Container Registry (ghcr.io)** | Hostet das Backend-Docker-Image |

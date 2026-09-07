@@ -161,6 +161,12 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             }
             { name: 'PORT', value: '3000' }
             { name: 'CORS_ORIGIN', value: corsOrigin }
+            // Kurzer Name statt voller FQDN: Container Apps in derselben
+            // Environment lösen sich gegenseitig über http://<app-name> auf
+            // (gegen die aktuelle Azure-Doku geprüft), kein virtuelles Netzwerk
+            // nötig. "${namePrefix}-rag" ist deterministisch derselbe Name, den
+            // rag-container-app.bicep für die Container App vergibt.
+            { name: 'RAG_SERVICE_URL', value: 'http://${namePrefix}-rag' }
             { name: 'AUTH_USERNAME', value: authUsername }
             { name: 'AUTH_PASSWORD_HASH', secretRef: 'auth-password-hash' }
             { name: 'JWT_SECRET', secretRef: 'jwt-secret' }
@@ -177,3 +183,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
 
 output containerAppFqdn string = containerApp.properties.configuration.ingress.fqdn
 output containerAppUrl string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
+// Für rag-container-app.bicep: die RAG-Container-App muss in derselben
+// Environment laufen wie diese, sonst funktioniert die Namensauflösung
+// zwischen beiden nicht.
+output containerAppEnvironmentName string = containerAppEnvironment.name
