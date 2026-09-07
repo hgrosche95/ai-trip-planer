@@ -1,0 +1,50 @@
+[
+  {
+    "id": "wien-essen",
+    "question": "Was kann man in Wien traditionell essen?",
+    "expected_document": "Wien – Reiseziel-Überblick",
+    "expected_tool": "search_travel_knowledge"
+  },
+  {
+    "id": "wien-sehenswuerdigkeiten",
+    "question": "Was sollte man sich in Wien unbedingt ansehen?",
+    "expected_document": "Wien – Reiseziel-Überblick",
+    "expected_tool": "search_travel_knowledge"
+  },
+  {
+    "id": "berlin-sehenswuerdigkeiten",
+    "question": "Welche Sehenswürdigkeiten sollte man in Berlin nicht verpassen?",
+    "expected_document": "Berlin – Reiseziel-Überblick",
+    "expected_tool": "search_travel_knowledge"
+  },
+  {
+    "id": "rom-transport",
+    "question": "Wie kommt man in Rom am besten von A nach B?",
+    "expected_document": "Rom – Reiseziel-Überblick",
+    "expected_tool": "search_travel_knowledge"
+  },
+  {
+    "id": "rom-beste-reisezeit",
+    "question": "Wann ist die beste Reisezeit für Rom?",
+    "expected_document": "Rom – Reiseziel-Überblick",
+    "expected_tool": "search_travel_knowledge"
+  },
+  {
+    "id": "lissabon-essen",
+    "question": "Was ist eine typische Süßspeise aus Lissabon?",
+    "expected_document": "Lissabon – Reiseziel-Überblick",
+    "expected_tool": "search_travel_knowledge"
+  },
+  {
+    "id": "lissabon-sehenswuerdigkeiten",
+    "question": "Welches Viertel in Lissabon ist für seine engen Gassen und Fado-Musik bekannt?",
+    "expected_document": "Lissabon – Reiseziel-Überblick",
+    "expected_tool": "search_travel_knowledge"
+  },
+  {
+    "id": "smalltalk-begruessung",
+    "question": "Hallo, wer bist du und was kannst du für mich tun?",
+    "expected_document": null,
+    "expected_tool": null
+  }
+]
