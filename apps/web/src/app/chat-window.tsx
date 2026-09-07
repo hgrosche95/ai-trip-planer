@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { authFetch } from '@/lib/auth';
+import Spinner from '@/components/spinner';
 
 interface ChatSource {
   title: string;
@@ -114,7 +115,12 @@ export default function ChatWindow() {
             )}
           </div>
         ))}
-        {isLoading && <p className="text-sm text-zinc-500">Claude denkt nach...</p>}
+        {isLoading && (
+          <p className="flex items-center gap-2 text-sm text-zinc-500">
+            <Spinner />
+            Claude denkt nach...
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="flex gap-2">
