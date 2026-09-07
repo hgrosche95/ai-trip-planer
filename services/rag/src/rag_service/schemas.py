@@ -1,9 +1,9 @@
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class InputType(str, Enum):
+class InputType(StrEnum):
     """Ob ein Text eine Suchanfrage oder ein zu indexierendes Dokument ist.
 
     Bei Präfix-Modellen wie der E5-Familie (intfloat/multilingual-e5-*)

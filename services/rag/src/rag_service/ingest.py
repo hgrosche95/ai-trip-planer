@@ -70,15 +70,19 @@ def ingest_knowledge_base(
         document_id = repo.upsert_document(
             source_path=source_path,
             content_hash=content_hash,
+            # frontmatter typisiert YAML-Werte als object (koennten beliebige
+            # YAML-Skalare sein) - str(...) macht daraus die str/str | None,
+            # die DocumentMetadata erwartet; in der Praxis sind es ohnehin
+            # immer schon Strings aus dem Markdown-Frontmatter.
             metadata=DocumentMetadata(
-                title=post.metadata.get("title", source_path),
-                source=post.metadata.get("source", "unbekannt"),
-                url=post.metadata.get("url") or None,
-                license=post.metadata.get("license", "unbekannt"),
-                language=post.metadata.get("language", "de"),
+                title=str(post.metadata.get("title", source_path)),
+                source=str(post.metadata.get("source", "unbekannt")),
+                url=str(url) if (url := post.metadata.get("url")) else None,
+                license=str(post.metadata.get("license", "unbekannt")),
+                language=str(post.metadata.get("language", "de")),
             ),
         )
-        repo.replace_chunks(document_id, list(zip(chunks_text, vectors)))
+        repo.replace_chunks(document_id, list(zip(chunks_text, vectors, strict=True)))
 
         if existing is not None:
             summary.updated.append(source_path)
@@ -124,7 +128,9 @@ def run(settings: Settings) -> IngestSummary:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Liest data/knowledge ein und schreibt Chunks + Embeddings nach Postgres.")
+    parser = argparse.ArgumentParser(
+        description="Liest data/knowledge ein und schreibt Chunks + Embeddings nach Postgres."
+    )
     parser.add_argument(
         "--knowledge-dir",
         type=Path,

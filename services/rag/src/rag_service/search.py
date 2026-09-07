@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -14,7 +15,13 @@ class ChunkCandidateLike(Protocol):
 
 
 class ChunkRepository(Protocol):
-    def search_chunks(self, query_vector: list[float], limit: int) -> list[ChunkCandidateLike]: ...
+    # Sequence statt list: list ist für mypy invariant, eine Implementierung,
+    # die list[ChunkCandidate] zurückgibt (siehe db.py), würde list[ChunkCandidateLike]
+    # trotz strukturell passendem ChunkCandidate nicht erfüllen. Sequence ist
+    # covariant und passt genau zum tatsächlichen (nur lesenden) Gebrauch hier.
+    def search_chunks(
+        self, query_vector: list[float], limit: int
+    ) -> Sequence[ChunkCandidateLike]: ...
 
 
 class Embedder(Protocol):
@@ -84,7 +91,9 @@ def perform_search(
 
     if reranker is not None and hits:
         rerank_scores = reranker.rerank(query, [hit.content for hit in hits])
-        reranked = sorted(zip(hits, rerank_scores), key=lambda pair: pair[1], reverse=True)
+        reranked = sorted(
+            zip(hits, rerank_scores, strict=True), key=lambda pair: pair[1], reverse=True
+        )
         hits = [
             SearchHit(
                 content=hit.content,

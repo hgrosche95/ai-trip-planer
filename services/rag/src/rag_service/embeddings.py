@@ -40,14 +40,20 @@ class EmbeddingService:
         # Einmalig einen Dummy-Text embedden, um die tatsächliche
         # Vektorlänge des geladenen Modells zu kennen, statt sie hart zu
         # kodieren und bei einem Modellwechsel stillschweigend falsch zu sein.
-        self.dimensions = len(next(self._model.embed(["init"])))
+        # iter(...) statt next(...) direkt auf dem Rückgabewert: fastembeds
+        # Overload-Signaturen für .embed() sind zu breit (Union über mehrere
+        # dtype/Shape-Kombinationen), als dass mypy next() direkt darauf
+        # auflösen könnte - iter() normalisiert das für die Typprüfung, ohne
+        # das Laufzeitverhalten zu ändern.
+        self.dimensions = len(next(iter(self._model.embed(["init"]))))
         # fastembed hat keine öffentliche API, um an Tokenizer/Max-Länge des
         # geladenen Modells zu kommen - .model.tokenizer ist ein interner
         # Pfad in die aktuelle fastembed-Version. Für die Ingestion (Schritt
         # 3.2) brauchen wir aber genau das, um Chunks token-genau statt nach
         # Zeichen zu schneiden. Bewusste, dokumentierte Kopplung an eine
-        # interne Struktur statt Zeichen-basiertem Raten.
-        self.tokenizer = self._model.model.tokenizer
+        # interne Struktur statt Zeichen-basiertem Raten - daher nicht in den
+        # öffentlichen Typstubs und hier bewusst mit type: ignore markiert.
+        self.tokenizer = self._model.model.tokenizer  # type: ignore[attr-defined]
         self.max_sequence_length: int = self.tokenizer.truncation["max_length"]
         logger.info(
             "Embedding-Modell geladen",

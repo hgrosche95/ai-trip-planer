@@ -4,12 +4,22 @@ from typing import Protocol
 _PARAGRAPH_SPLIT = re.compile(r"\n\s*\n")
 
 
+class Encoding(Protocol):
+    """Das Teilstück von tokenizers.Encoding, das wir hier brauchen."""
+
+    @property
+    def ids(self) -> list[int]: ...
+
+    @property
+    def offsets(self) -> list[tuple[int, int]]: ...
+
+
 class Tokenizer(Protocol):
     """Das Teilstück der tokenizers.Tokenizer-Schnittstelle, das wir hier
     brauchen - als Protocol, damit Tests einen einfachen Fake statt des
     echten (langsamen, modellabhängigen) Tokenizers einsetzen können."""
 
-    def encode(self, text: str): ...
+    def encode(self, text: str) -> Encoding: ...
 
 
 def _token_length(tokenizer: Tokenizer, text: str) -> int:

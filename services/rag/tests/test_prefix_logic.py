@@ -8,7 +8,11 @@ def test_e5_model_gets_query_prefix() -> None:
 
 
 def test_e5_model_gets_passage_prefix() -> None:
-    result = _apply_prefix("intfloat/multilingual-e5-large", ["Wien ist die Hauptstadt Österreichs."], InputType.PASSAGE)
+    result = _apply_prefix(
+        "intfloat/multilingual-e5-large",
+        ["Wien ist die Hauptstadt Österreichs."],
+        InputType.PASSAGE,
+    )
     assert result == ["passage: Wien ist die Hauptstadt Österreichs."]
 
 
