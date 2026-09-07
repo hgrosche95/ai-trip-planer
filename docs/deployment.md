@@ -47,11 +47,12 @@ aufzuwecken, statt das Publikum den Kaltstart miterleben zu lassen.
 
 ## Groq-Free-Tier im Produktivbetrieb
 
-Die Limits aus Anhang A des Erweiterungsplans gelten im deployten Zustand
-genauso wie lokal - mit einem Unterschied: lokal sitzt in der Regel eine
-Person am Rechner, im Produktivbetrieb potenziell mehrere gleichzeitig.
+Groqs Free-Tier-Limits (Stand der Recherche, Modell `openai/gpt-oss-120b`)
+gelten im deployten Zustand genauso wie lokal - mit einem Unterschied: lokal
+sitzt in der Regel eine Person am Rechner, im Produktivbetrieb potenziell
+mehrere gleichzeitig.
 
-| Grenze | Wert (gpt-oss-120b, Stand der Recherche) | Was im Betrieb passiert |
+| Grenze | Wert | Was im Betrieb passiert |
 | --- | --- | --- |
 | Requests/Minute | 30 | Bei mehreren gleichzeitigen Chats realistisch erreichbar. `RetryingLlmProvider` (Phase 1.3) fängt das ab: liest `Retry-After`, wartet mit exponentiellem Backoff + Jitter, bis zu 3 Versuche - für Nutzer:innen als etwas längere Antwortzeit sichtbar, nicht als Fehler. |
 | Requests/Tag | ca. 1.000 | Bei einer Live-Demo mit ein paar Dutzend Nachrichten unkritisch. Der nächtliche Eval-Lauf (Phase 6.2/7.1) verbraucht selbst nur ~15-25 Requests pro Nacht. |
@@ -61,9 +62,9 @@ Person am Rechner, im Produktivbetrieb potenziell mehrere gleichzeitig.
 der 31. Anfrage mit HTTP 429. Ohne Gegenmaßnahme würde das als Fehler beim
 Nutzer landen; mit `RetryingLlmProvider` wartet die App stattdessen den vom
 `Retry-After`-Header vorgegebenen Zeitraum ab und versucht es erneut - aus
-Nutzersicht eine langsamere statt einer fehlschlagenden Antwort. Bei einem
-Interview-Publikum, das bewusst parallel testet, ist genau das der Moment,
-in dem sich dieser Unterschied zeigt.
+Nutzersicht eine langsamere statt einer fehlschlagenden Antwort. Bei
+mehreren Personen, die bewusst gleichzeitig testen, zeigt sich genau dieser
+Unterschied.
 
 **Fallback für eine wichtige Demo:** `LLM_PROVIDER=anthropic` in der
 Container-App-Konfiguration umschalten (Secret `ANTHROPIC_API_KEY` ist
