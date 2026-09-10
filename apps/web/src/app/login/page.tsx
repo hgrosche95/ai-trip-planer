@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setToken } from '@/lib/auth';
+import Spinner from '@/components/spinner';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -56,10 +57,16 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={isLoading}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+          className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
         >
-          Einloggen
+          {isLoading && <Spinner />}
+          {isLoading ? 'Melde an…' : 'Einloggen'}
         </button>
+        {isLoading && (
+          <p className="text-center text-xs text-zinc-500">
+            Das kann nach einer Ruhephase der Demo etwas dauern (Server startet neu).
+          </p>
+        )}
       </form>
     </div>
   );
