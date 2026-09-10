@@ -57,7 +57,6 @@ flowchart LR
     Rag --> Db
     Rag -- Ingestion --> Kb
     Mcp --> Api
-    Mcp -.-> Rag
     Api -.Traces.-> Obs
 ```
 
@@ -146,6 +145,7 @@ Chat unter `http://localhost:3001`, gespeicherte Reisen unter
 - `GET /health` – prüft die Datenbankverbindung (offen, kein Login nötig – Azure Container Apps pingt das ungeachtet von Auth)
 - `POST /auth/login` – Login, Body: `{ "username": "...", "password": "..." }`, gibt bei Erfolg `{ "accessToken": "..." }` zurück
 - `POST /agent/chat` 🔒 – Chat mit dem Reiseplaner-Agenten, Body: `{ "sessionId": "...", "message": "..." }`
+- `POST /knowledge/search` 🔒 – Durchsucht die Reiseziel-Wissensbasis, Body: `{ "query": "..." }` (dieselbe Logik, die auch der Agent per `search_travel_knowledge`-Tool und der MCP-Server nutzen)
 - `POST /itineraries` 🔒 – Legt einen neuen Reiseplan mit Tagesplan an (dieselbe Logik, die auch der Agent per `save_itinerary`-Tool und der MCP-Server per `create_itinerary` nutzen)
 - `GET /itineraries` 🔒 – Liste aller gespeicherten Reisen
 - `GET /itineraries/:id` 🔒 – Details einer Reise inkl. Tagesplan-Punkte
