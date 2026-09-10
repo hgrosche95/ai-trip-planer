@@ -1,8 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { createItinerary, listItineraries } from './api-client.js';
+import { createItinerary, listItineraries, searchTravelKnowledge } from './api-client.js';
 import type { CreateItineraryInput } from './api-client.js';
-import { searchTravelKnowledge } from './rag-client.js';
 
 function errorContent(action: string, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -60,24 +59,17 @@ export function registerTools(server: McpServer): void {
     'search_travel_knowledge',
     {
       description:
-        'Durchsucht die kuratierte Wissensbasis zu Reisezielen (Sehenswürdigkeiten, Essen & Trinken, Transport) nach Fakten. Ruft denselben RAG-Service auf, den auch der Chat-Agent nutzt.',
+        'Durchsucht die kuratierte Wissensbasis zu Reisezielen (Sehenswürdigkeiten, Essen & Trinken, Transport) nach Fakten. Ruft dieselbe Trip-Planner-API auf, die auch der Chat-Agent nutzt (intern an den RAG-Service weitergereicht) - kein topK-Parameter, die Trefferzahl ist zentral in apps/api konfiguriert.',
       inputSchema: z.object({
         query: z
           .string()
           .min(1)
           .describe('Die Suchanfrage, z.B. "Was kann man in Lissabon essen?"'),
-        topK: z
-          .number()
-          .int()
-          .min(1)
-          .max(20)
-          .optional()
-          .describe('Anzahl der Treffer (Default 5)'),
       }),
     },
-    async ({ query, topK }) => {
+    async ({ query }) => {
       try {
-        return jsonContent(await searchTravelKnowledge(query, topK));
+        return jsonContent(await searchTravelKnowledge(query));
       } catch (error) {
         return errorContent('Durchsuchen der Wissensbasis', error);
       }

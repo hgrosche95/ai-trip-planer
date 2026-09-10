@@ -100,3 +100,17 @@ export async function createItinerary(
   }
   return response.json();
 }
+
+export async function searchTravelKnowledge(query: string): Promise<unknown> {
+  const response = await authenticatedFetch('/knowledge/search', {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(
+      `POST /knowledge/search fehlgeschlagen: HTTP ${response.status} - ${body}`,
+    );
+  }
+  return response.json();
+}

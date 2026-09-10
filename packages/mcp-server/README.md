@@ -2,22 +2,44 @@
 
 Macht drei Trip-Planner-Fähigkeiten über das [Model Context Protocol](https://modelcontextprotocol.io)
 für jeden MCP-Client (Claude Code, Claude Desktop, ...) nutzbar - dieselben
-Fähigkeiten, die auch der Chat-Agent in `apps/api` hat, nicht neu
-implementiert, sondern über die bestehende NestJS-API bzw. den RAG-Service
-aufgerufen.
+Fähigkeiten, die auch der Chat-Agent hat, nicht neu implementiert, sondern
+über die bestehende NestJS-API (`apps/api`) aufgerufen. Der MCP-Server
+spricht ausschließlich mit `apps/api`, nie direkt mit `services/rag` - siehe
+"Warum alle drei Tools über apps/api laufen" unten.
 
 ## Tools
 
 | Tool | Ruft auf | Zweck |
 | --- | --- | --- |
-| `search_travel_knowledge` | `services/rag` `POST /search` | Faktensuche in der Reiseziel-Wissensbasis |
+| `search_travel_knowledge` | `apps/api` `POST /knowledge/search` | Faktensuche in der Reiseziel-Wissensbasis |
 | `create_itinerary` | `apps/api` `POST /itineraries` | Legt einen neuen Reiseplan mit Tagesprogramm an |
 | `list_itineraries` | `apps/api` `GET /itineraries` | Listet alle gespeicherten Reisepläne |
 
-`create_itinerary`/`list_itineraries` brauchen einen JWT gegen `apps/api` -
-der Server loggt sich beim ersten Aufruf selbst über `POST /auth/login` ein
-(Zugangsdaten aus Env, siehe unten) und cached den Token für die Laufzeit
-des Prozesses.
+Alle drei Tools brauchen einen JWT gegen `apps/api` - der Server loggt sich
+beim ersten Aufruf selbst über `POST /auth/login` ein (Zugangsdaten aus Env,
+siehe unten) und cached den Token für die Laufzeit des Prozesses.
+
+## Warum alle drei Tools über apps/api laufen
+
+`search_travel_knowledge` rief früher `services/rag` direkt auf
+(`RAG_SERVICE_URL`). Das funktioniert nur, solange der MCP-Server
+Netzwerk-Nähe zu `services/rag` hat - lokal der Fall, aber nicht mehr, sobald
+der HTTP-Transport dort läuft, wo dieses README ihn eigentlich bewirbt: "ein
+zentral gehosteter Server, den mehrere Teammitglieder/Clients remote
+nutzen". Im Azure-Deployment (siehe [docs/deployment.md](../../docs/deployment.md))
+ist `services/rag` bewusst **nicht** öffentlich erreichbar
+(`ingress.external: false`) - nur `apps/api` erreicht es intern über seinen
+Namen. Ein extern gehosteter MCP-Server hätte also für genau dieses eine
+Tool ins Leere gezeigt.
+
+Der Fix: `search_travel_knowledge` ruft jetzt denselben `POST
+/knowledge/search`-Endpunkt in `apps/api` auf, der intern
+`rag-client.ts`/`searchTravelKnowledge()` nutzt - exakt dieselbe Funktion,
+die auch der Chat-Agent für dieses Tool aufruft. `RAG_SERVICE_URL` und
+`src/rag-client.ts` sind damit aus dem MCP-Server komplett verschwunden; er
+braucht nur noch `TRIP_PLANNER_API_URL` und ist dadurch tatsächlich remote
+hostbar, ohne je Zugriff auf das interne Netz der Container Apps Environment
+zu brauchen.
 
 ## Warum `@modelcontextprotocol/server` (nicht `@modelcontextprotocol/sdk`)
 
@@ -45,9 +67,8 @@ npm run build
 | Variable | Default | Zweck |
 | --- | --- | --- |
 | `TRIP_PLANNER_API_URL` | `http://localhost:3000` | Basis-URL von `apps/api` |
-| `TRIP_PLANNER_USERNAME` | – (Pflicht für `create_itinerary`/`list_itineraries`) | Login-Username, wie in `apps/api/.env` |
-| `TRIP_PLANNER_PASSWORD` | – (Pflicht für `create_itinerary`/`list_itineraries`) | Login-Passwort im Klartext (das Backend kennt nur den bcrypt-Hash) |
-| `RAG_SERVICE_URL` | `http://localhost:8001` | Basis-URL von `services/rag` |
+| `TRIP_PLANNER_USERNAME` | – (Pflicht für alle drei Tools) | Login-Username, wie in `apps/api/.env` |
+| `TRIP_PLANNER_PASSWORD` | – (Pflicht für alle drei Tools) | Login-Passwort im Klartext (das Backend kennt nur den bcrypt-Hash) |
 | `MCP_HTTP_TOKEN` | – (Pflicht für den HTTP-Transport) | Bearer-Token, das Clients im `Authorization`-Header mitschicken müssen |
 | `MCP_HTTP_PORT` | `8787` | Port des HTTP-Transports |
 
@@ -112,12 +133,13 @@ nachbauen müsste:
 # Tools auflisten
 npx -y @modelcontextprotocol/inspector --cli node dist/index.js --method tools/list
 
-# Ein Tool aufrufen
+# Ein Tool aufrufen (alle drei brauchen einen Login, siehe oben - Reihenfolge
+# wichtig: -e NACH dem Server-Kommando)
 npx -y @modelcontextprotocol/inspector --cli node dist/index.js \
   --method tools/call --tool-name search_travel_knowledge \
-  --tool-arg query="Was kann man in Wien essen?"
+  --tool-arg query="Was kann man in Wien essen?" \
+  -e TRIP_PLANNER_USERNAME=dein-username -e TRIP_PLANNER_PASSWORD=dein-passwort
 
-# Mit Env-Variablen (Reihenfolge wichtig: -e NACH dem Server-Kommando)
 npx -y @modelcontextprotocol/inspector --cli node dist/index.js \
   --method tools/call --tool-name list_itineraries \
   -e TRIP_PLANNER_USERNAME=dein-username -e TRIP_PLANNER_PASSWORD=dein-passwort
