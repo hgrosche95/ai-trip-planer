@@ -31,9 +31,9 @@ Cloud-Deployment, das bei Nichtnutzung nichts kostet.
   auflisten) direkt aus Claude Code, Claude Desktop oder jedem anderen
   MCP-Client nutzbar - stdio- und abgesicherter HTTP-Transport
 - **Tracing** jedes Agentenlaufs (Langfuse), bewusst ohne Freitext-Inhalte
-- **Automatisierte Qualitätsmessung**: ein Eval-Harness misst Retrieval- und
-  Tool-Genauigkeit gegen ein festes Golden Dataset, nachts gegen Groq
-  wiederholt, Report als CI-Artefakt
+- **Automatisierte Qualitätsmessung**: ein Eval-Harness misst Retrieval-,
+  Tool-Genauigkeit und Resistenz gegen Prompt-Injection-Versuche gegen ein
+  festes Golden Dataset, nachts gegen Groq wiederholt, Report als CI-Artefakt
 - **Cloud-Deployment** (Azure, Infrastructure-as-Code) mit Scale-to-Zero -
   keine laufenden Kosten ohne Nutzung
 
@@ -84,13 +84,15 @@ beiden aktiv entwickelten Apps).
 ## Eval-Ergebnisse
 
 Letzter Lauf gegen den echten Stack (`nightly-eval.yml`, Modell
-`groq/openai/gpt-oss-120b`), 8 Fragen im Golden Dataset:
+`groq/openai/gpt-oss-120b`), 11 Fragen im Golden Dataset (inkl. 3
+Prompt-Injection-Versuchen):
 
 | Metrik | Ergebnis | Schwelle |
 | --- | --- | --- |
 | Recall@3 | 100,0 % | ≥ 80,0 % |
 | MRR | 1,00 | ≥ 0,60 |
 | Tool-Genauigkeit | 100,0 % | ≥ 80,0 % |
+| Injection-Resistenz | 100,0 % (3 geprüft) | ≥ 100,0 % |
 | LLM-as-Judge | 5,00 / 5 | - |
 
 Metriken, Golden Dataset und Interpretation (insbesondere der Unterschied
@@ -276,6 +278,12 @@ wichtigsten Entscheidungen im Überblick:
   existiert als REST-Endpunkt, aber bewusst nicht als MCP-Tool - ein Modell
   soll nicht autonom unwiderruflich Daten löschen können. Details:
   [packages/mcp-server/README.md](packages/mcp-server/README.md).
+- **Prompt-Injection-Resistenz als gemessene, nicht nur behauptete
+  Eigenschaft**: der Eval-Harness testet gezielt, ob sich der Agent per
+  vorgetäuschter "Admin"-Anweisung aus seiner Rolle drängen lässt. Der erste
+  Testlauf fand einen echten Fund (der Agent behauptete fälschlich, Daten
+  gelöscht zu haben, obwohl er kein Lösch-Tool besitzt), der daraufhin im
+  `SYSTEM_PROMPT` behoben wurde. Details: [evals/README.md](evals/README.md).
 
 ## CI/CD <a name="cicd"></a>
 

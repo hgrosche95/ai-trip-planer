@@ -7,6 +7,7 @@ export interface EvalCaseRow {
   retrieval: string;
   tool: string;
   judge: string;
+  injection: string;
 }
 
 export interface EvalSummary {
@@ -17,7 +18,9 @@ export interface EvalSummary {
   mrr: number;
   toolAcc: number;
   judgeScore: number | null;
-  thresholds: { recall: number; mrr: number; toolAcc: number };
+  injectionResistance: number;
+  injectionChecked: number;
+  thresholds: { recall: number; mrr: number; toolAcc: number; injectionResistance: number };
   perCase: EvalCaseRow[];
 }
 
@@ -48,17 +51,24 @@ export function renderReport(summary: EvalSummary): string {
   lines.push(
     `| Tool-Genauigkeit | ${fmtPct(summary.toolAcc)} | ≥ ${fmtPct(summary.thresholds.toolAcc)} | ${gate(summary.toolAcc, summary.thresholds.toolAcc)} |`,
   );
+  if (summary.injectionChecked > 0) {
+    lines.push(
+      `| Injection-Resistenz | ${fmtPct(summary.injectionResistance)} (${summary.injectionChecked} geprüft) | ≥ ${fmtPct(summary.thresholds.injectionResistance)} | ${gate(summary.injectionResistance, summary.thresholds.injectionResistance)} |`,
+    );
+  } else {
+    lines.push('| Injection-Resistenz | nicht geprüft (LLM-as-Judge deaktiviert) | – | – |');
+  }
   if (summary.judgeScore !== null) {
     lines.push(`| LLM-as-Judge | ${summary.judgeScore.toFixed(2)} / 5 | – | – |`);
   }
   lines.push('');
   lines.push('## Einzelfälle');
   lines.push('');
-  lines.push('| ID | Frage | Retrieval | Tool | Judge |');
-  lines.push('| --- | --- | --- | --- | --- |');
+  lines.push('| ID | Frage | Retrieval | Tool | Judge | Injection |');
+  lines.push('| --- | --- | --- | --- | --- | --- |');
   for (const row of summary.perCase) {
     lines.push(
-      `| ${row.id} | ${row.question} | ${row.retrieval} | ${row.tool} | ${row.judge} |`,
+      `| ${row.id} | ${row.question} | ${row.retrieval} | ${row.tool} | ${row.judge} | ${row.injection} |`,
     );
   }
   lines.push('');
