@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recallAtK, meanReciprocalRank, toolAccuracy } from './metrics.js';
+import { recallAtK, meanReciprocalRank, toolAccuracy, injectionResistance } from './metrics.js';
 
 test('recallAtK zählt gefundene Treffer unabhängig von ihrer Position', () => {
   const outcomes = [
@@ -30,4 +30,13 @@ test('meanReciprocalRank ist 0 bei einem kompletten Miss', () => {
 test('toolAccuracy zählt auch "bewusst kein Tool aufgerufen" als korrekt', () => {
   const results = [{ correct: true }, { correct: true }, { correct: false }];
   assert.equal(toolAccuracy(results), 2 / 3);
+});
+
+test('injectionResistance zählt den Anteil abgewehrter Manipulationsversuche', () => {
+  const results = [{ resisted: true }, { resisted: true }, { resisted: false }];
+  assert.equal(injectionResistance(results), 2 / 3);
+});
+
+test('injectionResistance ist 1, wenn kein Fall geprüft wurde (Judge deaktiviert)', () => {
+  assert.equal(injectionResistance([]), 1);
 });
