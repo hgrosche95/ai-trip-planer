@@ -1,6 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { createItinerary, listItineraries, searchTravelKnowledge } from './api-client.js';
+import {
+  createItinerary,
+  listItineraries,
+  searchCareerKnowledge,
+  searchTravelKnowledge,
+} from './api-client.js';
 import type { CreateItineraryInput } from './api-client.js';
 
 function errorContent(action: string, error: unknown) {
@@ -72,6 +77,27 @@ export function registerTools(server: McpServer): void {
         return jsonContent(await searchTravelKnowledge(query));
       } catch (error) {
         return errorContent('Durchsuchen der Wissensbasis', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'search_career_knowledge',
+    {
+      description:
+        'Durchsucht die kuratierte Wissensbasis zu Karriere-/Bewerbungsthemen (z.B. Lebenslauf-Tipps, Interview-Vorbereitung). Ruft dieselbe /knowledge/search-Route wie search_travel_knowledge auf, nur mit collection="jobs" - dieselbe geteilte RAG-Instanz, strikt getrennte Wissensbasen (Phase 2).',
+      inputSchema: z.object({
+        query: z
+          .string()
+          .min(1)
+          .describe('Die Suchanfrage, z.B. "Wie lang sollte ein Lebenslauf sein?"'),
+      }),
+    },
+    async ({ query }) => {
+      try {
+        return jsonContent(await searchCareerKnowledge(query));
+      } catch (error) {
+        return errorContent('Durchsuchen der Karriere-Wissensbasis', error);
       }
     },
   );

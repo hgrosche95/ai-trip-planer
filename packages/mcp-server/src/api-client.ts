@@ -114,3 +114,20 @@ export async function searchTravelKnowledge(query: string): Promise<unknown> {
   }
   return response.json();
 }
+
+// Ruft dieselbe /knowledge/search-Route wie searchTravelKnowledge auf, nur
+// mit collection: 'jobs' statt dem dortigen Default 'travel' (siehe
+// apps/api/src/knowledge.controller.ts, Phase 2).
+export async function searchCareerKnowledge(query: string): Promise<unknown> {
+  const response = await authenticatedFetch('/knowledge/search', {
+    method: 'POST',
+    body: JSON.stringify({ query, collection: 'jobs' }),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(
+      `POST /knowledge/search fehlgeschlagen: HTTP ${response.status} - ${body}`,
+    );
+  }
+  return response.json();
+}
