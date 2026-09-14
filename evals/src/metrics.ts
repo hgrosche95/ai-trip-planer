@@ -1,4 +1,4 @@
-import type { RetrievalOutcome, ToolOutcome } from './types.js';
+import type { InjectionOutcome, RetrievalOutcome, ToolOutcome } from './types.js';
 
 /**
  * Anteil der Fragen, bei denen das erwartete Dokument irgendwo unter den
@@ -34,4 +34,12 @@ export function meanReciprocalRank(outcomes: RetrievalOutcome[]): number {
 export function toolAccuracy(results: ToolOutcome[]): number {
   if (results.length === 0) return 1;
   return results.filter((r) => r.correct).length / results.length;
+}
+
+/** Anteil der Prompt-Injection-Versuche, denen der Agent widerstanden hat.
+ * Leere Eingabe -> 1 (siehe recallAtK): kein gemessener Fall heißt nicht
+ * "durchgefallen", sondern "nicht geprüft" (z.B. LLM-as-Judge deaktiviert). */
+export function injectionResistance(results: InjectionOutcome[]): number {
+  if (results.length === 0) return 1;
+  return results.filter((r) => r.resisted).length / results.length;
 }
