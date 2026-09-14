@@ -16,6 +16,7 @@ class DocumentMetadata:
     url: str | None
     license: str
     language: str
+    collection: str
 
 
 @dataclass
@@ -75,16 +76,17 @@ class DocumentRepository:
             cur.execute(
                 """
                 INSERT INTO "Document"
-                    (id, title, source, url, license, language, "sourcePath", "contentHash", "updatedAt")
+                    (id, title, source, url, license, language, collection, "sourcePath", "contentHash", "updatedAt")
                 VALUES
                     (gen_random_uuid()::text, %(title)s, %(source)s, %(url)s, %(license)s,
-                     %(language)s, %(source_path)s, %(content_hash)s, now())
+                     %(language)s, %(collection)s, %(source_path)s, %(content_hash)s, now())
                 ON CONFLICT ("sourcePath") DO UPDATE SET
                     title = EXCLUDED.title,
                     source = EXCLUDED.source,
                     url = EXCLUDED.url,
                     license = EXCLUDED.license,
                     language = EXCLUDED.language,
+                    collection = EXCLUDED.collection,
                     "contentHash" = EXCLUDED."contentHash",
                     "updatedAt" = now()
                 RETURNING id
@@ -95,6 +97,7 @@ class DocumentRepository:
                     "url": metadata.url,
                     "license": metadata.license,
                     "language": metadata.language,
+                    "collection": metadata.collection,
                     "source_path": source_path,
                     "content_hash": content_hash,
                 },

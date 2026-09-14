@@ -73,6 +73,11 @@ model Document {
   url       String?
   license   String
   language  String   @default("de")
+  // "travel" oder "jobs" - trennt die geteilte RAG-Instanz in fachliche
+  // Wissensbasen (Phase 2). Default "travel" ordnet bestehende Dokumente bei
+  // der Migration automatisch der bisherigen (einzigen) Domäne zu, ohne
+  // Backfill-Schritt.
+  collection String  @default("travel")
   // Relativer Dateiname in data/knowledge (z.B. "lissabon.md") - stabiler
   // Schlüssel, über den die Python-Ingestion-Pipeline (services/rag) eine
   // Markdown-Datei über mehrere Läufe hinweg wiedererkennt.
@@ -85,6 +90,8 @@ model Document {
   updatedAt DateTime @updatedAt
 
   chunks DocumentChunk[]
+
+  @@index([collection])
 }
 
 model DocumentChunk {
