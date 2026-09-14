@@ -43,6 +43,10 @@ class SearchRequest(BaseModel):
         default=0.0,
         description="Minimaler Ähnlichkeits-Score (siehe SearchResult.score). 0.0 = keine Filterung.",
     )
+    collection: str = Field(
+        default="travel",
+        description="Fachliche Wissensbasis, die durchsucht wird (z.B. 'travel' oder 'jobs').",
+    )
 
 
 class SearchResult(BaseModel):

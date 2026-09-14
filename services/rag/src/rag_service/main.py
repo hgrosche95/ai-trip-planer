@@ -84,6 +84,7 @@ def search(request: SearchRequest) -> SearchResponse:
             request.query,
             top_k=request.top_k,
             min_score=request.min_score,
+            collection=request.collection,
             reranker=reranker,
             candidate_multiplier=settings.rerank_candidate_multiplier,
             max_candidates=settings.rerank_max_candidates,

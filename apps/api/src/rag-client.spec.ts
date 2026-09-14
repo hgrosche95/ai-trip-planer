@@ -1,4 +1,4 @@
-import { searchTravelKnowledge } from './rag-client';
+import { searchCareerKnowledge, searchTravelKnowledge } from './rag-client';
 
 describe('searchTravelKnowledge', () => {
   const originalFetch = global.fetch;
@@ -66,5 +66,38 @@ describe('searchTravelKnowledge', () => {
     expect(result.available).toBe(false);
     expect(result.results).toEqual([]);
     expect(result.error).toContain('ECONNREFUSED');
+  });
+
+  it('sendet collection "travel" an den RAG-Service', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ results: [], reranked: false }),
+    });
+
+    await searchTravelKnowledge('Frage');
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.collection).toBe('travel');
+  });
+});
+
+describe('searchCareerKnowledge', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  it('sendet collection "jobs" an den RAG-Service', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ results: [], reranked: false }),
+    });
+
+    await searchCareerKnowledge('Frage');
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.collection).toBe('jobs');
   });
 });

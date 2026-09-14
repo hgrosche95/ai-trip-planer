@@ -43,14 +43,15 @@ const RAG_SEARCH_TOP_K = Number(process.env.RAG_SEARCH_TOP_K ?? 3);
  * Modell dem Nutzer einfach ehrlich sagt, dass es gerade nicht nachschlagen
  * konnte.
  */
-export async function searchTravelKnowledge(
+async function searchKnowledge(
   query: string,
+  collection: string,
 ): Promise<TravelKnowledgeSearchResult> {
   try {
     const response = await fetch(`${RAG_SERVICE_URL}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, top_k: RAG_SEARCH_TOP_K }),
+      body: JSON.stringify({ query, top_k: RAG_SEARCH_TOP_K, collection }),
       signal: AbortSignal.timeout(RAG_SEARCH_TIMEOUT_MS),
     });
 
@@ -84,4 +85,21 @@ export async function searchTravelKnowledge(
           : 'Wissensbasis-Suche nicht erreichbar.',
     };
   }
+}
+
+export async function searchTravelKnowledge(
+  query: string,
+): Promise<TravelKnowledgeSearchResult> {
+  return searchKnowledge(query, 'travel');
+}
+
+// Gleiche Rückgabeform wie Reise-Treffer (Titel/Quelle/Lizenz/URL/Score) -
+// eigener Name statt eines Alias auf TravelKnowledgeSearchResult, damit an
+// den Aufrufstellen (Phase 2c) klar ist, welche Collection gemeint ist.
+export type CareerKnowledgeSearchResult = TravelKnowledgeSearchResult;
+
+export async function searchCareerKnowledge(
+  query: string,
+): Promise<CareerKnowledgeSearchResult> {
+  return searchKnowledge(query, 'jobs');
 }

@@ -17,8 +17,11 @@ class FakeRepo:
 
     candidates: list[ChunkCandidate]
 
-    def search_chunks(self, query_vector: list[float], limit: int) -> list[ChunkCandidate]:
+    def search_chunks(
+        self, query_vector: list[float], limit: int, collection: str
+    ) -> list[ChunkCandidate]:
         self.last_limit = limit
+        self.last_collection = collection
         return self.candidates[:limit]
 
 
@@ -53,6 +56,16 @@ def test_returns_top_k_ordered_by_similarity_without_reranker() -> None:
 
     assert [h.content for h in hits] == ["a", "b"]
     assert hits[0].score == 1 - 0.1
+
+
+def test_collection_defaults_to_travel_and_is_passed_to_the_repo() -> None:
+    repo = FakeRepo([_candidate("a", 0.1)])
+
+    perform_search(repo, FakeEmbedder(), "Frage", top_k=5, min_score=0.0)
+    assert repo.last_collection == "travel"
+
+    perform_search(repo, FakeEmbedder(), "Frage", top_k=5, min_score=0.0, collection="jobs")
+    assert repo.last_collection == "jobs"
 
 
 def test_min_score_filters_out_weak_matches() -> None:
@@ -125,7 +138,9 @@ class _RealEmbeddingFakeRepo:
         vectors = embedder.embed(self._contents, InputType.PASSAGE)
         self._vectors = np.array(vectors)
 
-    def search_chunks(self, query_vector: list[float], limit: int) -> list[ChunkCandidate]:
+    def search_chunks(
+        self, query_vector: list[float], limit: int, collection: str
+    ) -> list[ChunkCandidate]:
         query = np.array(query_vector)
         # Cosine-Distanz wie pgvectors <=>-Operator: 1 - Cosine-Similarity.
         similarities = self._vectors @ query / (

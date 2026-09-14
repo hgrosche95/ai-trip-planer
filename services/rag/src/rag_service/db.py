@@ -125,8 +125,13 @@ class DocumentRepository:
                     (content, index, embedding, document_id),
                 )
 
-    def search_chunks(self, query_vector: list[float], limit: int) -> list[ChunkCandidate]:
-        """Top-`limit` Chunks per Cosine-Distanz. register_vector() reicht
+    def search_chunks(
+        self, query_vector: list[float], limit: int, collection: str
+    ) -> list[ChunkCandidate]:
+        """Top-`limit` Chunks per Cosine-Distanz, eingeschränkt auf eine
+        Collection (siehe Document.collection) - verhindert, dass z.B. eine
+        Karriere-Frage Reiseziel-Chunks zurückbekommt, obwohl beide
+        Domänen dieselbe Tabelle teilen. register_vector() reicht
         für diese Ad-hoc-Query nicht aus (kein Spaltenkontext, aus dem
         psycopg den Zieltyp ableiten könnte) - der Vektor wird deshalb
         explizit auf vector gecastet. Live beim manuellen Testen entdeckt:
@@ -140,10 +145,11 @@ class DocumentRepository:
                        d.title, d.source, d.url, d.license
                 FROM "DocumentChunk" c
                 JOIN "Document" d ON d.id = c."documentId"
+                WHERE d.collection = %s
                 ORDER BY distance ASC
                 LIMIT %s
                 """,
-                (query_vector, limit),
+                (query_vector, collection, limit),
             )
             return [
                 ChunkCandidate(
