@@ -66,3 +66,16 @@ class SearchResult(BaseModel):
 class SearchResponse(BaseModel):
     results: list[SearchResult]
     reranked: bool
+
+
+class IngestRequest(BaseModel):
+    collection: str = Field(
+        default="travel",
+        description="Fachliche Wissensbasis, der die eingelesenen Dokumente zugeordnet werden.",
+    )
+
+
+class IngestResponse(BaseModel):
+    created: list[str]
+    updated: list[str]
+    skipped: list[str]
