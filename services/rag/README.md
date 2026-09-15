@@ -64,11 +64,24 @@ Siehe `.env.example`. Alle Variablen haben den Präfix `RAG_`:
 
 ```bash
 uv run rag-ingest
+uv run rag-ingest --collection jobs --knowledge-dir ../../data/knowledge-jobs
 ```
 
-Liest alle `.md`-Dateien aus `data/knowledge/` (außer `README.md`), teilt sie
-in überlappende Chunks, erzeugt Embeddings und schreibt beides nach Postgres
+Liest alle `.md`-Dateien aus `data/knowledge/` (außer `README.md`, Default-Pfad
+überschreibbar per `--knowledge-dir`), teilt sie in überlappende Chunks,
+erzeugt Embeddings und schreibt beides nach Postgres
 (`Document`/`DocumentChunk`, siehe `apps/api/prisma/schema.prisma`).
+
+**`--collection`** (Default `travel`) trennt fachliche Wissensbasen in
+derselben Tabelle - `life-ops-platform` nutzt denselben RAG-Service auch für
+Karriere-Wissen (`collection=jobs`), ohne einen zweiten Service zu betreiben.
+Ein Ingest-Lauf deckt normalerweise eine Quelle/Collection ab, deshalb ein
+Lauf-Parameter statt eines Felds pro Datei.
+
+Auch per HTTP auslösbar (z.B. für Automationen, die nicht selbst `uv`
+zur Verfügung haben): `POST /ingest` mit Body `{"collection": "travel"}`,
+ruft intern dieselbe Funktion wie die CLI auf und nutzt das beim App-Start
+bereits geladene Embedding-Modell mit.
 
 **Idempotent:** Jede Datei wird über einen sha256-Hash ihres Inhalts erkannt.
 Ein zweiter Lauf ohne Änderungen schreibt nichts neu (`"übersprungen"` im
@@ -86,8 +99,12 @@ auf einer Chunk-Grenze ohne Kontext landet.
 ## Suche (`POST /search`)
 
 ```json
-{ "query": "Was kann man in Wien essen?", "top_k": 5, "min_score": 0.0 }
+{ "query": "Was kann man in Wien essen?", "top_k": 5, "min_score": 0.0, "collection": "travel" }
 ```
+
+`collection` (Default `travel`) filtert die Suche auf eine Wissensbasis -
+`collection=jobs` durchsucht ausschließlich Karriere-Wissen, nie vermischt
+mit Reiseinhalten, siehe `--collection` oben.
 
 Embedded die Frage, holt per pgvector-Cosine-Distanz die ähnlichsten Chunks
 und gibt Text, Score, Dokumenttitel und Quelle zurück. `score` bedeutet je
