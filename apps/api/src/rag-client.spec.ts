@@ -69,14 +69,20 @@ describe('searchTravelKnowledge', () => {
   });
 
   it('sendet collection "travel" an den RAG-Service', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ results: [], reranked: false }),
+    let capturedInit: RequestInit | undefined;
+    global.fetch = jest.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedInit = init;
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ results: [], reranked: false }),
+      } as Response);
     });
 
     await searchTravelKnowledge('Frage');
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse(capturedInit?.body as string) as {
+      collection: string;
+    };
     expect(body.collection).toBe('travel');
   });
 });
@@ -90,14 +96,20 @@ describe('searchCareerKnowledge', () => {
   });
 
   it('sendet collection "jobs" an den RAG-Service', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ results: [], reranked: false }),
+    let capturedInit: RequestInit | undefined;
+    global.fetch = jest.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedInit = init;
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ results: [], reranked: false }),
+      } as Response);
     });
 
     await searchCareerKnowledge('Frage');
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse(capturedInit?.body as string) as {
+      collection: string;
+    };
     expect(body.collection).toBe('jobs');
   });
 });
