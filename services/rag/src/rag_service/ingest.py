@@ -32,6 +32,7 @@ def ingest_knowledge_base(
     embedder: EmbeddingService,
     chunk_max_tokens: int,
     chunk_overlap_tokens: int,
+    collection: str,
 ) -> IngestSummary:
     summary = IngestSummary()
 
@@ -80,6 +81,7 @@ def ingest_knowledge_base(
                 url=str(url) if (url := post.metadata.get("url")) else None,
                 license=str(post.metadata.get("license", "unbekannt")),
                 language=str(post.metadata.get("language", "de")),
+                collection=collection,
             ),
         )
         repo.replace_chunks(document_id, list(zip(chunks_text, vectors, strict=True)))
@@ -100,7 +102,7 @@ def ingest_knowledge_base(
     return summary
 
 
-def run(settings: Settings) -> IngestSummary:
+def run(settings: Settings, collection: str) -> IngestSummary:
     configure_logging(settings.log_level)
     embedder = EmbeddingService(settings.embedding_model)
     with DocumentRepository(settings.database_url) as repo:
@@ -111,6 +113,7 @@ def run(settings: Settings) -> IngestSummary:
                 embedder,
                 settings.chunk_max_tokens,
                 settings.chunk_overlap_tokens,
+                collection,
             )
         except Exception:
             repo.rollback()
@@ -137,13 +140,18 @@ def main() -> None:
         default=None,
         help="Überschreibt den Standard-Pfad zu den Markdown-Dateien (Default: data/knowledge im Repo).",
     )
+    parser.add_argument(
+        "--collection",
+        default="travel",
+        help="Fachliche Wissensbasis, der die eingelesenen Dokumente zugeordnet werden (Default: travel).",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
     if args.knowledge_dir is not None:
         settings = settings.model_copy(update={"knowledge_dir": args.knowledge_dir})
 
-    run(settings)
+    run(settings, args.collection)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ class DocumentMetadata:
     url: str | None
     license: str
     language: str
+    collection: str
 
 
 @dataclass
@@ -75,16 +76,17 @@ class DocumentRepository:
             cur.execute(
                 """
                 INSERT INTO "Document"
-                    (id, title, source, url, license, language, "sourcePath", "contentHash", "updatedAt")
+                    (id, title, source, url, license, language, collection, "sourcePath", "contentHash", "updatedAt")
                 VALUES
                     (gen_random_uuid()::text, %(title)s, %(source)s, %(url)s, %(license)s,
-                     %(language)s, %(source_path)s, %(content_hash)s, now())
+                     %(language)s, %(collection)s, %(source_path)s, %(content_hash)s, now())
                 ON CONFLICT ("sourcePath") DO UPDATE SET
                     title = EXCLUDED.title,
                     source = EXCLUDED.source,
                     url = EXCLUDED.url,
                     license = EXCLUDED.license,
                     language = EXCLUDED.language,
+                    collection = EXCLUDED.collection,
                     "contentHash" = EXCLUDED."contentHash",
                     "updatedAt" = now()
                 RETURNING id
@@ -95,6 +97,7 @@ class DocumentRepository:
                     "url": metadata.url,
                     "license": metadata.license,
                     "language": metadata.language,
+                    "collection": metadata.collection,
                     "source_path": source_path,
                     "content_hash": content_hash,
                 },
@@ -122,8 +125,13 @@ class DocumentRepository:
                     (content, index, embedding, document_id),
                 )
 
-    def search_chunks(self, query_vector: list[float], limit: int) -> list[ChunkCandidate]:
-        """Top-`limit` Chunks per Cosine-Distanz. register_vector() reicht
+    def search_chunks(
+        self, query_vector: list[float], limit: int, collection: str
+    ) -> list[ChunkCandidate]:
+        """Top-`limit` Chunks per Cosine-Distanz, eingeschränkt auf eine
+        Collection (siehe Document.collection) - verhindert, dass z.B. eine
+        Karriere-Frage Reiseziel-Chunks zurückbekommt, obwohl beide
+        Domänen dieselbe Tabelle teilen. register_vector() reicht
         für diese Ad-hoc-Query nicht aus (kein Spaltenkontext, aus dem
         psycopg den Zieltyp ableiten könnte) - der Vektor wird deshalb
         explizit auf vector gecastet. Live beim manuellen Testen entdeckt:
@@ -137,10 +145,11 @@ class DocumentRepository:
                        d.title, d.source, d.url, d.license
                 FROM "DocumentChunk" c
                 JOIN "Document" d ON d.id = c."documentId"
+                WHERE d.collection = %s
                 ORDER BY distance ASC
                 LIMIT %s
                 """,
-                (query_vector, limit),
+                (query_vector, collection, limit),
             )
             return [
                 ChunkCandidate(

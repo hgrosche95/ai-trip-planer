@@ -20,7 +20,7 @@ class ChunkRepository(Protocol):
     # trotz strukturell passendem ChunkCandidate nicht erfüllen. Sequence ist
     # covariant und passt genau zum tatsächlichen (nur lesenden) Gebrauch hier.
     def search_chunks(
-        self, query_vector: list[float], limit: int
+        self, query_vector: list[float], limit: int, collection: str
     ) -> Sequence[ChunkCandidateLike]: ...
 
 
@@ -53,6 +53,7 @@ def perform_search(
     query: str,
     top_k: int,
     min_score: float,
+    collection: str = "travel",
     reranker: DocumentReranker | None = None,
     candidate_multiplier: int = 4,
     max_candidates: int = 50,
@@ -70,7 +71,7 @@ def perform_search(
     query_vector = embedder.embed([query], InputType.QUERY)[0]
 
     fetch_limit = min(top_k * candidate_multiplier, max_candidates) if reranker else top_k
-    candidates = repo.search_chunks(query_vector, fetch_limit)
+    candidates = repo.search_chunks(query_vector, fetch_limit, collection)
 
     hits = [
         SearchHit(

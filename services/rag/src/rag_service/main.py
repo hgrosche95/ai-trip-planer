@@ -8,12 +8,15 @@ from fastapi import FastAPI
 from rag_service.config import get_settings
 from rag_service.db import DocumentRepository
 from rag_service.embeddings import EmbeddingService
+from rag_service.ingest import ingest_knowledge_base
 from rag_service.logging_config import configure_logging
 from rag_service.reranking import Reranker
 from rag_service.schemas import (
     EmbedRequest,
     EmbedResponse,
     HealthResponse,
+    IngestRequest,
+    IngestResponse,
     SearchRequest,
     SearchResponse,
     SearchResult,
@@ -84,6 +87,7 @@ def search(request: SearchRequest) -> SearchResponse:
             request.query,
             top_k=request.top_k,
             min_score=request.min_score,
+            collection=request.collection,
             reranker=reranker,
             candidate_multiplier=settings.rerank_candidate_multiplier,
             max_candidates=settings.rerank_max_candidates,
@@ -102,4 +106,32 @@ def search(request: SearchRequest) -> SearchResponse:
             for hit in hits
         ],
         reranked=reranker is not None,
+    )
+
+
+@app.post("/ingest", response_model=IngestResponse)
+def ingest(request: IngestRequest) -> IngestResponse:
+    """HTTP-Gegenstück zur rag-ingest-CLI (ingest.py:main) - ruft dieselbe
+    ingest_knowledge_base()-Funktion auf und nutzt das beim Start bereits
+    geladene Embedding-Modell mit, statt es (wie die CLI) ein zweites Mal zu
+    laden. Für n8n gedacht (Phase 3b): kein Shell-Zugriff aus dem n8n-
+    Container nötig, nur ein HTTP-Aufruf."""
+    settings = _state["settings"]
+    embedder: EmbeddingService = _state["embedding_service"]
+
+    with DocumentRepository(settings.database_url) as repo:
+        summary = ingest_knowledge_base(
+            settings.knowledge_dir,
+            repo,
+            embedder,
+            settings.chunk_max_tokens,
+            settings.chunk_overlap_tokens,
+            request.collection,
+        )
+        repo.commit()
+
+    return IngestResponse(
+        created=summary.created,
+        updated=summary.updated,
+        skipped=summary.skipped,
     )

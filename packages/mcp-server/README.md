@@ -1,6 +1,6 @@
 # Trip-Planner MCP-Server
 
-Macht drei Trip-Planner-Fähigkeiten über das [Model Context Protocol](https://modelcontextprotocol.io)
+Macht vier Trip-Planner-Fähigkeiten über das [Model Context Protocol](https://modelcontextprotocol.io)
 für jeden MCP-Client (Claude Code, Claude Desktop, ...) nutzbar - dieselben
 Fähigkeiten, die auch der Chat-Agent hat, nicht neu implementiert, sondern
 über die bestehende NestJS-API (`apps/api`) aufgerufen. Der MCP-Server
@@ -11,11 +11,12 @@ spricht ausschließlich mit `apps/api`, nie direkt mit `services/rag` - siehe
 
 | Tool | Ruft auf | Zweck |
 | --- | --- | --- |
-| `search_travel_knowledge` | `apps/api` `POST /knowledge/search` | Faktensuche in der Reiseziel-Wissensbasis |
+| `search_travel_knowledge` | `apps/api` `POST /knowledge/search` | Faktensuche in der Reiseziel-Wissensbasis (`collection=travel`) |
+| `search_career_knowledge` | `apps/api` `POST /knowledge/search` | Faktensuche in der Karriere-Wissensbasis (`collection=jobs`) - Teil von [life-ops-platform](../../../life-ops-platform), dieselbe Route wie oben, nur andere Collection |
 | `create_itinerary` | `apps/api` `POST /itineraries` | Legt einen neuen Reiseplan mit Tagesprogramm an |
 | `list_itineraries` | `apps/api` `GET /itineraries` | Listet alle gespeicherten Reisepläne |
 
-Alle drei Tools brauchen einen JWT gegen `apps/api` - der Server loggt sich
+Alle vier Tools brauchen einen JWT gegen `apps/api` - der Server loggt sich
 beim ersten Aufruf selbst über `POST /auth/login` ein (Zugangsdaten aus Env,
 siehe unten) und cached den Token für die Laufzeit des Prozesses.
 

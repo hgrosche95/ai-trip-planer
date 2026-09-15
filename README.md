@@ -147,7 +147,7 @@ Chat unter `http://localhost:3001`, gespeicherte Reisen unter
 - `GET /health` – prüft die Datenbankverbindung (offen, kein Login nötig – Azure Container Apps pingt das ungeachtet von Auth)
 - `POST /auth/login` – Login, Body: `{ "username": "...", "password": "..." }`, gibt bei Erfolg `{ "accessToken": "..." }` zurück
 - `POST /agent/chat` 🔒 – Chat mit dem Reiseplaner-Agenten, Body: `{ "sessionId": "...", "message": "..." }`
-- `POST /knowledge/search` 🔒 – Durchsucht die Reiseziel-Wissensbasis, Body: `{ "query": "..." }` (dieselbe Logik, die auch der Agent per `search_travel_knowledge`-Tool und der MCP-Server nutzen)
+- `POST /knowledge/search` 🔒 – Durchsucht die Wissensbasis, Body: `{ "query": "...", "collection": "travel" }` (`collection` optional, Default `travel`; `jobs` durchsucht stattdessen Karriere-Wissen für [life-ops-platform](https://github.com/hgrosche95/life-ops-platform) - dieselbe Logik, die auch der Agent per `search_travel_knowledge`-Tool und der MCP-Server per `search_travel_knowledge`/`search_career_knowledge` nutzen)
 - `POST /itineraries` 🔒 – Legt einen neuen Reiseplan mit Tagesplan an (dieselbe Logik, die auch der Agent per `save_itinerary`-Tool und der MCP-Server per `create_itinerary` nutzen)
 - `GET /itineraries` 🔒 – Liste aller gespeicherten Reisen
 - `GET /itineraries/:id` 🔒 – Details einer Reise inkl. Tagesplan-Punkte
