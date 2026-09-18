@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authFetch } from '@/lib/auth';
-import RequireAuth from '../../require-auth';
 import DeleteTripButton from './delete-trip-button';
 import DeleteStopButton from './delete-stop-button';
 
@@ -122,10 +121,8 @@ function TripDetail() {
 
 export default function TripDetailPage() {
   return (
-    <RequireAuth>
-      <Suspense fallback={<p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">Lädt...</p>}>
-        <TripDetail />
-      </Suspense>
-    </RequireAuth>
+    <Suspense fallback={<p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">Lädt...</p>}>
+      <TripDetail />
+    </Suspense>
   );
 }

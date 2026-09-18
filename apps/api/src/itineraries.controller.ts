@@ -5,14 +5,16 @@ import {
   Param,
   Post,
   Delete,
-  UseGuards,
 } from '@nestjs/common';
 import { ItinerariesService } from './itineraries.service';
 import type { CreateItineraryInput } from './itineraries.service';
-import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
+// Kein Login-Zwang mehr: itineraries.service.ts legt ohnehin jeden
+// Reiseplan unter demselben festen guest@local.dev-Nutzer an (kein
+// Multi-Tenancy), das JWT-Login trennte hier also nie echte Nutzerdaten
+// voneinander - es hielt nur anonyme Besucher fern, was jetzt bewusst
+// nicht mehr gewollt ist.
 @Controller('itineraries')
-@UseGuards(JwtAuthGuard)
 export class ItinerariesController {
   constructor(private readonly itinerariesService: ItinerariesService) {}
 
