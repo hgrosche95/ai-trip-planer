@@ -1,5 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { Body, Controller, Post } from '@nestjs/common';
 import { searchCareerKnowledge, searchTravelKnowledge } from './rag-client';
 
 interface SearchKnowledgeBody {
@@ -10,8 +9,8 @@ interface SearchKnowledgeBody {
   collection?: 'travel' | 'jobs';
 }
 
+// Kein Login-Zwang mehr, siehe itineraries.controller.ts.
 @Controller('knowledge')
-@UseGuards(JwtAuthGuard)
 export class KnowledgeController {
   @Post('search')
   search(@Body() body: SearchKnowledgeBody) {
