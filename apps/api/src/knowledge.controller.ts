@@ -1,5 +1,13 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { searchCareerKnowledge, searchTravelKnowledge } from './rag-client';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { CurrentUser, type AuthUser } from './auth/current-user';
 
 interface SearchKnowledgeBody {
   query: string;
@@ -9,13 +17,19 @@ interface SearchKnowledgeBody {
   collection?: 'travel' | 'jobs';
 }
 
-// Kein Login-Zwang mehr, siehe itineraries.controller.ts.
+// Reisewissen darf jeder abfragen (auch Gäste), die jobs-Collection ist für
+// persönliches Karrierewissen gedacht und bleibt dem Besitzer vorbehalten.
 @Controller('knowledge')
+@UseGuards(JwtAuthGuard)
 export class KnowledgeController {
   @Post('search')
-  search(@Body() body: SearchKnowledgeBody) {
-    return body.collection === 'jobs'
-      ? searchCareerKnowledge(body.query)
-      : searchTravelKnowledge(body.query);
+  search(@CurrentUser() user: AuthUser, @Body() body: SearchKnowledgeBody) {
+    if (body.collection === 'jobs') {
+      if (user.role !== 'owner') {
+        throw new ForbiddenException('Nur für den Besitzer');
+      }
+      return searchCareerKnowledge(body.query);
+    }
+    return searchTravelKnowledge(body.query);
   }
 }

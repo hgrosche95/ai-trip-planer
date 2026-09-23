@@ -24,18 +24,12 @@ export interface CreateItineraryInput {
 export class ItinerariesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Einzige Stelle, die einen Reiseplan tatsächlich anlegt - wird sowohl vom
-  // Chat-Agenten (save_itinerary-Tool) als auch vom POST-Endpunkt unten und
-  // vom MCP-Server (Phase 5) aufgerufen. Ohne dieses Zusammenführen hätte
-  // jeder der drei Aufrufer dieselbe Prisma-Logik doppelt (Phase 5 verlangt
-  // explizit, keine Geschäftslogik zu duplizieren).
-  async create(input: CreateItineraryInput) {
-    const user = await this.prisma.user.upsert({
-      where: { email: 'guest@local.dev' },
-      update: {},
-      create: { email: 'guest@local.dev' },
-    });
-
+  // Einzige Stelle, die einen Reiseplan tatsächlich anlegt - Chat-Agent
+  // (save_itinerary-Tool), POST-Endpunkt und MCP-Server (über REST) laufen
+  // alle hierüber, damit die Prisma-Logik nur einmal existiert.
+  // Jede Methode bekommt die userId aus dem Token und arbeitet nur auf
+  // dessen Plänen: fremde Pläne sind für alle Aufrufer "nicht gefunden".
+  async create(userId: string, input: CreateItineraryInput) {
     const itinerary = await this.prisma.itinerary.create({
       data: {
         destination: input.destination,
@@ -44,7 +38,7 @@ export class ItinerariesService {
         budgetCents: input.budgetCents,
         currency: input.currency ?? 'EUR',
         preferences: input.preferences ?? [],
-        userId: user.id,
+        userId,
         stops: {
           create: input.stops.map((s) => ({
             dayNumber: s.dayNumber,
@@ -70,15 +64,16 @@ export class ItinerariesService {
     return itinerary;
   }
 
-  findAll() {
+  findAll(userId: string) {
     return this.prisma.itinerary.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: string) {
-    const itinerary = await this.prisma.itinerary.findUnique({
-      where: { id },
+  async findOne(userId: string, id: string) {
+    const itinerary = await this.prisma.itinerary.findFirst({
+      where: { id, userId },
       include: {
         stops: { orderBy: [{ dayNumber: 'asc' }, { order: 'asc' }] },
       },
@@ -91,23 +86,25 @@ export class ItinerariesService {
     return itinerary;
   }
 
-  async remove(id: string) {
-    const itinerary = await this.prisma.itinerary.findUnique({ where: { id } });
-    if (!itinerary) {
+  // deleteMany mit userId im Filter statt findUnique + delete: Besitzprüfung
+  // und Löschen sind eine einzige Abfrage, dazwischen kann nichts passieren.
+  async remove(userId: string, id: string) {
+    const { count } = await this.prisma.itinerary.deleteMany({
+      where: { id, userId },
+    });
+    if (count === 0) {
       throw new NotFoundException(`Reiseplan ${id} nicht gefunden`);
     }
-    await this.prisma.itinerary.delete({ where: { id } });
     return { deleted: true };
   }
 
-  async removeStop(itineraryId: string, stopId: string) {
-    const stop = await this.prisma.itineraryStop.findUnique({
-      where: { id: stopId },
+  async removeStop(userId: string, itineraryId: string, stopId: string) {
+    const { count } = await this.prisma.itineraryStop.deleteMany({
+      where: { id: stopId, itineraryId, itinerary: { userId } },
     });
-    if (!stop || stop.itineraryId !== itineraryId) {
+    if (count === 0) {
       throw new NotFoundException(`Programmpunkt ${stopId} nicht gefunden`);
     }
-    await this.prisma.itineraryStop.delete({ where: { id: stopId } });
     return { deleted: true };
   }
 }

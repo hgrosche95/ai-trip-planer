@@ -145,16 +145,19 @@ Chat unter `http://localhost:3001`, gespeicherte Reisen unter
 ## Backend-Endpunkte (`apps/api`)
 
 - `GET /health` – prüft die Datenbankverbindung (offen, kein Login nötig – Azure Container Apps pingt das ungeachtet von Auth)
-- `POST /auth/login` – Login, Body: `{ "username": "...", "password": "..." }`, gibt bei Erfolg `{ "accessToken": "..." }` zurück
-- `POST /agent/chat` 🔒 – Chat mit dem Reiseplaner-Agenten, Body: `{ "sessionId": "...", "message": "..." }`
-- `POST /knowledge/search` 🔒 – Durchsucht die Wissensbasis, Body: `{ "query": "...", "collection": "travel" }` (`collection` optional, Default `travel`; `jobs` durchsucht stattdessen Karriere-Wissen für [life-ops-platform](https://github.com/hgrosche95/life-ops-platform) - dieselbe Logik, die auch der Agent per `search_travel_knowledge`-Tool und der MCP-Server per `search_travel_knowledge`/`search_career_knowledge` nutzen)
+- `POST /auth/login` – Besitzer-Login (`AUTH_USERNAME`/`AUTH_PASSWORD_HASH`), Body: `{ "username": "...", "password": "..." }`, gibt bei Erfolg `{ "accessToken": "..." }` zurück. Max. 10 Versuche pro 15 Min und IP.
+- `POST /auth/guest` – legt einen anonymen Gastnutzer an und gibt `{ "accessToken": "..." }` zurück (30 Tage gültig). Max. 10 pro Stunde und IP.
+- `POST /agent/chat` 🔒 – Chat mit dem Reiseplaner-Agenten, Body: `{ "sessionId": "...", "message": "..." }` (`message` max. 2000 Zeichen). Max. 10 Nachrichten pro Minute und IP, max. 5 Tool-Runden pro Nachricht.
+- `POST /knowledge/search` 🔒 – Durchsucht die Wissensbasis, Body: `{ "query": "...", "collection": "travel" }` (`collection` optional, Default `travel`; `jobs` durchsucht stattdessen Karriere-Wissen für [life-ops-platform](https://github.com/hgrosche95/life-ops-platform) und ist **nur für den Besitzer**, Gäste bekommen 403 - dieselbe Logik, die auch der Agent per `search_travel_knowledge`-Tool und der MCP-Server per `search_travel_knowledge`/`search_career_knowledge` nutzen)
 - `POST /itineraries` 🔒 – Legt einen neuen Reiseplan mit Tagesplan an (dieselbe Logik, die auch der Agent per `save_itinerary`-Tool und der MCP-Server per `create_itinerary` nutzen)
-- `GET /itineraries` 🔒 – Liste aller gespeicherten Reisen
-- `GET /itineraries/:id` 🔒 – Details einer Reise inkl. Tagesplan-Punkte
-- `DELETE /itineraries/:id` 🔒 – löscht eine Reise (inkl. ihrer Programmpunkte)
-- `DELETE /itineraries/:id/stops/:stopId` 🔒 – löscht einen einzelnen Programmpunkt
+- `GET /itineraries` 🔒 – Liste der **eigenen** gespeicherten Reisen
+- `GET /itineraries/:id` 🔒 – Details einer eigenen Reise inkl. Tagesplan-Punkte
+- `DELETE /itineraries/:id` 🔒 – löscht eine eigene Reise (inkl. ihrer Programmpunkte)
+- `DELETE /itineraries/:id/stops/:stopId` 🔒 – löscht einen einzelnen Programmpunkt einer eigenen Reise
 
-🔒 = verlangt einen gültigen JWT im `Authorization: Bearer <token>`-Header (per `POST /auth/login` erhalten). Das Frontend kümmert sich darum automatisch (Login-Seite unter `/login`, Token liegt im `localStorage`).
+🔒 = verlangt einen gültigen JWT im `Authorization: Bearer <token>`-Header, entweder vom Besitzer-Login oder von `POST /auth/guest`. **Jeder Nutzer sieht und löscht nur seine eigenen Reisepläne**; fremde Pläne sind „nicht gefunden“ (404). Das Frontend holt sich beim ersten Besuch automatisch ein Gast-Token (liegt im `localStorage`), Besucher müssen sich also nicht einloggen. Die Login-Seite unter `/login` ist nur für den Besitzer; der MCP-Server nutzt ebenfalls den Besitzer-Login.
+
+Alle Routen haben zusätzlich ein Grundlimit von 100 Anfragen pro Minute und IP (`@nestjs/throttler`, hinter dem Azure-Ingress mit `trust proxy`).
 
 Gespeicherte Reisepläne lassen sich auch mit `npx prisma studio` (in `apps/api`) im Browser unter `http://localhost:5555` einsehen.
 
@@ -399,7 +402,7 @@ frühere Setups mit einem dauerhaft laufenden Azure-Postgres-Server gibt es
 hier keinen manuellen Stop/Start-Schritt mehr. Details inkl. konkreter
 Zahlen: [docs/deployment.md](docs/deployment.md).
 
-**Wichtig:** Das reicht allein **nicht** als Schutz gegen unautorisierte Nutzung der LLM-API-Keys – `/agent/chat` verlangt bereits einen gültigen Login (siehe [Backend-Endpunkte](#backend-endpunkte-appsapi)), das ist die eigentliche Absicherung. Für den Fall, dass Zugangsdaten kompromittiert werden (oder man jeden Zugriff inkl. `/health` unterbinden will, z. B. bei längerer Pause), bleibt die Container-App-Revision als zusätzlicher Not-Aus-Schalter:
+**Wichtig:** Das reicht allein **nicht** als Schutz gegen unautorisierte Nutzung der LLM-API-Keys – `/agent/chat` ist über Rate-Limit, Nachrichtenlänge und eine Obergrenze für Tool-Runden begrenzt (siehe [Backend-Endpunkte](#backend-endpunkte-appsapi)), das ist die eigentliche Absicherung. Für den Fall, dass Zugangsdaten kompromittiert werden (oder man jeden Zugriff inkl. `/health` unterbinden will, z. B. bei längerer Pause), bleibt die Container-App-Revision als zusätzlicher Not-Aus-Schalter:
 
 ```bash
 # aktuelle Revision ermitteln

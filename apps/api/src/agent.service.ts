@@ -96,6 +96,14 @@ const MAX_HISTORY_MESSAGES = Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20);
 const MAX_TOOL_RESULT_CHARS = Number(
   process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 2000,
 );
+// Obergrenze für Tool-Runden pro Nachricht: Ohne sie könnte ein Modell (oder
+// eine manipulierte Eingabe) die Schleife unbegrenzt weiterlaufen lassen, und
+// jede Runde ist ein bezahlter LLM-Aufruf.
+export const MAX_TOOL_ITERATIONS = Number(
+  process.env.LLM_MAX_TOOL_ITERATIONS ?? 5,
+);
+const TOOL_LIMIT_REPLY =
+  'Das war mir gerade zu viel auf einmal. Kannst du deine Anfrage etwas eingrenzen?';
 
 @Injectable()
 export class AgentService {
@@ -108,6 +116,7 @@ export class AgentService {
   ) {}
 
   async sendMessage(
+    userId: string,
     sessionId: string,
     userMessage: string,
   ): Promise<ChatResult> {
@@ -121,14 +130,26 @@ export class AgentService {
     // Latenz, welche Tools mit welchem Ergebnis-Umfang liefen.
     return propagateAttributes({ sessionId }, () =>
       startActiveObservation('chat-message', async (turn) => {
-        const history = this.getHistory(sessionId);
+        // Verlauf pro Nutzer UND Session: die sessionId kommt vom Client,
+        // allein wäre sie erratbar, und man könnte fremde Verläufe fortsetzen.
+        const history = this.getHistory(`${userId}:${sessionId}`);
         history.push({ role: 'user', content: userMessage });
 
         let result = await this.callLlm(history);
         const sources = new Map<string, ChatSource>();
         let searchAttempted = false;
+        let toolIterations = 0;
 
         while (result.finishReason === 'tool_calls') {
+          if (toolIterations >= MAX_TOOL_ITERATIONS) {
+            this.logger.warn(
+              `Tool-Limit (${MAX_TOOL_ITERATIONS} Runden) erreicht, Schleife abgebrochen`,
+            );
+            result = { ...result, content: TOOL_LIMIT_REPLY };
+            break;
+          }
+          toolIterations++;
+
           history.push({
             role: 'assistant',
             content: result.content ?? undefined,
@@ -137,7 +158,11 @@ export class AgentService {
 
           const toolResults: LlmToolResult[] = [];
           for (const call of result.toolCalls) {
-            const output = await this.executeTool(call.name, call.arguments);
+            const output = await this.executeTool(
+              userId,
+              call.name,
+              call.arguments,
+            );
             if (call.name === 'search_travel_knowledge') {
               searchAttempted = true;
               this.collectSources(
@@ -229,7 +254,7 @@ export class AgentService {
     return this.conversations.get(sessionId)!;
   }
 
-  private async executeTool(name: string, input: unknown) {
+  private async executeTool(userId: string, name: string, input: unknown) {
     // search_travel_knowledge bekommt einen eigenen Observation-Typ
     // ("retriever" statt "tool"), weil es der Retrieval-Schritt aus dem
     // Plan ist - in Langfuse taucht er dadurch mit den Top-Treffern
@@ -262,7 +287,7 @@ export class AgentService {
     return startActiveObservation(
       name,
       async (tool) => {
-        const output = await this.runTool(name, input);
+        const output = await this.runTool(userId, name, input);
         tool.update({ metadata: { hasError: 'error' in (output as object) } });
         return output;
       },
@@ -270,21 +295,21 @@ export class AgentService {
     );
   }
 
-  private async runTool(name: string, input: unknown) {
+  private async runTool(userId: string, name: string, input: unknown) {
     switch (name) {
       case 'search_flights':
         return searchFlights(input as Parameters<typeof searchFlights>[0]);
       case 'search_hotels':
         return searchHotels(input as Parameters<typeof searchHotels>[0]);
       case 'save_itinerary':
-        return this.saveItinerary(input as CreateItineraryInput);
+        return this.saveItinerary(userId, input as CreateItineraryInput);
       default:
         return { error: `Unbekanntes Tool: ${name}` };
     }
   }
 
-  private async saveItinerary(input: CreateItineraryInput) {
-    const itinerary = await this.itinerariesService.create(input);
+  private async saveItinerary(userId: string, input: CreateItineraryInput) {
+    const itinerary = await this.itinerariesService.create(userId, input);
     return { saved: true, itineraryId: itinerary.id };
   }
 }
