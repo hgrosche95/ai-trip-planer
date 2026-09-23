@@ -103,7 +103,7 @@ zwischen Recall@k und MRR): [evals/README.md](evals/README.md).
 
 ## Lokales Setup
 
-Voraussetzungen: Node.js 20+, Docker Desktop.
+Voraussetzungen: Node.js 24+, Docker Desktop.
 
 ```bash
 npm install
