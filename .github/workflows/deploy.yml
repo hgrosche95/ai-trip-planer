@@ -24,14 +24,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # --- 1. Backend-Image bauen und nach GHCR pushen -------------------------------
       # Muss VOR dem Bicep-Deployment passieren: die Container App referenziert das
       # Image über seinen Tag. Würde der Tag beim Deployment noch nicht existieren,
       # würde die neue Revision beim Start fehlschlagen (Image-Pull-Error).
       - name: In GitHub Container Registry einloggen
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -53,7 +53,7 @@ jobs:
 
       # --- 2. Bei Azure einloggen (OIDC / Federated Credentials) ---------------------
       - name: Bei Azure einloggen
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -114,7 +114,7 @@ jobs:
       # Neon ist standardmäßig öffentlich erreichbar (kein IP-Firewall-Handshake wie bei
       # Azure Postgres Flexible Server nötig), daher entfällt das Öffnen/Schließen einer
       # Firewall-Regel für den Runner.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
