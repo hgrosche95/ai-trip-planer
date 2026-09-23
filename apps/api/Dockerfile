@@ -2,7 +2,7 @@
 
 # ---- deps: install workspace dependencies (npm needs every workspace's package.json
 # to resolve the root package-lock.json, even though we only ship apps/api) ----
-FROM node:20-slim AS deps
+FROM node:25-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
@@ -25,7 +25,7 @@ WORKDIR /app
 RUN npm prune --omit=dev
 
 # ---- runtime: minimal production image ----
-FROM node:20-slim AS runtime
+FROM node:25-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app/apps/api
 
