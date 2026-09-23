@@ -28,7 +28,10 @@ export default function TripsPage() {
 
   return (
     <div className="mx-auto max-w-2xl p-4">
-      <h1 className="mb-4 text-2xl font-semibold">Deine gespeicherten Reisen</h1>
+      <h1 className="mb-1 text-2xl font-semibold">Deine gespeicherten Reisen</h1>
+      <p className="mb-4 text-sm text-zinc-500">
+        Nur für dich sichtbar und an diesen Browser gebunden.
+      </p>
       {isLoading ? (
         <p className="text-sm text-zinc-500">Lädt...</p>
       ) : (
