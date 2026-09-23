@@ -64,7 +64,7 @@ model ItineraryStop {
   @@index([itineraryId])
 }
 
-// Wissensbasis für RAG (Phase 3/4): eine Quelle (z.B. ein Reiseziel-Artikel)
+// Wissensbasis für RAG: eine Quelle (z.B. ein Reiseziel-Artikel)
 // pro Document, in Chunks zerlegt für die Vektorsuche.
 model Document {
   id        String   @id @default(cuid())
@@ -74,7 +74,7 @@ model Document {
   license   String
   language  String   @default("de")
   // "travel" oder "jobs" - trennt die geteilte RAG-Instanz in fachliche
-  // Wissensbasen (Phase 2). Default "travel" ordnet bestehende Dokumente bei
+  // Wissensbasen. Default "travel" ordnet bestehende Dokumente bei
   // der Migration automatisch der bisherigen (einzigen) Domäne zu, ohne
   // Backfill-Schritt.
   collection String  @default("travel")
@@ -104,7 +104,7 @@ model DocumentChunk {
   // (kein eigener Skalartyp im Schema-Modell). `Unsupported` lässt den
   // rohen Postgres-Typ unverändert durch die Migration durch, erzeugt aber
   // keine Felder im generierten Prisma Client - Lesen/Schreiben/Vektorsuche
-  // läuft für diese Spalte über $queryRaw/$executeRaw (siehe Phase 3/4).
+  // läuft für diese Spalte über $queryRaw/$executeRaw (services/rag).
   // 384 Dimensionen passend zum lokalen Embedding-Modell im RAG-Service
   // (services/rag, sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
   // via fastembed - das einzige mehrsprachige Modell mit 384 Dimensionen in

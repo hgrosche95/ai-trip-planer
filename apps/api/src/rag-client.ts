@@ -31,7 +31,7 @@ const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL ?? 'http://localhost:8001';
 const RAG_SEARCH_TIMEOUT_MS = Number(process.env.RAG_SEARCH_TIMEOUT_MS ?? 5000);
 // Bewusst klein (3 statt z.B. 10): das Tool-Ergebnis geht als JSON-Text ins
 // Kontextfenster des LLM - mehr Treffer heißt direkt mehr Tokens pro
-// Suchaufruf, relevant für Groqs 8.000-TPM-Limit (siehe Phase 1.3).
+// Suchaufruf, relevant für Groqs Limit von 8.000 Tokens pro Minute im Free Tier.
 const RAG_SEARCH_TOP_K = Number(process.env.RAG_SEARCH_TOP_K ?? 3);
 
 /**
@@ -95,7 +95,7 @@ export async function searchTravelKnowledge(
 
 // Gleiche Rückgabeform wie Reise-Treffer (Titel/Quelle/Lizenz/URL/Score) -
 // eigener Name statt eines Alias auf TravelKnowledgeSearchResult, damit an
-// den Aufrufstellen (Phase 2c) klar ist, welche Collection gemeint ist.
+// den Aufrufstellen klar ist, welche Collection gemeint ist.
 export type CareerKnowledgeSearchResult = TravelKnowledgeSearchResult;
 
 export async function searchCareerKnowledge(

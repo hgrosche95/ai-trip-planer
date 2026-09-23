@@ -80,7 +80,7 @@ resource ragContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
           resources: {
             // Nächste erlaubte Stufe über der API (0.25 vCPU/0.5Gi, siehe
             // container-app.bicep): das RAG-Image ist ~330 MiB inkl.
-            // vorgeladenem Embedding-Modell (Phase 3.4) und braucht beim
+            // vorgeladenem Embedding-Modell und braucht beim
             // Laden mehr Kopfraum als die schlanke NestJS-API.
             cpu: json('0.5')
             memory: '1.0Gi'

@@ -25,6 +25,9 @@ Cloud-Deployment, das bei Nichtnutzung nichts kostet.
   sagt der Agent das, statt zu spekulieren
 - **Gespeicherte, wiederauffindbare Reisepläne** unter `/trips`, mit
   Tagesprogramm und Kategorien pro Programmpunkt
+- **Flug- und Hotelsuche sind simuliert**: `search_flights` und `search_hotels`
+  liefern Beispieldaten (`apps/api/src/agent-tools.ts`), keine echten
+  Angebote. Es geht um die Tool-Use-Schleife, nicht um eine Buchungs-API
 - **Austauschbarer LLM-Anbieter** (Groq oder Anthropic) per einer
   Env-Variable, kein Codeeingriff nötig
 - **MCP-Server**: dieselben Fähigkeiten (Wissenssuche, Reiseplan anlegen/
@@ -74,7 +77,7 @@ beiden aktiv entwickelten Apps).
 | Datenbank | PostgreSQL + pgvector | Eine Datenbank für Anwendungsdaten (Reisepläne) und Vektorsuche statt einer zusätzlichen dedizierten Vektor-DB |
 | LLM | Groq (Standard) / Anthropic (Fallback) | Groq: kostenloses Tier, OpenAI-kompatible Schnittstelle (`openai`-Paket statt `groq-sdk` - ein Adapter für jeden OpenAI-kompatiblen Endpunkt). Beide hinter einem `LlmProvider`-Interface austauschbar |
 | RAG-Service | Python/FastAPI, eigener Prozess | Embedding-Ökosystem lebt in Python - echte polyglotte Systemintegration statt alles in eine Sprache zu zwingen |
-| Embeddings | fastembed, lokal (ONNX) | Kein API-Key, keine laufenden Kosten, volle Datenhoheit - relevant im Gesundheits-/Abrechnungsumfeld |
+| Embeddings | fastembed, lokal (ONNX) | Kein API-Key, keine laufenden Kosten, volle Datenhoheit - relevant, sobald die Wissensbasis sensible Inhalte enthält |
 | Agent-Fähigkeiten extern | MCP-Server | Macht dieselbe Tool-Logik ohne Duplikation auch außerhalb des eigenen Frontends nutzbar (Claude Code, Claude Desktop, ...) |
 | Observability | Langfuse (OpenTelemetry-basiertes SDK) | Anbieterneutral instrumentiert (Groq **und** Anthropic), sauber deaktiviert ohne Account |
 | Qualitätsmessung | Eigener Eval-Harness (Recall@k, MRR, Tool-Genauigkeit) | Ohne Messung ist RAG-Qualität eine Meinung - Grundlage für ein CI-Gate |
@@ -250,7 +253,7 @@ möglich (Scraping ist meist trivial) und rechtlich zulässig (Urheberrecht,
 Nutzungsbedingungen der Quelle, bei personenbezogenen Daten zusätzlich
 Datenschutzrecht). Datenherkunft und Lizenzlage sauber zu dokumentieren ist
 deshalb Teil der fachlichen Arbeit, nicht nachträgliche Compliance-Kosmetik -
-besonders in regulierten Umfeldern mit Gesundheits- oder Abrechnungsdaten.
+besonders sobald personenbezogene oder anderweitig sensible Daten im Spiel sind.
 
 ## Architekturentscheidungen
 

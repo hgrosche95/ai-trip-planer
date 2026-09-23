@@ -85,7 +85,7 @@ export function registerTools(server: McpServer): void {
     'search_career_knowledge',
     {
       description:
-        'Durchsucht die kuratierte Wissensbasis zu Karriere-/Bewerbungsthemen (z.B. Lebenslauf-Tipps, Interview-Vorbereitung). Ruft dieselbe /knowledge/search-Route wie search_travel_knowledge auf, nur mit collection="jobs" - dieselbe geteilte RAG-Instanz, strikt getrennte Wissensbasen (Phase 2).',
+        'Durchsucht die kuratierte Wissensbasis zu Karriere-/Bewerbungsthemen (z.B. Lebenslauf-Tipps, Interview-Vorbereitung). Ruft dieselbe /knowledge/search-Route wie search_travel_knowledge auf, nur mit collection="jobs" - dieselbe geteilte RAG-Instanz, strikt getrennte Wissensbasen.',
       inputSchema: z.object({
         query: z
           .string()

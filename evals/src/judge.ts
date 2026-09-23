@@ -2,8 +2,8 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_MODEL = process.env.GROQ_MODEL ?? 'openai/gpt-oss-120b';
 
 // Bewusst per Env abschaltbar (Default: aus) - jeder Judge-Aufruf ist ein
-// zusätzlicher, ratenlimitierter LLM-Aufruf (Groq Free Tier, siehe
-// Phase 1.3) und subjektiver als die harten Retrieval-/Tool-Metriken.
+// zusätzlicher, ratenlimitierter LLM-Aufruf (Groq Free Tier) und
+// subjektiver als die harten Retrieval-/Tool-Metriken.
 export const JUDGE_ENABLED = process.env.EVAL_JUDGE_ENABLED === 'true';
 
 interface GroqChatCompletion {
