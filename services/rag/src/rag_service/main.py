@@ -47,9 +47,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Bewusst KEINE Datenbankverbindung hier im Lifespan: /health und /embed
     # brauchen keine DB. Würde die DB-Verbindung hier beim Start erzwungen,
     # würde ein nicht erreichbares Postgres den kompletten Service inklusive
-    # embedding-only-Endpunkten lahmlegen - dieselbe Klasse von Fehler wie
-    # der Produktions-Bug aus Phase 1 (ein nicht benötigter Anbieter hat
-    # beim Start alles blockiert). /search öffnet ihre eigene Verbindung.
+    # embedding-only-Endpunkten lahmlegen - eine Abhängigkeit,
+    # die ein Endpunkt gar nicht braucht, darf ihn beim Start nicht blockieren.
+    # /search öffnet ihre eigene Verbindung.
     yield
     _state.clear()
 
@@ -114,7 +114,7 @@ def ingest(request: IngestRequest) -> IngestResponse:
     """HTTP-Gegenstück zur rag-ingest-CLI (ingest.py:main) - ruft dieselbe
     ingest_knowledge_base()-Funktion auf und nutzt das beim Start bereits
     geladene Embedding-Modell mit, statt es (wie die CLI) ein zweites Mal zu
-    laden. Für n8n gedacht (Phase 3b): kein Shell-Zugriff aus dem n8n-
+    laden. Für n8n gedacht: kein Shell-Zugriff aus dem n8n-
     Container nötig, nur ein HTTP-Aufruf."""
     settings = _state["settings"]
     embedder: EmbeddingService = _state["embedding_service"]
