@@ -68,9 +68,9 @@ jobs:
       TRIP_PLANNER_PASSWORD: e2e-test-password
       EVAL_JUDGE_ENABLED: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -122,7 +122,7 @@ jobs:
       # unterschrittener Schwellen mit Exit-Code 1 fehlgeschlagen ist.
       - name: Report als Artefakt hochladen
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: eval-report
           path: evals/reports/*.md
