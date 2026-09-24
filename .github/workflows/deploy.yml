@@ -138,6 +138,37 @@ jobs:
       # NEXT_PUBLIC_API_URL muss zur BUILD-Zeit gesetzt sein (landet im statischen JS-
       # Bundle) - deshalb erst jetzt, nachdem wir die frisch deployte Container-App-URL
       # aus Schritt 3 kennen. Node/npm ci laufen schon oben für die Migrationen.
+      # Der Deploy-Schritt meldet Erfolg, sobald Azure das neue Image angenommen hat,
+      # nicht erst, wenn die App damit auch startet. job-application-skill#14: Die API
+      # startete nicht, der Deploy war trotzdem grün. Deshalb hier warten, bis genau
+      # die neue Revision in Azure als gesund läuft UND der Endpunkt antwortet.
+      # Nur der Endpunkt allein reicht nicht: Er hat trotz kaputter Revision 200 geliefert.
+      - name: Smoke-Test der neuen Revision
+        env:
+          APP: trip-planner-dev-api
+          RG: ${{ env.AZURE_RESOURCE_GROUP }}
+          URL: ${{ steps.infra.outputs.container_app_url }}/health
+          MAX_CODE: "300"
+        run: |
+          REV=$(az containerapp show -n "$APP" -g "$RG" --query properties.latestRevisionName -o tsv)
+          echo "Neue Revision: $REV"
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -m 15 -w '%{http_code}' "$URL" || true)
+            STATE=$(az containerapp revision show -n "$APP" -g "$RG" --revision "$REV" \
+              --query "join('/', [properties.healthState, properties.runningState])" -o tsv)
+            echo "Versuch $i: HTTP $CODE, Revision $STATE"
+            case "$STATE" in
+              *Failed*) echo "::error::Revision $REV startet nicht ($STATE)"; exit 1 ;;
+              */Stopped)
+                LATEST=$(az containerapp show -n "$APP" -g "$RG" --query properties.latestRevisionName -o tsv)
+                if [ "$LATEST" != "$REV" ]; then echo "Revision wurde durch $LATEST abgelöst"; exit 0; fi ;;
+              Healthy/Running*)
+                if [ "$CODE" -ge 200 ] && [ "$CODE" -lt "$MAX_CODE" ]; then echo "OK"; exit 0; fi ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Revision $REV nach 5 Minuten nicht gesund"; exit 1
+
       - name: Frontend bauen
         working-directory: apps/web
         env:
