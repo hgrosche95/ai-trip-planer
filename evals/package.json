@@ -8,7 +8,7 @@
     "test": "tsx --test src/metrics.spec.ts"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.6.2",
     "tsx": "^4.23.13"
   }
 }
