@@ -10,12 +10,16 @@ updates:
       interval: weekly
     groups:
       # NestJS-Pakete müssen dieselbe Hauptversion haben (platform-express 12
-      # mit core 11 startet nicht, siehe job-application-skill#14). Deshalb
-      # immer zusammen, auch bei Majors.
+      # mit core 11 startet nicht, siehe job-application-skill#14). Minor/Patch
+      # kommen gebündelt; Majors ignoriert Dependabot (siehe ignore unten), weil
+      # es sie trotz Gruppe einzeln vorgeschlagen hat. NestJS-Majors von Hand.
       nestjs:
         patterns: ["@nestjs/*"]
       npm-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "@nestjs/*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: uv
     directory: /services/rag
