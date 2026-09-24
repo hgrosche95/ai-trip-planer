@@ -37,13 +37,29 @@ export class AuthService {
       throw new UnauthorizedException('Ungültige Zugangsdaten');
     }
 
-    const owner = await this.prisma.user.upsert({
-      where: { email: OWNER_EMAIL },
-      update: {},
-      create: { email: OWNER_EMAIL },
-    });
+    const owner = await this.findOrCreateOwner();
     const payload: AuthTokenPayload = { sub: owner.id, role: 'owner' };
     return { accessToken: await this.jwtService.signAsync(payload) };
+  }
+
+  // upsert ist nicht atomar: Loggen sich zwei Clients gleichzeitig ein (z. B.
+  // die parallelen E2E-Tests), versuchen beide das Anlegen, und einer scheitert
+  // an der eindeutigen E-Mail (P2002). Dann existiert der Nutzer aber bereits.
+  private async findOrCreateOwner() {
+    try {
+      return await this.prisma.user.upsert({
+        where: { email: OWNER_EMAIL },
+        update: {},
+        create: { email: OWNER_EMAIL },
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') {
+        return this.prisma.user.findUniqueOrThrow({
+          where: { email: OWNER_EMAIL },
+        });
+      }
+      throw error;
+    }
   }
 
   async createGuest() {

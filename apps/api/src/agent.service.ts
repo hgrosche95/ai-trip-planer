@@ -16,6 +16,8 @@ import type {
   LlmToolResult,
 } from './llm/llm-provider.interface';
 import { trimHistory, truncateToolResult } from './llm/conversation-history';
+import { CONVERSATION_STORE } from './llm/conversation-store';
+import type { ConversationStore } from './llm/conversation-store';
 import type { TravelKnowledgeSearchResult } from './rag-client';
 
 export interface ChatSource {
@@ -108,11 +110,12 @@ const TOOL_LIMIT_REPLY =
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
-  private readonly conversations = new Map<string, LlmMessage[]>();
 
   constructor(
     private readonly itinerariesService: ItinerariesService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
+    @Inject(CONVERSATION_STORE)
+    private readonly conversationStore: ConversationStore,
   ) {}
 
   async sendMessage(
@@ -132,7 +135,9 @@ export class AgentService {
       startActiveObservation('chat-message', async (turn) => {
         // Verlauf pro Nutzer UND Session: die sessionId kommt vom Client,
         // allein wäre sie erratbar, und man könnte fremde Verläufe fortsetzen.
-        const history = this.getHistory(`${userId}:${sessionId}`);
+        // Liegt in der Datenbank statt im Arbeitsspeicher, damit jede Instanz
+        // (und jede nach einem Neustart) denselben Stand sieht.
+        const history = await this.conversationStore.load(userId, sessionId);
         history.push({ role: 'user', content: userMessage });
 
         let result = await this.callLlm(history);
@@ -184,6 +189,7 @@ export class AgentService {
         }
 
         history.push({ role: 'assistant', content: result.content ?? '' });
+        await this.conversationStore.save(userId, sessionId, history);
         turn.update({
           metadata: { searchAttempted, sourceCount: sources.size },
         });
@@ -245,13 +251,6 @@ export class AgentService {
       },
       { asType: 'generation' },
     );
-  }
-
-  private getHistory(sessionId: string): LlmMessage[] {
-    if (!this.conversations.has(sessionId)) {
-      this.conversations.set(sessionId, []);
-    }
-    return this.conversations.get(sessionId)!;
   }
 
   private async executeTool(userId: string, name: string, input: unknown) {
