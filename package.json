@@ -16,7 +16,7 @@
     "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {
-    "typescript": "^5.5.4"
+    "typescript": "^7.0.2"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.2",
