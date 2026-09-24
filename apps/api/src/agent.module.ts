@@ -6,12 +6,17 @@ import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { AnthropicProvider } from './llm/anthropic.provider';
 import { GroqProvider } from './llm/groq.provider';
 import { RetryingLlmProvider } from './llm/retrying-llm-provider';
+import {
+  CONVERSATION_STORE,
+  PrismaConversationStore,
+} from './llm/conversation-store';
 
 @Module({
   imports: [ItinerariesModule],
   controllers: [AgentController],
   providers: [
     AgentService,
+    { provide: CONVERSATION_STORE, useClass: PrismaConversationStore },
     {
       provide: LLM_PROVIDER,
       // Bewusst mit `new` statt über Nest-DI erzeugt: würden AnthropicProvider

@@ -26,7 +26,8 @@ model User {
   id          String      @id @default(cuid())
   email       String      @unique
   createdAt   DateTime    @default(now())
-  itineraries Itinerary[]
+  itineraries   Itinerary[]
+  conversations Conversation[]
 }
 
 model Itinerary {
@@ -117,4 +118,22 @@ model DocumentChunk {
   documentId String
 
   @@index([documentId])
+}
+
+// Chat-Verlauf des Agenten. Lag vorher in einer Map im Arbeitsspeicher: Bei
+// mehreren Instanzen (maxReplicas: 3) oder nach einem Neustart vergaß der
+// Agent die Unterhaltung, und die Map wuchs unbegrenzt. messages ist die
+// bereits gekürzte LlmMessage-Liste (siehe ConversationStore).
+model Conversation {
+  id        String   @id @default(cuid())
+  sessionId String
+  messages  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@unique([userId, sessionId])
+  @@index([updatedAt])
 }
