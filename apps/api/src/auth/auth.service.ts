@@ -20,7 +20,13 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async login(username: string, password: string) {
+  async login(username: unknown, password: unknown) {
+    // Der Body ist nicht validiert: ohne diese Prüfung wirft bcrypt.compare
+    // bei fehlendem Passwort, und aus einem falschen Login wird eine 500.
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      throw new UnauthorizedException('Ungültige Zugangsdaten');
+    }
+
     const validUsername = process.env.AUTH_USERNAME;
     const passwordHash = process.env.AUTH_PASSWORD_HASH;
 
