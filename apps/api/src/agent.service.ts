@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { propagateAttributes, startActiveObservation } from '@langfuse/tracing';
 import { ItinerariesService } from './itineraries.service';
 import type { CreateItineraryInput } from './itineraries.service';
+import { itineraryValidationErrors } from './itinerary.dto';
 import {
   tools,
   searchFlights,
@@ -309,6 +310,13 @@ export class AgentService {
   }
 
   private async saveItinerary(userId: string, input: CreateItineraryInput) {
+    // Der Plan kommt vom Modell, nicht durch die ValidationPipe. Ungültige
+    // Angaben gehen als Tool-Fehler zurück, damit das Modell sie korrigieren
+    // kann, statt dass der ganze Chat mit einer 500 abbricht.
+    const errors = itineraryValidationErrors(input);
+    if (errors.length > 0) {
+      return { error: `Reiseplan ungültig: ${errors.join('; ')}` };
+    }
     const itinerary = await this.itinerariesService.create(userId, input);
     return { saved: true, itineraryId: itinerary.id };
   }

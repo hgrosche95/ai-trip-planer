@@ -8,7 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ItinerariesService } from './itineraries.service';
-import type { CreateItineraryInput } from './itineraries.service';
+import { CreateItineraryDto } from './itinerary.dto';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from './auth/current-user';
 
@@ -20,7 +20,7 @@ export class ItinerariesController {
   constructor(private readonly itinerariesService: ItinerariesService) {}
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() body: CreateItineraryInput) {
+  create(@CurrentUser() user: AuthUser, @Body() body: CreateItineraryDto) {
     return this.itinerariesService.create(user.userId, body);
   }
 

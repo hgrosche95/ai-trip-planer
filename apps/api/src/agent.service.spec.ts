@@ -66,6 +66,28 @@ describe('AgentService', () => {
     expect(itineraries.create).toHaveBeenCalledWith('user-a', plan);
   });
 
+  it('gibt einen ungültigen Plan als Tool-Fehler an das Modell zurück', async () => {
+    const invalid = {
+      destination: 'Wien',
+      startDate: 'quatsch',
+      endDate: '2026-09-04',
+      budgetCents: 50000,
+      stops: [],
+    };
+    llm.chat
+      .mockResolvedValueOnce(toolCallResult('save_itinerary', invalid))
+      .mockResolvedValueOnce(textResult('Ich korrigiere das Datum.'));
+
+    const result = await agent.sendMessage('user-a', 'session-1', 'Speicher');
+
+    expect(itineraries.create).not.toHaveBeenCalled();
+    // Das Modell bekommt die Fehlermeldung als Tool-Ergebnis zu sehen
+    const calls = llm.chat.mock.calls as [LlmMessage[]][];
+    const toolMessage = calls[1][0].find((m) => m.role === 'tool');
+    expect(toolMessage?.toolResults?.[0].content).toContain('startDate');
+    expect(result.reply).toBe('Ich korrigiere das Datum.');
+  });
+
   it('trennt Chat-Verläufe verschiedener Nutzer mit gleicher sessionId', async () => {
     llm.chat.mockResolvedValue(textResult('ok'));
 
