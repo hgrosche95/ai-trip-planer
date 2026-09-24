@@ -16,7 +16,7 @@ export class AuthController {
   @Post('login')
   @Throttle({ default: { limit: 10, ttl: 15 * MINUTE } })
   login(@Body() body: LoginRequest) {
-    return this.authService.login(body.username, body.password);
+    return this.authService.login(body?.username, body?.password);
   }
 
   // Jeder Aufruf legt eine User-Zeile an -> eng begrenzen. Ein Browser ruft
