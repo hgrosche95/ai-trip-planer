@@ -9,6 +9,11 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # NestJS-Pakete müssen dieselbe Hauptversion haben (platform-express 12
+      # mit core 11 startet nicht, siehe job-application-skill#14). Deshalb
+      # immer zusammen, auch bei Majors.
+      nestjs:
+        patterns: ["@nestjs/*"]
       npm-minor-patch:
         update-types: [minor, patch]
 
