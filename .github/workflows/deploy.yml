@@ -97,22 +97,38 @@ jobs:
           AUTH_PASSWORD_HASH: ${{ secrets.AUTH_PASSWORD_HASH }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          OUTPUTS=$(az deployment group create \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file infra/main.bicep \
-            --parameters infra/main.parameters.json \
-            --parameters \
-              databaseUrl="$DATABASE_URL" \
-              anthropicApiKey="$ANTHROPIC_API_KEY" \
-              groqApiKey="$GROQ_API_KEY" \
-              containerImage="$IMAGE_TAG" \
-              ragContainerImage="$RAG_IMAGE_TAG" \
-              registryUsername="${{ github.actor }}" \
-              registryPassword="$GHCR_PAT" \
-              authUsername="$AUTH_USERNAME" \
-              authPasswordHash="$AUTH_PASSWORD_HASH" \
-              jwtSecret="$JWT_SECRET" \
-            --query properties.outputs -o json)
+          # Azure bricht gelegentlich mit DeploymentActive ab: eine Teil-Bereitstellung
+          # (z. B. rag-container-app-deployment) gilt als "noch aktiv", obwohl kein
+          # anderer Deploy läuft. Ein erneuter Versuch klappt dann. Genau bei diesem
+          # Fehler (und dem gelegentlichen CLI-Fehler "already consumed") bis zu 3 Versuche,
+          # alle anderen Fehler brechen sofort ab.
+          for attempt in 1 2 3; do
+            if OUTPUTS=$(az deployment group create \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --template-file infra/main.bicep \
+              --parameters infra/main.parameters.json \
+              --parameters \
+                databaseUrl="$DATABASE_URL" \
+                anthropicApiKey="$ANTHROPIC_API_KEY" \
+                groqApiKey="$GROQ_API_KEY" \
+                containerImage="$IMAGE_TAG" \
+                ragContainerImage="$RAG_IMAGE_TAG" \
+                registryUsername="${{ github.actor }}" \
+                registryPassword="$GHCR_PAT" \
+                authUsername="$AUTH_USERNAME" \
+                authPasswordHash="$AUTH_PASSWORD_HASH" \
+                jwtSecret="$JWT_SECRET" \
+              --query properties.outputs -o json 2> deploy-error.log); then
+              break
+            fi
+            cat deploy-error.log
+            if [ "$attempt" -lt 3 ] && grep -qE "DeploymentActive|still active|already consumed" deploy-error.log; then
+              echo "::warning::Azure meldet eine noch aktive Teil-Bereitstellung, neuer Versuch in 60 s"
+              sleep 60
+              continue
+            fi
+            exit 1
+          done
 
           echo "container_app_url=$(echo "$OUTPUTS" | jq -r '.containerAppUrl.value')" >> "$GITHUB_OUTPUT"
           echo "static_web_app_name=$(echo "$OUTPUTS" | jq -r '.staticWebAppName.value')" >> "$GITHUB_OUTPUT"
