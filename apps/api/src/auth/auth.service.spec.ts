@@ -6,7 +6,7 @@ import type { PrismaService } from '../prisma.service';
 
 describe('AuthService.login', () => {
   let service: AuthService;
-  let prisma: { user: { upsert: jest.Mock } };
+  let prisma: { user: { upsert: jest.Mock; findUniqueOrThrow: jest.Mock } };
 
   beforeAll(async () => {
     process.env.AUTH_USERNAME = 'besitzer';
@@ -16,7 +16,10 @@ describe('AuthService.login', () => {
   beforeEach(() => {
     const jwt = { signAsync: jest.fn().mockResolvedValue('token') };
     prisma = {
-      user: { upsert: jest.fn().mockResolvedValue({ id: 'owner-1' }) },
+      user: {
+        upsert: jest.fn().mockResolvedValue({ id: 'owner-1' }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'owner-1' }),
+      },
     };
     service = new AuthService(
       jwt as unknown as JwtService,
@@ -31,6 +34,17 @@ describe('AuthService.login', () => {
     expect(prisma.user.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { email: OWNER_EMAIL } }),
     );
+  });
+
+  it('übersteht gleichzeitige Logins (upsert-Konflikt P2002)', async () => {
+    prisma.user.upsert.mockRejectedValueOnce(
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+    );
+
+    await expect(service.login('besitzer', 'richtig')).resolves.toEqual({
+      accessToken: 'token',
+    });
+    expect(prisma.user.findUniqueOrThrow).toHaveBeenCalled();
   });
 
   it('lehnt ein falsches Passwort mit 401 ab', async () => {
