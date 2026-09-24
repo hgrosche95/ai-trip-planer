@@ -5,15 +5,20 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { IsIn, IsOptional, IsString, Length } from 'class-validator';
 import { searchCareerKnowledge, searchTravelKnowledge } from './rag-client';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from './auth/current-user';
 
-interface SearchKnowledgeBody {
-  query: string;
+class SearchKnowledgeBody {
+  @IsString()
+  @Length(1, 500)
+  query!: string;
   // Default "travel" statt Pflichtfeld: bestehende Aufrufer (z.B. der
   // Chat-Agent, der Trip-Planner-MCP-Server) schicken heute kein
   // collection-Feld mit und sollen unverändert Reise-Ergebnisse bekommen.
+  @IsOptional()
+  @IsIn(['travel', 'jobs'])
   collection?: 'travel' | 'jobs';
 }
 
