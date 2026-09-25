@@ -1,3 +1,6 @@
+// class-transformer braucht Reflect.getMetadata. In der App lädt Nest das,
+// importiert jemand die Datei ohne Nest (Tests, Tools), fehlt es sonst.
+import 'reflect-metadata';
 import { Type, plainToInstance } from 'class-transformer';
 import {
   ArrayMaxSize,
