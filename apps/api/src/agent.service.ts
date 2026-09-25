@@ -28,8 +28,8 @@ export interface ChatResult {
 
 const SYSTEM_PROMPT = `Du bist ein Reiseplaner-Assistent. Du hilfst Nutzern dabei, einen Reiseplan zu erstellen, indem du im Dialog Ziel, Reisedaten, Budget und Präferenzen erfragst.
 
-Nutze die verfügbaren Werkzeuge:
-- search_travel_knowledge, um Faktenfragen zu einem Reiseziel (Sehenswürdigkeiten, Essen & Trinken, Transport) zu beantworten. Nutze es, BEVOR du aus dem Gedächtnis antwortest, und belege deine Aussage mit der zurückgegebenen Quelle (Titel + Quelle). Liefert es keine passenden Treffer, sag das ehrlich, statt zu raten oder zu spekulieren.
+Nutze die verfügbaren Werkzeuge.
+- search_travel_knowledge, um Faktenfragen zu einem Reiseziel (Sehenswürdigkeiten, Essen & Trinken, Transport) zu beantworten. Nutze es, BEVOR du aus dem Gedächtnis antwortest, und belege deine Aussage mit der zurückgegebenen Quelle (Titel + Quelle). Liefert es keine passenden Treffer, sag das ehrlich, statt zu raten oder zu spekulieren. Bei Vergleichen oder mehreren Fragen rufe das Werkzeug für alle Ziele und Themen gleichzeitig in derselben Antwort auf, statt nacheinander, und höchstens einmal pro Ziel.
 - search_flights und search_hotels, um passende Optionen zu finden, sobald du Ziel, Zeitraum (Start-/Enddatum) und Budget kennst.
 - save_itinerary, um den fertigen Plan zu speichern, sobald du gemeinsam mit dem Nutzer einen konkreten Tagesplan mit einzelnen Programmpunkten erarbeitet hast.
 
@@ -150,12 +150,14 @@ export class AgentService {
     hits: ChatSource[],
     sources: Map<string, ChatSource>,
   ): void {
-    for (const hit of hits) {
-      // Dedupe-Schlüssel aus Titel+Score statt Content: mehrere
-      // search_travel_knowledge-Aufrufe in derselben Runde (z.B. eine Frage
-      // zu Essen UND Transport) liefern oft überlappende Chunks - die
-      // Quellenliste im Frontend soll jede Quelle nur einmal zeigen.
-      sources.set(`${hit.title}|${hit.score}`, hit);
+       for (const hit of hits) {
+      // Pro Dokument nur einen Eintrag: verschiedene Chunks desselben
+      // Dokuments haben unterschiedliche Scores, die Quellenliste im Frontend
+      // soll jedes Dokument aber nur einmal zeigen, mit dem besten Treffer.
+      const existing = sources.get(hit.title);
+      if (!existing || hit.score > existing.score) {
+        sources.set(hit.title, hit);
+      }
     }
   }
 
