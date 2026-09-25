@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Markdown, { type Components } from 'react-markdown';
 import { authFetch } from '@/lib/auth';
 import Spinner from '@/components/spinner';
 
@@ -21,10 +22,29 @@ interface ChatMessage {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+const MARKDOWN_COMPONENTS: Components = {
+  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+  h1: ({ children }) => <h3 className="mb-1 mt-3 font-extrabold first:mt-0">{children}</h3>,
+  h2: ({ children }) => <h3 className="mb-1 mt-3 font-extrabold first:mt-0">{children}</h3>,
+  h3: ({ children }) => <h3 className="mb-1 mt-3 font-extrabold first:mt-0">{children}</h3>,
+  a: ({ href, children }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-teal underline dark:text-teal-300"
+    >
+      {children}
+    </a>
+  ),
+};
+
 function SourcesPanel({ sources, searchAttempted }: { sources?: ChatSource[]; searchAttempted?: boolean }) {
   if (sources && sources.length > 0) {
     return (
-            <ul aria-label={`Quellen (${sources.length})`} className="mt-3 flex flex-wrap gap-1.5">
+      <ul aria-label={`Quellen (${sources.length})`} className="mt-3 flex flex-wrap gap-1.5">
         {sources.map((source, index) => {
           const label = `${source.title} · ${source.license} · ${Math.round(source.score * 100)}%`;
           const chipClass =
@@ -138,7 +158,7 @@ export default function ChatWindow() {
     setIsLoading(false);
   }
 
-    return (
+  return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
       <div className="mb-4 flex flex-1 flex-col gap-4 overflow-y-auto">
         {messages.length === 0 && !isLoading && <EmptyState onPick={setInput} />}
@@ -155,8 +175,8 @@ export default function ChatWindow() {
               <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-dim">
                 KI-Planer
               </p>
-              <div className="whitespace-pre-wrap rounded-2xl rounded-tl-sm border border-rule bg-card px-4 py-3">
-                {message.content}
+              <div className="rounded-2xl rounded-tl-sm border border-rule bg-card px-4 py-3">
+                <Markdown components={MARKDOWN_COMPONENTS}>{message.content}</Markdown>
                 <SourcesPanel sources={message.sources} searchAttempted={message.searchAttempted} />
               </div>
             </div>
