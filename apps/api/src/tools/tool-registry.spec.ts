@@ -79,6 +79,7 @@ describe('createAgentTools', () => {
       'search_travel_knowledge',
       'search_flights',
       'search_hotels',
+      'show_destination_on_globe',
       'save_itinerary',
     ]);
   });
