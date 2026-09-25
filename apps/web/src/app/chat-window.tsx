@@ -5,7 +5,7 @@ import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { authFetch } from '@/lib/auth';
 import Spinner from '@/components/spinner';
-import TripGlobe from '@/components/trip-globe';
+import TripGlobe, { type GlobeFocus } from '@/components/trip-globe';
 
 interface ChatSource {
   title: string;
@@ -157,6 +157,7 @@ export default function ChatWindow() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [globeFocus, setGlobeFocus] = useState<GlobeFocus | null>(null);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -173,6 +174,9 @@ export default function ChatWindow() {
       body: JSON.stringify({ sessionId, message: userMessage }),
     });
     const data = await response.json();
+    if (data.focus) {
+      setGlobeFocus(data.focus);
+    }
 
     setMessages((prev) => [
       ...prev,
@@ -187,7 +191,7 @@ export default function ChatWindow() {
   }
 
   // Vor der ersten Nachricht steht der Globus mittig hinter dem Startbildschirm,
-  // danach weicht er nach unten rechts aus, damit der Chat lesbar bleibt.
+  // danach rückt er an den rechten Rand, damit der Chat lesbar bleibt.
   // Nur Position und Deckkraft animieren: eine Größenänderung würde die
   // WebGL-Fläche in jedem Frame neu aufbauen.
   const hasStarted = messages.length > 0 || isLoading;
@@ -199,11 +203,11 @@ export default function ChatWindow() {
         className={
           'pointer-events-none absolute size-[min(36rem,100vw)] transition-all duration-1000 ease-in-out motion-reduce:transition-none ' +
           (hasStarted
-            ? 'top-full left-full -translate-x-[65%] -translate-y-[65%] opacity-40 sm:opacity-80'
+            ? 'top-1/2 left-full -translate-x-[70%] -translate-y-1/2 opacity-40 sm:opacity-90'
             : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 dark:opacity-60')
         }
       >
-        <TripGlobe />
+        <TripGlobe focus={globeFocus} />
       </div>
       <div className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
         <div className="mb-4 flex flex-1 flex-col gap-4 overflow-y-auto">

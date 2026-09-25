@@ -9,6 +9,13 @@ export interface ChatSource {
   score: number;
 }
 
+// Ort, zu dem das Frontend den Globus dreht.
+export interface GlobeFocus {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 export interface ToolContext {
   userId: string;
 }
@@ -25,6 +32,8 @@ export interface AgentTool<TInput = unknown, TOutput = unknown> {
   execute(input: TInput, context: ToolContext): Promise<TOutput> | TOutput;
   // Nur für retriever: welche Treffer das Frontend als Quellen anzeigt.
   sources?(output: TOutput): ChatSource[];
+  // Ort, den das Frontend auf dem Globus zeigen soll, falls das Tool einen liefert.
+  focus?(output: TOutput): GlobeFocus | undefined;
   // Was im Trace landet. Ohne eigene Angabe nur, ob ein Fehler kam, nie die
   // Ausgabe selbst, weil die Nutzerdaten enthalten kann.
   trace?(output: TOutput): {
@@ -38,6 +47,7 @@ export interface ToolRun {
   // true, wenn ein retriever-Tool lief, auch ohne Treffer
   retrieval: boolean;
   sources: ChatSource[];
+  focus?: GlobeFocus;
 }
 
 export class ToolRegistry {
@@ -95,6 +105,7 @@ export class ToolRegistry {
       output,
       retrieval: tool.kind === 'retriever',
       sources: tool.sources?.(output) ?? [],
+      focus: tool.focus?.(output),
     };
   }
 }

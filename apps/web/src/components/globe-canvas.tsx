@@ -9,9 +9,17 @@ export interface GlobeArc {
   to: [lat: number, lng: number];
 }
 
+export interface GlobeFocus {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 export interface GlobeCanvasProps {
   arcs?: GlobeArc[];
   autoRotate?: boolean;
+  // Ort, zu dem der Globus dreht und den er markiert
+  focus?: GlobeFocus | null;
 }
 
 // Texturen stammen aus three-globe (NASA Blue Marble, gemeinfrei) und liegen
@@ -22,7 +30,11 @@ const TEXTURES = {
   water: '/globe/earth-water.png',
 };
 
-export default function GlobeCanvas({ arcs = [], autoRotate = true }: GlobeCanvasProps) {
+export default function GlobeCanvas({
+  arcs = [],
+  autoRotate = true,
+  focus = null,
+}: GlobeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -49,15 +61,29 @@ export default function GlobeCanvas({ arcs = [], autoRotate = true }: GlobeCanva
     return () => observer.disconnect();
   }, []);
 
+  // Neues Ziel: Drehung stoppen und in 1,5 s zum Ziel schwenken.
+  useEffect(() => {
+    const globe = globeRef.current;
+    if (!globe || !focus) return;
+    globe.controls().autoRotate = false;
+    globe.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.7 }, 1500);
+  }, [focus]);
+
+  const markers = focus ? [focus] : [];
+
   function handleGlobeReady() {
     const globe = globeRef.current;
     if (!globe) return;
     const controls = globe.controls();
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    controls.autoRotate = autoRotate && !prefersReducedMotion;
+    controls.autoRotate = autoRotate && !prefersReducedMotion && !focus;
     controls.autoRotateSpeed = 0.35;
     controls.enableZoom = false;
-    globe.pointOfView({ lat: 35, lng: 10, altitude: 2.2 });
+    globe.pointOfView(
+      focus
+        ? { lat: focus.lat, lng: focus.lng, altitude: 1.7 }
+        : { lat: 35, lng: 10, altitude: 2.2 },
+    );
   }
 
   return (
@@ -84,6 +110,21 @@ export default function GlobeCanvas({ arcs = [], autoRotate = true }: GlobeCanva
           arcDashGap={0.2}
           arcDashAnimateTime={2500}
           arcAltitudeAutoScale={0.4}
+          ringsData={markers}
+          ringLat={(marker) => (marker as GlobeFocus).lat}
+          ringLng={(marker) => (marker as GlobeFocus).lng}
+          ringColor={() => (t: number) => `rgba(242, 165, 65, ${1 - t})`}
+          ringMaxRadius={4}
+          ringPropagationSpeed={2}
+          ringRepeatPeriod={1200}
+          labelsData={markers}
+          labelLat={(marker) => (marker as GlobeFocus).lat}
+          labelLng={(marker) => (marker as GlobeFocus).lng}
+          labelText={(marker) => (marker as GlobeFocus).name}
+          labelColor={() => '#FFFFFF'}
+          labelSize={1.4}
+          labelDotRadius={0.5}
+          labelResolution={3}
           onGlobeReady={handleGlobeReady}
         />
       )}
