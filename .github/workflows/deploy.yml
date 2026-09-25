@@ -202,6 +202,31 @@ jobs:
           done
           echo "::error::Revision $REV nach 5 Minuten nicht gesund"; exit 1
 
+      # Weckt den RAG-Service nach dem Deploy auf (er skaliert auf 0) und prüft
+      # dabei, dass die Wissensbasis wirklich Treffer liefert. Der Smoke-Test
+      # oben prüft nur die API; eine leere Wissensbasis (siehe #67) wäre dort
+      # nicht aufgefallen.
+      - name: Wissensbasis-Suche prüfen
+        env:
+          API: ${{ steps.infra.outputs.container_app_url }}
+        run: |
+          TOKEN=$(curl -sf -X POST "$API/auth/guest" | jq -r .accessToken)
+          for i in $(seq 1 12); do
+            BODY=$(curl -s -m 40 -X POST "$API/knowledge/search" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d '{"query":"Sehenswürdigkeiten in Wien"}' || true)
+            AVAILABLE=$(echo "$BODY" | jq -r '.available // false' 2>/dev/null || echo false)
+            HITS=$(echo "$BODY" | jq -r '.results | length' 2>/dev/null || echo 0)
+            echo "Versuch $i: available=$AVAILABLE, Treffer=$HITS"
+            if [ "$AVAILABLE" = "true" ]; then
+              if [ "$HITS" -gt 0 ]; then echo "OK"; exit 0; fi
+              echo "::error::RAG-Service erreichbar, aber Wissensbasis leer"; exit 1
+            fi
+            sleep 10
+          done
+          echo "::error::Wissensbasis-Suche nach 12 Versuchen nicht erreichbar"; exit 1
+
       - name: Frontend bauen
         working-directory: apps/web
         env:
