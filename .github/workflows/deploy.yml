@@ -150,6 +150,23 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma migrate deploy
 
+      # Die Wissensbasis (data/knowledge) wurde bisher nur in CI und im Eval-Lauf in
+      # Wegwerf-Datenbanken eingelesen, nie in Produktion. /knowledge/search lieferte
+      # dort deshalb immer leere Treffer. Deshalb hier einmal pro Deploy mit dem gerade
+      # gebauten RAG-Image einlesen. Unveränderte Dateien werden per Content-Hash
+      # übersprungen, also nur beim ersten Lauf und bei Änderungen echte Arbeit.
+      # Nach den Migrationen, weil die Tabellen aus dem Prisma-Schema kommen.
+      - name: Wissensbasis in Produktion einlesen
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          # psycopg versteht "?schema=public" aus der Prisma-URL nicht (wie in ci.yml)
+          RAG_DATABASE_URL="${DATABASE_URL%%\?*}"
+          docker run --rm \
+            -e DATABASE_URL="$RAG_DATABASE_URL" \
+            -v "$(pwd)/data/knowledge:/app/data/knowledge:ro" \
+            "$RAG_IMAGE_TAG" rag-ingest
+
       # --- 4. Frontend bauen ------------------------------------------------------------
       # NEXT_PUBLIC_API_URL muss zur BUILD-Zeit gesetzt sein (landet im statischen JS-
       # Bundle) - deshalb erst jetzt, nachdem wir die frisch deployte Container-App-URL
