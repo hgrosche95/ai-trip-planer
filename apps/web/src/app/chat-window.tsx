@@ -191,7 +191,7 @@ export default function ChatWindow() {
   }
 
   // Vor der ersten Nachricht steht der Globus mittig hinter dem Startbildschirm,
-  // danach rückt er an den rechten Rand, damit der Chat lesbar bleibt.
+  // danach rückt er ganz sichtbar an den rechten Rand, damit der Chat lesbar bleibt.
   // Nur Position und Deckkraft animieren: eine Größenänderung würde die
   // WebGL-Fläche in jedem Frame neu aufbauen.
   const hasStarted = messages.length > 0 || isLoading;
@@ -203,7 +203,7 @@ export default function ChatWindow() {
         className={
           'pointer-events-none absolute size-[min(36rem,100vw)] transition-all duration-1000 ease-in-out motion-reduce:transition-none ' +
           (hasStarted
-            ? 'top-1/2 left-full -translate-x-[70%] -translate-y-1/2 opacity-40 sm:opacity-90'
+            ? 'top-1/2 left-[calc(100%_-_min(36rem,100vw)_-_1.5rem)] translate-x-0 -translate-y-1/2 opacity-40 sm:opacity-90'
             : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 dark:opacity-60')
         }
       >
