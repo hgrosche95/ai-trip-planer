@@ -163,9 +163,11 @@ function TripDetail() {
       <div className="mt-6 flex flex-col gap-6">
         {days.map((day) => (
           <section key={day} className="grid grid-cols-[3rem_1fr] gap-3">
-            <div className="border-r-2 border-foreground pr-2 text-center font-mono text-[10px] uppercase text-dim">
-              Tag
-              <b className="block text-2xl leading-none text-foreground">{day}</b>
+                        <div className="border-r-2 border-foreground pr-2 text-center font-mono text-[10px] uppercase text-dim">
+              <h2>
+                Tag{' '}
+                <span className="block text-2xl font-bold leading-none text-foreground">{day}</span>
+              </h2>
               {weekdayOf(itinerary.startDate, day)}
             </div>
             <ul className="flex flex-col gap-2">

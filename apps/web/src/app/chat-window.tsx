@@ -24,30 +24,33 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 function SourcesPanel({ sources, searchAttempted }: { sources?: ChatSource[]; searchAttempted?: boolean }) {
   if (sources && sources.length > 0) {
     return (
-      <div className="mt-3 flex flex-wrap gap-1.5">
+            <ul aria-label={`Quellen (${sources.length})`} className="mt-3 flex flex-wrap gap-1.5">
         {sources.map((source, index) => {
           const label = `${source.title} · ${source.license} · ${Math.round(source.score * 100)}%`;
           const chipClass =
             'rounded border border-dashed border-teal bg-teal/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-teal dark:border-teal-300 dark:text-teal-300';
 
-          return source.url ? (
-            <a
-              key={index}
-              href={source.url}
-              target="_blank"
-              rel="noreferrer"
-              title={source.source}
-              className={chipClass + ' hover:bg-teal/15'}
-            >
-              {label}
-            </a>
-          ) : (
-            <span key={index} title={source.source} className={chipClass}>
-              {label}
-            </span>
+          return (
+            <li key={index}>
+              {source.url ? (
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={source.source}
+                  className={chipClass + ' block hover:bg-teal/15'}
+                >
+                  {label}
+                </a>
+              ) : (
+                <span title={source.source} className={chipClass + ' block'}>
+                  {label}
+                </span>
+              )}
+            </li>
           );
         })}
-      </div>
+      </ul>
     );
   }
 
