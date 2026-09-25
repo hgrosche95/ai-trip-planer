@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, IBM_Plex_Mono } from "next/font/google";
 import NavBar from "@/components/nav-bar";
-import Link from "next/link";
 import "./globals.css";
 
 const manrope = Manrope({

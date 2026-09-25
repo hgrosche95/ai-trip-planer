@@ -5,6 +5,7 @@ import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { authFetch } from '@/lib/auth';
 import Spinner from '@/components/spinner';
+import TripGlobe from '@/components/trip-globe';
 
 interface ChatSource {
   title: string;
@@ -62,7 +63,13 @@ const MARKDOWN_COMPONENTS: Components = {
   td: ({ children }) => <td className="border-t border-rule px-3 py-2 align-top">{children}</td>,
 };
 
-function SourcesPanel({ sources, searchAttempted }: { sources?: ChatSource[]; searchAttempted?: boolean }) {
+function SourcesPanel({
+  sources,
+  searchAttempted,
+}: {
+  sources?: ChatSource[];
+  searchAttempted?: boolean;
+}) {
   if (sources && sources.length > 0) {
     return (
       <ul aria-label={`Quellen (${sources.length})`} className="mt-3 flex flex-wrap gap-1.5">
@@ -179,59 +186,81 @@ export default function ChatWindow() {
     setIsLoading(false);
   }
 
+  // Vor der ersten Nachricht steht der Globus mittig hinter dem Startbildschirm,
+  // danach weicht er nach unten rechts aus, damit der Chat lesbar bleibt.
+  // Nur Position und Deckkraft animieren: eine Größenänderung würde die
+  // WebGL-Fläche in jedem Frame neu aufbauen.
+  const hasStarted = messages.length > 0 || isLoading;
+
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
-      <div className="mb-4 flex flex-1 flex-col gap-4 overflow-y-auto">
-        {messages.length === 0 && !isLoading && <EmptyState onPick={setInput} />}
-
-        {messages.map((message, index) =>
-          message.role === 'user' ? (
-            <div key={index} className="flex justify-end">
-              <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-navy px-4 py-2 text-white dark:bg-teal">
-                {message.content}
-              </p>
-            </div>
-          ) : (
-            <div key={index} className="max-w-[92%]">
-              <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-dim">
-                KI-Planer
-              </p>
-              <div className="rounded-2xl rounded-tl-sm border border-rule bg-card px-4 py-3">
-                <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-                  {cleanReply(message.content)}
-                </Markdown>
-                <SourcesPanel sources={message.sources} searchAttempted={message.searchAttempted} />
-              </div>
-            </div>
-          ),
-        )}
-
-        {isLoading && (
-          <p className="flex items-center gap-2 text-sm font-semibold text-teal dark:text-teal-300">
-            <Spinner />
-            Plant deine Reise…
-          </p>
-        )}
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="flex gap-2 rounded-xl border border-rule bg-card p-2 focus-within:border-teal"
+    <>
+      <div
+        aria-hidden="true"
+        className={
+          'pointer-events-none absolute size-[min(36rem,100vw)] transition-all duration-1000 ease-in-out motion-reduce:transition-none ' +
+          (hasStarted
+            ? 'top-full left-full -translate-x-[65%] -translate-y-[65%] opacity-40 sm:opacity-80'
+            : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 dark:opacity-60')
+        }
       >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Beschreib deine Reisewünsche..."
-          className="flex-1 bg-transparent px-2 py-1.5 outline-none placeholder:text-dim"
-        />
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="rounded-lg bg-stamp px-4 py-2 font-semibold text-white disabled:opacity-50"
+        <TripGlobe />
+      </div>
+      <div className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
+        <div className="mb-4 flex flex-1 flex-col gap-4 overflow-y-auto">
+          {messages.length === 0 && !isLoading && <EmptyState onPick={setInput} />}
+
+          {messages.map((message, index) =>
+            message.role === 'user' ? (
+              <div key={index} className="flex justify-end">
+                <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-navy px-4 py-2 text-white dark:bg-teal">
+                  {message.content}
+                </p>
+              </div>
+            ) : (
+              <div key={index} className="max-w-[92%]">
+                <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-dim">
+                  KI-Planer
+                </p>
+                <div className="rounded-2xl rounded-tl-sm border border-rule bg-card px-4 py-3">
+                  <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+                    {cleanReply(message.content)}
+                  </Markdown>
+                  <SourcesPanel
+                    sources={message.sources}
+                    searchAttempted={message.searchAttempted}
+                  />
+                </div>
+              </div>
+            ),
+          )}
+
+          {isLoading && (
+            <p className="flex items-center gap-2 text-sm font-semibold text-teal dark:text-teal-300">
+              <Spinner />
+              Plant deine Reise…
+            </p>
+          )}
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="flex gap-2 rounded-xl border border-rule bg-card p-2 focus-within:border-teal"
         >
-          Senden
-        </button>
-      </form>
-    </div>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Beschreib deine Reisewünsche..."
+            className="flex-1 bg-transparent px-2 py-1.5 outline-none placeholder:text-dim"
+          />
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="rounded-lg bg-stamp px-4 py-2 font-semibold text-white disabled:opacity-50"
+          >
+            Senden
+          </button>
+        </form>
+      </div>
+    </>
   );
 }
