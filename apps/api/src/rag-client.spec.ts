@@ -56,6 +56,34 @@ describe('searchTravelKnowledge', () => {
     expect(result.error).toContain('503');
   });
 
+  it('fasst nach einem Timeout einmal nach (Kaltstart)', async () => {
+    const timeout = Object.assign(new Error('aborted due to timeout'), {
+      name: 'TimeoutError',
+    });
+    global.fetch = jest
+      .fn()
+      .mockRejectedValueOnce(timeout)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ results: [], reranked: false }),
+      });
+
+    const result = await searchTravelKnowledge('Frage');
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(result.available).toBe(true);
+  });
+
+  it('fasst bei anderen Fehlern nicht nach', async () => {
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(new Error('connect ECONNREFUSED'));
+
+    await searchTravelKnowledge('Frage');
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('returns a fallback instead of throwing when the RAG service is unreachable', async () => {
     global.fetch = jest
       .fn()

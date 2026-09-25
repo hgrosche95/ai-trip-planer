@@ -29,10 +29,37 @@ export interface TravelKnowledgeSearchResult {
 
 const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL ?? 'http://localhost:8001';
 const RAG_SEARCH_TIMEOUT_MS = Number(process.env.RAG_SEARCH_TIMEOUT_MS ?? 5000);
+// Der RAG-Service skaliert in Azure auf 0. Nach einer Pause muss er erst
+// starten und das Embedding-Modell laden, das dauert länger als die 5 s oben.
+// Läuft der erste Versuch in den Timeout, fassen wir deshalb einmal mit mehr
+// Geduld nach, statt dem Nutzer sofort "nicht erreichbar" zu melden.
+const RAG_COLD_START_TIMEOUT_MS = Number(
+  process.env.RAG_COLD_START_TIMEOUT_MS ?? 30000,
+);
 // Bewusst klein (3 statt z.B. 10): das Tool-Ergebnis geht als JSON-Text ins
 // Kontextfenster des LLM - mehr Treffer heißt direkt mehr Tokens pro
 // Suchaufruf, relevant für Groqs Limit von 8.000 Tokens pro Minute im Free Tier.
 const RAG_SEARCH_TOP_K = Number(process.env.RAG_SEARCH_TOP_K ?? 3);
+
+function postSearch(
+  query: string,
+  collection: string,
+  timeoutMs: number,
+): Promise<Response> {
+  return fetch(`${RAG_SERVICE_URL}/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, top_k: RAG_SEARCH_TOP_K, collection }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
+
+// fetch bricht bei AbortSignal.timeout mit einem Fehler namens "TimeoutError"
+// ab. Nur dann lohnt sich ein zweiter Versuch; ist der Service gar nicht da
+// (z. B. ECONNREFUSED), hilft Warten nicht.
+function isTimeout(error: unknown): boolean {
+  return error instanceof Error && error.name === 'TimeoutError';
+}
 
 /**
  * Ruft den RAG-Service auf. Wirft nie - bei Nichterreichbarkeit, Timeout
@@ -48,12 +75,13 @@ async function searchKnowledge(
   collection: string,
 ): Promise<TravelKnowledgeSearchResult> {
   try {
-    const response = await fetch(`${RAG_SERVICE_URL}/search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, top_k: RAG_SEARCH_TOP_K, collection }),
-      signal: AbortSignal.timeout(RAG_SEARCH_TIMEOUT_MS),
-    });
+    let response: Response;
+    try {
+      response = await postSearch(query, collection, RAG_SEARCH_TIMEOUT_MS);
+    } catch (error) {
+      if (!isTimeout(error)) throw error;
+      response = await postSearch(query, collection, RAG_COLD_START_TIMEOUT_MS);
+    }
 
     if (!response.ok) {
       return {
