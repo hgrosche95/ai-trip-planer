@@ -19,7 +19,7 @@ export default function DeleteTripButton({
   return (
     <button
       onClick={handleDelete}
-      className="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+      className="rounded-lg border border-stamp/40 px-3 py-1 text-sm font-semibold text-stamp hover:bg-stamp/10 dark:text-red-400"
     >
       Reise löschen
     </button>

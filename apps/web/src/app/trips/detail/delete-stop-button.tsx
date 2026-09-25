@@ -21,7 +21,10 @@ export default function DeleteStopButton({
   }
 
   return (
-    <button onClick={handleDelete} className="text-xs text-red-600 hover:underline">
+    <button
+      onClick={handleDelete}
+      className="font-mono text-[10px] uppercase tracking-widest text-dim hover:text-stamp"
+    >
       Entfernen
     </button>
   );
