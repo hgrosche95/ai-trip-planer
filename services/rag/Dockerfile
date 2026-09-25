@@ -6,7 +6,7 @@
 # ---- deps: nur Abhängigkeiten installieren. Dieser Layer bleibt gecacht,
 # solange pyproject.toml/uv.lock unverändert sind, unabhängig davon, wie oft
 # sich der Quellcode ändert ----
-FROM python:3.12-slim AS deps
+FROM python:3.14-slim AS deps
 RUN pip install --no-cache-dir uv==0.12.5
 WORKDIR /app/services/rag
 COPY services/rag/pyproject.toml services/rag/uv.lock ./
@@ -37,7 +37,7 @@ RUN uv sync --frozen --no-dev
 # ---- runtime: schlankes, von deps/model/build unabhängiges Basis-Image,
 # non-root User. onnxruntime (fastembeds Inferenz-Engine) braucht libgomp1
 # für Multi-Threading - in python:3.12-slim nicht enthalten. ----
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/*
