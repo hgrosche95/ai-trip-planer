@@ -24,3 +24,40 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+@import "tailwindcss";
+
+:root {
+  --background: #F5F7FA;
+  --foreground: #14213D;
+  --card: #FFFFFF;
+  --rule: #D3D9E2;
+  --dim: #6A7486;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0D1526;
+    --foreground: #E6EAF2;
+    --card: #16203A;
+    --rule: #2A3654;
+    --dim: #93A0B8;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-rule: var(--rule);
+  --color-dim: var(--dim);
+  --color-navy: #14213D;
+  --color-teal: #0E6E74;
+  --color-stamp: #C8412B;
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-plex-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
