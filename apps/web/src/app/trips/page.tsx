@@ -66,11 +66,15 @@ function BoardingPassSkeleton() {
 export default function TripsPage() {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     authFetch(`${API_URL}/itineraries`, { cache: 'no-store' })
-      .then((res) => res.json())
-      .then(setItineraries)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(setItineraries, () => setLoadFailed(true))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -86,6 +90,10 @@ export default function TripsPage() {
             <BoardingPassSkeleton key={i} />
           ))}
         </div>
+      ) : loadFailed ? (
+        <p className="text-sm text-dim">
+          Deine Reisen konnten gerade nicht geladen werden. Versuch es bitte gleich noch einmal.
+        </p>
       ) : itineraries.length === 0 ? (
         <div className="rounded-xl border border-dashed border-rule p-6 text-center">
           <p className="font-semibold">Noch keine Reise gespeichert</p>
