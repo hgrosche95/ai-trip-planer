@@ -34,10 +34,11 @@ const TEXTURES = {
   water: '/globe/earth-water.webp',
 };
 
-// Abstand der Kamera in Globus-Radien: 2,2 zeigt die ganze Erde, 0,9 etwa
-// eine Region von der Größe Mitteleuropas rund um das Reiseziel.
+// Abstand der Kamera in Globus-Radien: 2,2 zeigt die ganze Erde, 0,5 etwa
+// die Iberische Halbinsel rund um Lissabon. Näher wird selbst die 4096er-Textur
+// matschig.
 const ALTITUDE_OVERVIEW = 2.2;
-const ALTITUDE_FOCUS = 0.9;
+const ALTITUDE_FOCUS = 0.5;
 
 export default function GlobeCanvas({
   arcs = [],
@@ -137,7 +138,7 @@ export default function GlobeCanvas({
           ringLat={(marker) => (marker as GlobeFocus).lat}
           ringLng={(marker) => (marker as GlobeFocus).lng}
           ringColor={() => (t: number) => `rgba(242, 165, 65, ${1 - t})`}
-          ringMaxRadius={4}
+          ringMaxRadius={2}
           ringPropagationSpeed={2}
           ringRepeatPeriod={1200}
           labelsData={markers}
@@ -145,8 +146,8 @@ export default function GlobeCanvas({
           labelLng={(marker) => (marker as GlobeFocus).lng}
           labelText={(marker) => (marker as GlobeFocus).name}
           labelColor={() => '#FFFFFF'}
-          labelSize={1.4}
-          labelDotRadius={0.5}
+          labelSize={0.7}
+          labelDotRadius={0.25}
           labelResolution={3}
           onGlobeReady={handleGlobeReady}
         />
