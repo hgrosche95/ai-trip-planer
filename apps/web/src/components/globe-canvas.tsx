@@ -24,13 +24,20 @@ export interface GlobeCanvasProps {
 
 // Texturen stammen aus three-globe (NASA Blue Marble, gemeinfrei) und liegen
 // in public/globe, damit sie mit dem statischen Export ausgeliefert werden.
-// Als WebP in 2048 px Breite: der Globus ist höchstens 36rem groß und nicht
-// zoombar, eine 4096er-Textur wäre nur zusätzliche Ladezeit.
+// Als WebP in 2048 px Breite, das reicht für den ganzen Globus. Erst wenn er auf
+// ein Reiseziel heranzoomt, wird die 4096er-Fassung nachgeladen, damit der
+// Ausschnitt scharf bleibt; der erste Seitenaufruf lädt sie nicht.
 const TEXTURES = {
   day: '/globe/earth-blue-marble.webp',
+  dayDetail: '/globe/earth-blue-marble-4096.webp',
   bump: '/globe/earth-topology.webp',
   water: '/globe/earth-water.webp',
 };
+
+// Abstand der Kamera in Globus-Radien: 2,2 zeigt die ganze Erde, 0,9 etwa
+// eine Region von der Größe Mitteleuropas rund um das Reiseziel.
+const ALTITUDE_OVERVIEW = 2.2;
+const ALTITUDE_FOCUS = 0.9;
 
 export default function GlobeCanvas({
   arcs = [],
@@ -40,6 +47,7 @@ export default function GlobeCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [dayTexture, setDayTexture] = useState(TEXTURES.day);
 
   // Wasser glänzt, Land nicht: die Wasser-Maske dient als Specular Map.
   const material = useMemo(() => {
@@ -63,13 +71,26 @@ export default function GlobeCanvas({
     return () => observer.disconnect();
   }, []);
 
-  // Neues Ziel: Drehung stoppen und in 1,5 s zum Ziel schwenken.
+  // Neues Ziel: Drehung stoppen und in 1,5 s zum Ziel heranzoomen.
   useEffect(() => {
     const globe = globeRef.current;
     if (!globe || !focus) return;
     globe.controls().autoRotate = false;
-    globe.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.7 }, 1500);
+    globe.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: ALTITUDE_FOCUS }, 1500);
   }, [focus]);
+
+  // Die scharfe Textur erst vorladen und dann tauschen, damit der Globus
+  // nicht kurz ohne Textur dasteht.
+  const wantsDetail = focus !== null;
+  useEffect(() => {
+    if (!wantsDetail) return;
+    const image = new Image();
+    image.onload = () => setDayTexture(TEXTURES.dayDetail);
+    image.src = TEXTURES.dayDetail;
+    return () => {
+      image.onload = null;
+    };
+  }, [wantsDetail]);
 
   const markers = focus ? [focus] : [];
 
@@ -83,8 +104,8 @@ export default function GlobeCanvas({
     controls.enableZoom = false;
     globe.pointOfView(
       focus
-        ? { lat: focus.lat, lng: focus.lng, altitude: 1.7 }
-        : { lat: 35, lng: 10, altitude: 2.2 },
+        ? { lat: focus.lat, lng: focus.lng, altitude: ALTITUDE_FOCUS }
+        : { lat: 35, lng: 10, altitude: ALTITUDE_OVERVIEW },
     );
   }
 
@@ -96,7 +117,7 @@ export default function GlobeCanvas({
           width={size.width}
           height={size.height}
           backgroundColor="rgba(0,0,0,0)"
-          globeImageUrl={TEXTURES.day}
+          globeImageUrl={dayTexture}
           bumpImageUrl={TEXTURES.bump}
           globeMaterial={material}
           atmosphereColor="#7FD1CF"
