@@ -117,7 +117,7 @@ export default function GlobeCanvas({
   return (
     <div
       ref={containerRef}
-      className="h-full w-full [mask-image:radial-gradient(circle_closest-side,black_82%,transparent_100%)]"
+      className="h-full w-full [mask-image:radial-gradient(circle_closest-side,black_95%,transparent_100%)]"
     >
       {size.width > 0 && (
         <Globe
