@@ -19,11 +19,18 @@ export default function LoginPage() {
     setError(null);
     setIsLoading(true);
 
-    const response = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+    } catch {
+      setError('Server nicht erreichbar.');
+      setIsLoading(false);
+      return;
+    }
 
     if (!response.ok) {
       setError('Login fehlgeschlagen.');

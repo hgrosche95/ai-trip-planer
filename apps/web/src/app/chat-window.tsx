@@ -168,26 +168,45 @@ export default function ChatWindow() {
     setInput('');
     setIsLoading(true);
 
-    const response = await authFetch(`${API_URL}/agent/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, message: userMessage }),
-    });
-    const data = await response.json();
-    if (data.focus) {
-      setGlobeFocus(data.focus);
-    }
+    try {
+      const response = await authFetch(`${API_URL}/agent/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, message: userMessage }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`, { cause: response.status });
+      }
+      const data = await response.json();
+      if (data.focus) {
+        setGlobeFocus(data.focus);
+      }
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: 'assistant',
-        content: data.reply,
-        sources: data.sources,
-        searchAttempted: data.searchAttempted,
-      },
-    ]);
-    setIsLoading(false);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: data.reply,
+          sources: data.sources,
+          searchAttempted: data.searchAttempted,
+        },
+      ]);
+    } catch (error) {
+      // Kein Absturz und kein ewiger Spinner, wenn die API nicht erreichbar
+      // ist oder mit einem Fehler antwortet: der Chat sagt es stattdessen.
+      const tooManyRequests = error instanceof Error && error.cause === 429;
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: tooManyRequests
+            ? 'Gerade kommen zu viele Anfragen an. Warte kurz und versuch es dann noch einmal.'
+            : 'Der Reiseplaner ist gerade nicht erreichbar. Versuch es bitte gleich noch einmal.',
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   // Vor der ersten Nachricht steht der Globus mittig hinter dem Startbildschirm,

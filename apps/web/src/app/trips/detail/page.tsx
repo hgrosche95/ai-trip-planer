@@ -56,6 +56,18 @@ function weekdayOf(startIso: string, dayNumber: number) {
   return date.toLocaleDateString('de-DE', { weekday: 'short' });
 }
 
+async function fetchItinerary(id: string): Promise<ItineraryDetail> {
+  const res = await authFetch(`${API_URL}/itineraries/${id}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`, { cause: res.status });
+  return res.json();
+}
+
+function loadErrorMessage(error: unknown) {
+  return error instanceof Error && error.cause === 404
+    ? 'Diese Reise gibt es nicht (mehr).'
+    : 'Die Reise konnte gerade nicht geladen werden. Versuch es bitte gleich noch einmal.';
+}
+
 function TripDetailSkeleton() {
   return (
     <div
@@ -84,26 +96,26 @@ function TripDetail() {
 
   const [itinerary, setItinerary] = useState<ItineraryDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const loadItinerary = useCallback(async () => {
+  const loadItinerary = useCallback(() => {
     if (!id) return;
-    const res = await authFetch(`${API_URL}/itineraries/${id}`, { cache: 'no-store' });
-    setItinerary(await res.json());
-    setIsLoading(false);
+    fetchItinerary(id).then(setItinerary, (error) => setLoadError(loadErrorMessage(error)));
   }, [id]);
 
   useEffect(() => {
     if (!id) return;
-    authFetch(`${API_URL}/itineraries/${id}`, { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((data) => {
-        setItinerary(data);
-        setIsLoading(false);
-      });
+    fetchItinerary(id)
+      .then(setItinerary, (error) => setLoadError(loadErrorMessage(error)))
+      .finally(() => setIsLoading(false));
   }, [id]);
 
   if (!id) {
     return <p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">Keine Reise ausgewählt.</p>;
+  }
+
+  if (loadError) {
+    return <p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">{loadError}</p>;
   }
 
   if (isLoading || !itinerary) {
