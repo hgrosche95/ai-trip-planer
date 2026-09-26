@@ -110,8 +110,15 @@ export default function GlobeCanvas({
     );
   }
 
+  // Heranzoomen füllt die ganze Fläche mit Erde; ohne Maske stünde dann ein
+  // hartes Quadrat auf dem Seitenhintergrund. Der runde, weich auslaufende
+  // Ausschnitt beginnt erst außerhalb der Atmosphäre des ganzen Globus
+  // (Abstand 2,2 füllt gut 70 % des Radius), die Übersicht bleibt also gleich.
   return (
-    <div ref={containerRef} className="h-full w-full">
+    <div
+      ref={containerRef}
+      className="h-full w-full [mask-image:radial-gradient(circle_closest-side,black_82%,transparent_100%)]"
+    >
       {size.width > 0 && (
         <Globe
           ref={globeRef}
