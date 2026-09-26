@@ -24,10 +24,12 @@ export interface GlobeCanvasProps {
 
 // Texturen stammen aus three-globe (NASA Blue Marble, gemeinfrei) und liegen
 // in public/globe, damit sie mit dem statischen Export ausgeliefert werden.
+// Als WebP in 2048 px Breite: der Globus ist höchstens 36rem groß und nicht
+// zoombar, eine 4096er-Textur wäre nur zusätzliche Ladezeit.
 const TEXTURES = {
-  day: '/globe/earth-blue-marble.jpg',
-  bump: '/globe/earth-topology.png',
-  water: '/globe/earth-water.png',
+  day: '/globe/earth-blue-marble.webp',
+  bump: '/globe/earth-topology.webp',
+  water: '/globe/earth-water.webp',
 };
 
 export default function GlobeCanvas({

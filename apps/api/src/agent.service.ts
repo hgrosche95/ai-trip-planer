@@ -114,11 +114,17 @@ export class AgentService {
             toolCalls: result.toolCalls,
           });
 
+          // Alle Tool-Aufrufe einer Runde gleichzeitig starten: die Wartezeit
+          // ist dann die des langsamsten Tools statt der Summe aller. Die
+          // Auswertung danach bleibt in der Reihenfolge der Aufrufe.
+          const runs = await Promise.all(
+            result.toolCalls.map((call) =>
+              this.tools.execute(call.name, call.arguments, { userId }),
+            ),
+          );
           const toolResults: LlmToolResult[] = [];
-          for (const call of result.toolCalls) {
-            const run = await this.tools.execute(call.name, call.arguments, {
-              userId,
-            });
+          for (const [index, call] of result.toolCalls.entries()) {
+            const run = runs[index];
             if (run.retrieval) {
               searchAttempted = true;
               this.collectSources(run.sources, sources);
