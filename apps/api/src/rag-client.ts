@@ -32,10 +32,15 @@ const RAG_SEARCH_TIMEOUT_MS = Number(process.env.RAG_SEARCH_TIMEOUT_MS ?? 5000);
 // Der RAG-Service skaliert in Azure auf 0. Nach einer Pause muss er erst
 // starten und das Embedding-Modell laden, das dauert länger als die 5 s oben.
 // Läuft der erste Versuch in den Timeout, fassen wir deshalb einmal mit mehr
-// Geduld nach, statt dem Nutzer sofort "nicht erreichbar" zu melden.
+// Geduld nach, statt dem Nutzer sofort "nicht erreichbar" zu melden. 60 s,
+// weil ein Test gegen das Deployment mit 30 s noch leer ausging: 5 + 30 s
+// reichten nicht, ein paar Sekunden später war der Service da.
 const RAG_COLD_START_TIMEOUT_MS = Number(
-  process.env.RAG_COLD_START_TIMEOUT_MS ?? 30000,
+  process.env.RAG_COLD_START_TIMEOUT_MS ?? 60000,
 );
+// Wie oft warmUpRag() höchstens einen Weckruf schickt. Innerhalb dieser Zeit
+// läuft der vorige noch oder der Service ist ohnehin wach.
+const RAG_WARM_UP_INTERVAL_MS = 60_000;
 // Bewusst klein (3 statt z.B. 10): das Tool-Ergebnis geht als JSON-Text ins
 // Kontextfenster des LLM - mehr Treffer heißt direkt mehr Tokens pro
 // Suchaufruf, relevant für Groqs Limit von 8.000 Tokens pro Minute im Free Tier.
@@ -113,6 +118,28 @@ async function searchKnowledge(
           : 'Wissensbasis-Suche nicht erreichbar.',
     };
   }
+}
+
+let lastWarmUp = 0;
+
+/**
+ * Weckt den RAG-Service, ohne auf ihn zu warten: Das Frontend ruft das beim
+ * Öffnen des Chats auf, damit der Kaltstart abläuft, während der Nutzer noch
+ * tippt, statt während seiner ersten Frage. Ein Aufruf reicht, weil schon
+ * jede eingehende Anfrage Container Apps von 0 hochskalieren lässt; weitere
+ * Aufrufe innerhalb von RAG_WARM_UP_INTERVAL_MS werden ignoriert, damit viele
+ * Seitenaufrufe nicht viele Anfragen erzeugen. Gibt zurück, ob ein Weckruf
+ * rausging.
+ */
+export function warmUpRag(now = Date.now()): boolean {
+  if (now - lastWarmUp < RAG_WARM_UP_INTERVAL_MS) return false;
+  lastWarmUp = now;
+  fetch(`${RAG_SERVICE_URL}/health`, {
+    signal: AbortSignal.timeout(RAG_COLD_START_TIMEOUT_MS),
+  }).catch(() => {
+    // Nur ein Weckruf: Scheitert er, merkt das die nächste echte Suche selbst.
+  });
+  return true;
 }
 
 export async function searchTravelKnowledge(

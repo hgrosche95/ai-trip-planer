@@ -1,6 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
+import { warmUpRag } from './rag-client';
+
+jest.mock('./rag-client', () => ({ warmUpRag: jest.fn() }));
 
 describe('HealthController', () => {
   let healthController: HealthController;
@@ -33,5 +36,12 @@ describe('HealthController', () => {
       status: 'error',
       database: 'unreachable',
     });
+  });
+
+  it('weckt den RAG-Service über /health/warmup', () => {
+    jest.mocked(warmUpRag).mockReturnValue(true);
+
+    expect(healthController.warmUp()).toEqual({ rag: 'waking' });
+    expect(warmUpRag).toHaveBeenCalled();
   });
 });

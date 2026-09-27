@@ -1,4 +1,8 @@
-import { searchCareerKnowledge, searchTravelKnowledge } from './rag-client';
+import {
+  searchCareerKnowledge,
+  searchTravelKnowledge,
+  warmUpRag,
+} from './rag-client';
 
 describe('searchTravelKnowledge', () => {
   const originalFetch = global.fetch;
@@ -139,5 +143,35 @@ describe('searchCareerKnowledge', () => {
       collection: string;
     };
     expect(body.collection).toBe('jobs');
+  });
+});
+
+describe('warmUpRag', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('schickt höchstens einen Weckruf pro Minute an /health', () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true });
+    // Feste Zeitpunkte statt Date.now(), weit weg von 0, damit der
+    // Modulzustand aus anderen Tests keine Rolle spielt
+    const start = 10_000_000_000;
+
+    expect(warmUpRag(start)).toBe(true);
+    expect(warmUpRag(start + 30_000)).toBe(false);
+    expect(warmUpRag(start + 60_000)).toBe(true);
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(jest.mocked(global.fetch).mock.calls[0][0]).toMatch(/\/health$/);
+  });
+
+  it('wirft nicht, wenn der RAG-Service nicht erreichbar ist', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+
+    expect(warmUpRag(20_000_000_000)).toBe(true);
+    // Die abgelehnte Promise darf nicht unbehandelt bleiben
+    await new Promise((resolve) => setImmediate(resolve));
   });
 });
