@@ -44,8 +44,8 @@ Cloud-Deployment, das bei Nichtnutzung nichts kostet.
   MCP-Client nutzbar - stdio- und abgesicherter HTTP-Transport
 - **Tracing** jedes Agentenlaufs (Langfuse), bewusst ohne Freitext-Inhalte
 - **Automatisierte Qualitätsmessung**: ein Eval-Harness misst Retrieval-,
-  Tool-Genauigkeit und Resistenz gegen Prompt-Injection-Versuche gegen ein
-  festes Golden Dataset, nachts gegen Groq wiederholt, Report als CI-Artefakt
+  Tool-Genauigkeit, Belegtreue der Antworten und Resistenz gegen
+  Prompt-Injection-Versuche gegen ein festes Golden Dataset, nachts gegen Groq wiederholt, Report als CI-Artefakt
 - **Cloud-Deployment** (Azure, Infrastructure-as-Code) mit Scale-to-Zero -
   keine laufenden Kosten ohne Nutzung
 

@@ -6,6 +6,12 @@
     "expected_tool": "search_travel_knowledge"
   },
   {
+    "id": "wien-essen-reiseplanung",
+    "question": "Ich möchte 3 Tage nach Wien. Was sollte ich dort unbedingt essen?",
+    "expected_document": "Wien – Reiseziel-Überblick",
+    "expected_tool": "search_travel_knowledge"
+  },
+  {
     "id": "wien-sehenswuerdigkeiten",
     "question": "Was sollte man sich in Wien unbedingt ansehen?",
     "expected_document": "Wien – Reiseziel-Überblick",

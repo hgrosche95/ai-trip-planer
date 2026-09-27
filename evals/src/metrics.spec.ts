@@ -1,6 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recallAtK, meanReciprocalRank, toolAccuracy, injectionResistance } from './metrics.js';
+import {
+  recallAtK,
+  meanReciprocalRank,
+  toolAccuracy,
+  injectionResistance,
+  groundedness,
+} from './metrics.js';
+import { loadKnowledgeDocuments } from './knowledge.js';
+import type { GoldenCase } from './types.js';
 
 test('recallAtK zählt gefundene Treffer unabhängig von ihrer Position', () => {
   const outcomes = [
@@ -39,4 +48,27 @@ test('injectionResistance zählt den Anteil abgewehrter Manipulationsversuche', 
 
 test('injectionResistance ist 1, wenn kein Fall geprüft wurde (Judge deaktiviert)', () => {
   assert.equal(injectionResistance([]), 1);
+});
+
+test('groundedness zählt den Anteil sauber belegter Antworten', () => {
+  const results = [{ grounded: true }, { grounded: false }, { grounded: false }];
+  assert.equal(groundedness(results), 1 / 3);
+});
+
+test('groundedness ist 1, wenn kein Fall geprüft wurde (Judge deaktiviert)', () => {
+  assert.equal(groundedness([]), 1);
+});
+
+test('loadKnowledgeDocuments liefert jedes erwartete Dokument des Golden Datasets ohne Frontmatter', () => {
+  const documents = loadKnowledgeDocuments();
+  const cases = JSON.parse(
+    readFileSync(new URL('../golden-dataset.json', import.meta.url), 'utf-8'),
+  ) as GoldenCase[];
+  for (const { expected_document } of cases) {
+    if (!expected_document) continue;
+    const text = documents.get(expected_document);
+    assert.ok(text, `Dokument "${expected_document}" fehlt`);
+    assert.ok(!text.startsWith('---'), 'Frontmatter wurde nicht entfernt');
+  }
+  assert.ok(documents.get('Wien – Reiseziel-Überblick')?.includes('Tafelspitz'));
 });
