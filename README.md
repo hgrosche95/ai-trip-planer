@@ -11,9 +11,9 @@ Cloud-Deployment, das bei Nichtnutzung nichts kostet.
 
 ## Screenshots
 
-| Chat | Trip-Übersicht |
+| Chat | Gespeicherte Reise |
 | --- | --- |
-| ![Chat-Oberfläche des Reiseplaners](./docs/screenshots/chat.png) | ![Detailliertere Übersicht](./docs/screenshots/trip.png) |
+| ![Chat mit Reisetipps und Quellenangaben, dahinter der Globus am Reiseziel](./docs/screenshots/chat.png) | ![Reiseplan im Boarding-Pass-Stil mit Programmpunkten pro Tag](./docs/screenshots/trip.png) |
 
 ## Features
 
@@ -24,9 +24,18 @@ Cloud-Deployment, das bei Nichtnutzung nichts kostet.
   inklusive sichtbarer Quelle im Frontend - findet sich nichts Passendes,
   sagt der Agent das, statt zu spekulieren
 - **Gespeicherte, wiederauffindbare Reisepläne** unter `/trips`, mit
-  Tagesprogramm und Kategorien pro Programmpunkt
+  Tagesprogramm und Kategorien pro Programmpunkt, im Boarding-Pass-Stil
+- **3D-Globus hinter dem Chat**: sobald ein Reiseziel fällt, ruft das Modell
+  `show_destination_on_globe` auf, und der Globus dreht und zoomt dorthin
+  (schärfere Textur erst für die Nahansicht, Texturen als WebP)
+- **Antworten als Markdown**, inklusive Tabellen (z. B. für Vergleiche oder
+  Tagespläne); fordert das Modell mehrere Tools in einer Runde an, laufen sie
+  parallel
+- **Chat-Verlauf in Postgres** statt im Arbeitsspeicher, übersteht also
+  Neustarts; Verläufe werden nach 30 Tagen ohne Nutzung gelöscht
+  (`CONVERSATION_RETENTION_DAYS`)
 - **Flug- und Hotelsuche sind simuliert**: `search_flights` und `search_hotels`
-  liefern Beispieldaten (`apps/api/src/agent-tools.ts`), keine echten
+  liefern Beispieldaten (`apps/api/src/tools/travel-search.tools.ts`), keine echten
   Angebote. Es geht um die Tool-Use-Schleife, nicht um eine Buchungs-API
 - **Austauschbarer LLM-Anbieter** (Groq oder Anthropic) per einer
   Env-Variable, kein Codeeingriff nötig
