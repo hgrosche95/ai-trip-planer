@@ -56,6 +56,34 @@ export const MAX_TOOL_ITERATIONS = Number(
 const TOOL_LIMIT_REPLY =
   'Das war mir gerade zu viel auf einmal. Kannst du deine Anfrage etwas eingrenzen?';
 
+// Für den Vergleich von Titel und Antworttext: Anführungszeichen weg,
+// Binde-/Gedankenstriche vereinheitlicht, damit "Wien – Reiseziel-Überblick"
+// auch als „Wien-Reiseziel-Überblick“ in der Antwort erkannt wird.
+function normalizeForCitation(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/["'„“”‚‘’«»]/g, '')
+    .replace(/\s*[-‐‑‒–—]\s*/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+// Die Suche liefert die Top-k-Treffer unabhängig vom Reiseziel, bei einer
+// Wien-Frage also z. B. auch das Berlin-Dokument auf Platz 3. Angezeigt
+// werden deshalb nur die Quellen, die die Antwort selbst nennt (der
+// SYSTEM_PROMPT verlangt Titel + Quelle). Nennt sie keine, bleiben alle
+// Treffer stehen: lieber eine Quelle zu viel als eine belegte Antwort ganz
+// ohne Quellenangabe.
+export function citedSources(
+  sources: ChatSource[],
+  reply: string,
+): ChatSource[] {
+  const normalizedReply = normalizeForCitation(reply);
+  const cited = sources.filter((source) =>
+    normalizedReply.includes(normalizeForCitation(source.title)),
+  );
+  return cited.length > 0 ? cited : sources;
+}
+
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
@@ -150,9 +178,13 @@ export class AgentService {
         turn.update({
           metadata: { searchAttempted, sourceCount: sources.size },
         });
+        const reply = result.content ?? '';
         return {
-          reply: result.content ?? '',
-          sources: [...sources.values()].sort((a, b) => b.score - a.score),
+          reply,
+          sources: citedSources(
+            [...sources.values()].sort((a, b) => b.score - a.score),
+            reply,
+          ),
           searchAttempted,
           focus,
         };
