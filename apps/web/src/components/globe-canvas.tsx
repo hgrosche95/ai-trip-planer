@@ -68,6 +68,33 @@ function viewForRoute(route: GlobeFocus[]): PointOfView {
   return { lat, lng, altitude };
 }
 
+// Höchstens drei Namen, sonst wird die Beschriftung breiter als der Globus
+function groupLabel(names: string[]) {
+  if (names.length <= 3) return names.join(' · ');
+  return `${names.slice(0, 2).join(' · ')} +${names.length - 2}`;
+}
+
+// Beschriftung als HTML statt als 3D-Text: die eingebaute 3D-Schrift von
+// three-globe kennt nur ASCII, aus "Düsseldorf" wurde "D?sseldorf".
+// textContent statt innerHTML, weil der Name vom Modell kommt.
+// Zwei Ebenen, weil three-globe das transform des äußeren Elements für die
+// Position setzt; der Versatz über den Punkt sitzt deshalb innen.
+function placeLabel(name: string, small: boolean) {
+  const anchor = document.createElement('div');
+  anchor.style.cssText = 'pointer-events: none; transition: opacity 250ms';
+  const label = document.createElement('div');
+  label.textContent = name;
+  label.style.cssText = [
+    'color: #fff',
+    `font: 600 ${small ? 11 : 13}px/1.2 system-ui, sans-serif`,
+    'text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9)',
+    'white-space: nowrap',
+    'transform: translateY(-14px)',
+  ].join(';');
+  anchor.append(label);
+  return anchor;
+}
+
 function greatCircleDegrees(lat1: number, lng1: number, lat2: number, lng2: number) {
   const toRad = Math.PI / 180;
   const cos =
@@ -156,21 +183,24 @@ export default function GlobeCanvas({
   const allArcs = useMemo(() => [...arcs, ...routeArcs], [arcs, routeArcs]);
   // Der pulsierende Ring nur am Start der Route, sonst flimmert es überall
   const rings = markers.slice(0, 1);
-  // Jede Station bekommt einen Punkt, aber nur Stationen mit Abstand zu den
-  // schon beschrifteten einen Namen: in einer Stadt stünden die Namen sonst
-  // übereinander. Der Abstand wächst mit dem Zoom, weil Beschriftungen in
-  // Grad auf dem Globus bemessen sind.
-  const labels = useMemo(() => {
+  // Jede Station bekommt einen Punkt. Liegen Stationen zu nah beieinander
+  // (z.B. Düsseldorf, Köln, Bonn), stünden ihre Namen übereinander: dann
+  // trägt die erste Beschriftung die Namen der Nachbarn mit, statt dass die
+  // anderen Stationen scheinbar fehlen. Der Mindestabstand wächst mit dem
+  // Zoom, weil er in Grad auf dem Globus bemessen ist.
+  const labels = useMemo<GlobeFocus[]>(() => {
     if (!hasRoute || !view) return markers;
     const minDistance = view.altitude * 1.5;
-    const labeled: GlobeFocus[] = [];
+    const groups: { anchor: GlobeFocus; names: string[] }[] = [];
     for (const stop of markers) {
-      const isFree = labeled.every(
-        (other) => greatCircleDegrees(other.lat, other.lng, stop.lat, stop.lng) >= minDistance,
+      const near = groups.find(
+        ({ anchor }) =>
+          greatCircleDegrees(anchor.lat, anchor.lng, stop.lat, stop.lng) < minDistance,
       );
-      if (isFree) labeled.push(stop);
+      if (!near) groups.push({ anchor: stop, names: [stop.name] });
+      else if (!near.names.includes(stop.name)) near.names.push(stop.name);
     }
-    return labeled;
+    return groups.map(({ anchor, names }) => ({ ...anchor, name: groupLabel(names) }));
   }, [hasRoute, view, markers]);
 
   function handleGlobeReady() {
@@ -222,21 +252,20 @@ export default function GlobeCanvas({
           ringMaxRadius={2}
           ringPropagationSpeed={2}
           ringRepeatPeriod={1200}
-          pointsData={hasRoute ? markers : []}
+          pointsData={markers}
           pointLat={(marker) => (marker as GlobeFocus).lat}
           pointLng={(marker) => (marker as GlobeFocus).lng}
           pointColor={() => '#FFFFFF'}
           pointAltitude={0.002}
-          pointRadius={0.18}
+          pointRadius={hasRoute ? 0.18 : 0.25}
           pointLabel={(marker) => (marker as GlobeFocus).name}
-          labelsData={labels}
-          labelLat={(marker) => (marker as GlobeFocus).lat}
-          labelLng={(marker) => (marker as GlobeFocus).lng}
-          labelText={(marker) => (marker as GlobeFocus).name}
-          labelColor={() => '#FFFFFF'}
-          labelSize={hasRoute ? 0.5 : 0.7}
-          labelDotRadius={hasRoute ? 0 : 0.25}
-          labelResolution={3}
+          htmlElementsData={labels}
+          htmlLat={(marker) => (marker as GlobeFocus).lat}
+          htmlLng={(marker) => (marker as GlobeFocus).lng}
+          htmlElement={(marker) => placeLabel((marker as GlobeFocus).name, hasRoute)}
+          htmlElementVisibilityModifier={(el, isVisible) => {
+            el.style.opacity = isVisible ? '1' : '0';
+          }}
           onGlobeReady={handleGlobeReady}
         />
       )}
