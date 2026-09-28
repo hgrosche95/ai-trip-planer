@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   Body,
   Controller,
   HttpException,
   HttpStatus,
+  Inject,
   Logger,
   Post,
   Res,
@@ -16,7 +18,13 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from './auth/current-user';
 import { MAX_RETRY_AFTER_S } from './llm/retrying-llm-provider';
 import { RunEventEmitter, formatSse } from './runs/run-event-emitter';
-import type { RunEventPayloads } from './runs/run-events';
+import type { RunEvent, RunEventPayloads } from './runs/run-events';
+import {
+  AGENT_RUN_STORE,
+  type AgentRunStore,
+  type FinishedAgentRun,
+  type FinishedRunStatus,
+} from './runs/agent-run-store';
 
 interface ChatRequest {
   sessionId: string;
@@ -38,7 +46,10 @@ const HEARTBEAT_MS = 15_000;
 export class AgentController {
   private readonly logger = new Logger(AgentController.name);
 
-  constructor(private readonly agentService: AgentService) {}
+  constructor(
+    private readonly agentService: AgentService,
+    @Inject(AGENT_RUN_STORE) private readonly runStore: AgentRunStore,
+  ) {}
 
   // Antwortet erst, wenn der Agent fertig ist, mit einem JSON. Bleibt für
   // Evals, den MCP-Server und ältere Clients.
@@ -94,10 +105,23 @@ export class AgentController {
       if (open) res.write(chunk);
     };
     const heartbeat = setInterval(() => write(': ping\n\n'), HEARTBEAT_MS);
-    const events = new RunEventEmitter((event) => write(formatSse(event)));
+    // Alle Ereignisse gehen sofort an den Client und zusätzlich in einen
+    // Puffer, der am Ende EINMAL gespeichert wird (Replay unter /replay).
+    // Ein Schreibzugriff pro Ereignis würde jeden Lauf um Dutzende
+    // Datenbank-Roundtrips verlangsamen.
+    const recorded: RunEvent[] = [];
+    const events = new RunEventEmitter((event) => {
+      recorded.push(event);
+      write(formatSse(event));
+    });
+    // Vorab erzeugt, damit das Frontend den Replay-Link schon mit
+    // run.started kennt und nicht auf das Speichern warten muss.
+    const runId = randomUUID();
+    const createdAt = new Date();
+    let status: FinishedRunStatus = 'OK';
 
     try {
-      events.emit('run.started', {});
+      events.emit('run.started', { runId });
       const result = await this.agentService.sendMessage(
         user.userId,
         sessionId,
@@ -118,9 +142,35 @@ export class AgentController {
       // an den Client statt als HTTP-Status.
       this.logger.error('Agentenlauf fehlgeschlagen', error);
       events.emit('run.error', toRunError(error));
+      status = 'ERROR';
     } finally {
       clearInterval(heartbeat);
+      // Hat der Client die Verbindung vorher geschlossen, lief der Agent
+      // trotzdem zu Ende; ABORTED heißt nur: niemand hat das Ende gesehen.
+      if (status === 'OK' && !open) status = 'ABORTED';
       res.end();
+    }
+
+    // Nach res.end(): Der Client wartet nicht auf die Datenbank.
+    await this.saveRun({
+      id: runId,
+      userId: user.userId,
+      sessionId,
+      status,
+      totals: events.totals(),
+      events: recorded,
+      createdAt,
+      finishedAt: new Date(),
+    });
+  }
+
+  // Ein fehlgeschlagenes Speichern kostet nur das Replay, nicht den Lauf:
+  // Die Antwort ist zu diesem Zeitpunkt schon beim Nutzer.
+  private async saveRun(run: FinishedAgentRun): Promise<void> {
+    try {
+      await this.runStore.save(run);
+    } catch (error) {
+      this.logger.warn(`Agentenlauf ${run.id} nicht gespeichert: ${error}`);
     }
   }
 }

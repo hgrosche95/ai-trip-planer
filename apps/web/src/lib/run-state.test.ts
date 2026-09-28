@@ -5,7 +5,7 @@ import type { RunEvent } from './run-events.ts';
 
 // Ein typischer Lauf, wie ihn POST /agent/runs schickt
 const EVENTS: RunEvent[] = [
-  { type: 'run.started', seq: 1, elapsedMs: 0, data: {} },
+  { type: 'run.started', seq: 1, elapsedMs: 0, data: { runId: 'run-1' } },
   { type: 'llm.started', seq: 2, elapsedMs: 5, data: { stepId: 'l1' } },
   {
     type: 'llm.call',
