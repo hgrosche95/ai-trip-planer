@@ -15,6 +15,15 @@ export interface RunEventPayloads {
   'run.started': { runId: string };
   // LLM-Aufruf beginnt: das Frontend zeigt sofort eine laufende Zeile
   'llm.started': { stepId: string };
+  // Der Rate-Limiter hält den laufenden LLM-Aufruf an, weil das Minutenbudget
+  // (tokens) bzw. die freien Anfragen (requests) bei Groq nicht reichen.
+  // Kommt zwischen llm.started und llm.call; latencyMs in llm.call enthält
+  // die Wartezeit.
+  'llm.throttled': {
+    stepId: string;
+    waitMs: number;
+    reason: 'tokens' | 'requests';
+  };
   // LLM-Aufruf ist fertig, mit allem, was die Timeline anzeigt
   'llm.call': {
     stepId: string;

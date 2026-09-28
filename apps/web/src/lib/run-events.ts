@@ -67,6 +67,9 @@ export interface RunEventPayloads {
   // runId = Schlüssel des gespeicherten Laufs, für /replay?run=<runId>
   'run.started': { runId: string };
   'llm.started': { stepId: string };
+  // Der laufende LLM-Aufruf wartet auf das Groq-Limit (Minutenbudget an
+  // Tokens bzw. freie Anfragen), bevor er rausgeht
+  'llm.throttled': { stepId: string; waitMs: number; reason: 'tokens' | 'requests' };
   'llm.call': {
     stepId: string;
     model: string;

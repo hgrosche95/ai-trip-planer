@@ -47,6 +47,33 @@ describe('RateLimitedLlmProvider', () => {
     expect(order).toEqual(['chat', 'sleep 6000', 'chat']);
   });
 
+  it('meldet eine Wartezeit über onThrottle, bevor gewartet wird', async () => {
+    const order: string[] = [];
+    let now = 0;
+    const limiter = new TokenBudgetLimiter({
+      now: () => now,
+      sleep: (ms) => {
+        order.push('sleep');
+        now += ms;
+        return Promise.resolve();
+      },
+    });
+    limiter.update('m', { remainingTokens: 0, resetTokensMs: 6000 });
+    const provider = new RateLimitedLlmProvider(
+      { chat: jest.fn().mockResolvedValue(result()) },
+      limiter,
+      () => 'm',
+    );
+
+    await provider.chat(messages, [], {
+      maxTokens: 400,
+      onThrottle: (waitMs, reason) =>
+        order.push(`throttle ${waitMs} ${reason}`),
+    });
+
+    expect(order).toEqual(['throttle 6000 tokens', 'sleep']);
+  });
+
   it('führt das Budget unter dem aufgelösten Modellnamen', async () => {
     const limiter = new TokenBudgetLimiter({ now: () => 0 });
     const update = jest.spyOn(limiter, 'update');

@@ -32,6 +32,7 @@ export class RateLimitedLlmProvider implements LlmProvider {
       this.logger.log(
         `Budget für ${model} reicht nicht (${reason}, ~${estimated} Tokens geschätzt), warte ${waitMs}ms`,
       );
+      options.onThrottle?.(waitMs, reason);
     });
     const result = await this.inner.chat(messages, tools, options);
     this.limiter.update(model, result.rateLimit);

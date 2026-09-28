@@ -23,6 +23,8 @@ export interface TraceStep {
   hits?: number;
   // Ergebnis kam aus dem Cache externer APIs (erklärt eine sehr kurze Laufzeit)
   cached?: boolean;
+  // Wartezeit auf das Groq-Limit vor diesem LLM-Aufruf (in latencyMs enthalten)
+  throttledMs?: number;
 }
 
 export interface RunState {
@@ -74,6 +76,14 @@ export function applyRunEvent(state: RunState, event: RunEvent): RunState {
         status: 'running',
         startedMs: event.elapsedMs,
       });
+    case 'llm.throttled': {
+      // Wartet derselbe Schritt mehrmals (z. B. erneut nach einem 429),
+      // zählen die Wartezeiten zusammen
+      const step = state.steps.find((entry) => entry.id === event.data.stepId);
+      return updateStep(state, event.data.stepId, {
+        throttledMs: (step?.throttledMs ?? 0) + event.data.waitMs,
+      });
+    }
     case 'llm.call':
       return updateStep(state, event.data.stepId, {
         name: event.data.model,

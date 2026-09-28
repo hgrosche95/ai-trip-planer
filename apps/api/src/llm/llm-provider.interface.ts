@@ -28,6 +28,10 @@ export interface LlmChatOptions {
   model?: string;
   maxTokens: number;
   temperature?: number;
+  // Wird aufgerufen, BEVOR ein Rate-Limiter vor dem Aufruf wartet. Die
+  // Provider kennen den Ereignis-Emitter nicht; AgentService übersetzt das
+  // in das Ereignis llm.throttled für die Timeline.
+  onThrottle?: (waitMs: number, reason: 'tokens' | 'requests') => void;
 }
 
 export type LlmFinishReason = 'stop' | 'tool_calls' | 'length' | 'other';

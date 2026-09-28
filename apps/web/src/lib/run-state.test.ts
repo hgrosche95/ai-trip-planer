@@ -62,6 +62,36 @@ test('baut aus den Ereignissen Timeline, Globus-Daten und Antwort', () => {
   assert.equal(state.runId, 'run-1');
 });
 
+test('merkt sich die Wartezeit auf das Groq-Limit am laufenden LLM-Schritt', () => {
+  const throttled = (seq: number, waitMs: number): RunEvent => ({
+    type: 'llm.throttled',
+    seq,
+    elapsedMs: 5,
+    data: { stepId: 'l1', waitMs, reason: 'tokens' },
+  });
+  const running = [EVENTS[0], EVENTS[1], throttled(3, 6000)].reduce(
+    applyRunEvent,
+    initialRunState(),
+  );
+  assert.equal(running.steps[0].status, 'running');
+  assert.equal(running.steps[0].throttledMs, 6000);
+
+  // Ein zweites Warten desselben Schritts addiert sich, llm.call lässt den Wert stehen
+  const done = [throttled(4, 1500), EVENTS[2]].reduce(applyRunEvent, running);
+  assert.equal(done.steps[0].status, 'done');
+  assert.equal(done.steps[0].throttledMs, 7500);
+});
+
+test('ignoriert llm.throttled für einen unbekannten Schritt', () => {
+  const state = applyRunEvent(initialRunState(), {
+    type: 'llm.throttled',
+    seq: 1,
+    elapsedMs: 0,
+    data: { stepId: 'fehlt', waitMs: 1000, reason: 'requests' },
+  });
+  assert.deepEqual(state.steps, []);
+});
+
 test('übernimmt die Stationen einer Route', () => {
   const stops = [
     { name: 'Wien', lat: 48.2, lng: 16.37 },
