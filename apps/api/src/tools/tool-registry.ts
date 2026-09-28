@@ -16,6 +16,12 @@ export interface GlobeFocus {
   lng: number;
 }
 
+// Strecke vom Abreiseort zum Ziel, als Bogen auf dem Globus.
+export interface GlobeRoute {
+  from: GlobeFocus;
+  to: GlobeFocus;
+}
+
 export interface ToolContext {
   userId: string;
 }
@@ -34,6 +40,8 @@ export interface AgentTool<TInput = unknown, TOutput = unknown> {
   sources?(output: TOutput): ChatSource[];
   // Ort, den das Frontend auf dem Globus zeigen soll, falls das Tool einen liefert.
   focus?(output: TOutput): GlobeFocus | undefined;
+  // Strecke, die das Frontend als Bogen zeigen soll, falls das Tool eine liefert.
+  route?(output: TOutput): GlobeRoute | undefined;
   // Was im Trace landet. Ohne eigene Angabe nur, ob ein Fehler kam, nie die
   // Ausgabe selbst, weil die Nutzerdaten enthalten kann.
   trace?(output: TOutput): {
@@ -48,6 +56,7 @@ export interface ToolRun {
   retrieval: boolean;
   sources: ChatSource[];
   focus?: GlobeFocus;
+  route?: GlobeRoute;
 }
 
 export class ToolRegistry {
@@ -106,10 +115,11 @@ export class ToolRegistry {
       retrieval: tool.kind === 'retriever',
       sources: tool.sources?.(output) ?? [],
       focus: tool.focus?.(output),
+      route: tool.route?.(output),
     };
   }
 }
 
-function hasError(output: unknown): boolean {
+export function hasError(output: unknown): boolean {
   return typeof output === 'object' && output !== null && 'error' in output;
 }

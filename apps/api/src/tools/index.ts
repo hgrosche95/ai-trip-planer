@@ -5,11 +5,12 @@ import { ToolRegistry } from './tool-registry';
 import { travelKnowledgeTool } from './travel-knowledge.tool';
 import { searchFlightsTool, searchHotelsTool } from './travel-search.tools';
 
-export { ToolRegistry } from './tool-registry';
+export { ToolRegistry, hasError } from './tool-registry';
 export type {
   AgentTool,
   ChatSource,
   GlobeFocus,
+  GlobeRoute,
   ToolRun,
 } from './tool-registry';
 

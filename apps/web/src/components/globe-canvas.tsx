@@ -20,6 +20,9 @@ export interface GlobeCanvasProps {
   autoRotate?: boolean;
   // Ort, zu dem der Globus dreht und den er markiert
   focus?: GlobeFocus | null;
+  // Weitere Orte, die markiert werden (z. B. der Abreiseort), ohne dass die
+  // Kamera zu ihnen dreht
+  places?: GlobeFocus[];
 }
 
 // Texturen stammen aus three-globe (NASA Blue Marble, gemeinfrei) und liegen
@@ -44,6 +47,7 @@ export default function GlobeCanvas({
   arcs = [],
   autoRotate = true,
   focus = null,
+  places = [],
 }: GlobeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
@@ -93,7 +97,10 @@ export default function GlobeCanvas({
     };
   }, [wantsDetail]);
 
-  const markers = focus ? [focus] : [];
+  const markers = useMemo(() => {
+    const all = focus ? [...places, focus] : places;
+    return all.filter((place, index) => all.findIndex((p) => p.name === place.name) === index);
+  }, [focus, places]);
 
   function handleGlobeReady() {
     const globe = globeRef.current;

@@ -14,6 +14,36 @@ describe('showDestinationTool', () => {
     });
   });
 
+  it('liefert mit Abreiseort eine Route vom Abreiseort zum Ziel', () => {
+    const output = showDestinationTool.execute(
+      {
+        name: 'Lissabon',
+        lat: 38.72,
+        lng: -9.14,
+        origin: { name: 'Berlin', lat: 52.52, lng: 13.4 },
+      },
+      { userId: 'u1' },
+    );
+    expect(showDestinationTool.route?.(output as never)).toEqual({
+      from: { name: 'Berlin', lat: 52.52, lng: 13.4 },
+      to: { name: 'Lissabon', lat: 38.72, lng: -9.14 },
+    });
+  });
+
+  it('zeigt das Ziel auch bei ungültigem Abreiseort, nur ohne Route', () => {
+    const output = showDestinationTool.execute(
+      {
+        name: 'Lissabon',
+        lat: 38.72,
+        lng: -9.14,
+        origin: { name: 'Berlin', lat: 520, lng: 13.4 },
+      },
+      { userId: 'u1' },
+    );
+    expect(showDestinationTool.focus?.(output as never)?.name).toBe('Lissabon');
+    expect(showDestinationTool.route?.(output as never)).toBeUndefined();
+  });
+
   it.each([
     { name: 'Nirgendwo', lat: 91, lng: 0 },
     { name: 'Nirgendwo', lat: 0, lng: -181 },
