@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { authFetch } from '@/lib/auth';
 import TracePanel from '@/components/trace-panel';
 import TripGlobe, { type GlobeArc, type GlobeFocus } from '@/components/trip-globe';
+import WeatherStrip from '@/components/weather-strip';
 import type { ChatSource } from '@/lib/run-events';
 import { applyRunEvent, initialRunState, type RunState } from '@/lib/run-state';
 import { readRunEvents } from '@/lib/sse';
@@ -296,6 +297,9 @@ export default function ChatWindow() {
                   <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
                     {cleanReply(message.content)}
                   </Markdown>
+                  {message.trace?.weather.map((report) => (
+                    <WeatherStrip key={report.place.name} report={report} />
+                  ))}
                   <SourcesPanel
                     sources={message.sources}
                     searchAttempted={message.searchAttempted}
@@ -309,6 +313,10 @@ export default function ChatWindow() {
           {liveRun && (
             <div className="max-w-[92%]">
               <TracePanel run={liveRun} live />
+              {/* Wetter schon während des Laufs, sobald get_weather fertig ist */}
+              {liveRun.weather.map((report) => (
+                <WeatherStrip key={report.place.name} report={report} />
+              ))}
             </div>
           )}
         </div>

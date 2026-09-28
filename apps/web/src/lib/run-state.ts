@@ -1,4 +1,10 @@
-import type { ChatSource, GlobePoint, RunEvent, RunTotals } from './run-events';
+import type {
+  ChatSource,
+  GlobePoint,
+  RunEvent,
+  RunTotals,
+  WeatherReport,
+} from './run-events';
 
 // Eine Zeile in der Timeline: ein LLM-Aufruf oder ein Tool
 export interface TraceStep {
@@ -14,6 +20,8 @@ export interface TraceStep {
   outputTokens?: number;
   costUsd?: number | null;
   hits?: number;
+  // Ergebnis kam aus dem Cache externer APIs (erklärt eine sehr kurze Laufzeit)
+  cached?: boolean;
 }
 
 export interface RunState {
@@ -23,6 +31,8 @@ export interface RunState {
   routes: { from: GlobePoint; to: GlobePoint }[];
   // Stationen eines gespeicherten Plans oder einer Rundreise
   stops: GlobePoint[];
+  // Wetter pro Ort, in der Reihenfolge der ersten Meldung
+  weather: WeatherReport[];
   sources: ChatSource[];
   searchAttempted: boolean;
   reply?: string;
@@ -37,6 +47,7 @@ export function initialRunState(): RunState {
     places: [],
     routes: [],
     stops: [],
+    weather: [],
     sources: [],
     searchAttempted: false,
   };
@@ -78,6 +89,7 @@ export function applyRunEvent(state: RunState, event: RunEvent): RunState {
         status: event.data.ok ? 'done' : 'error',
         latencyMs: event.data.latencyMs,
         hits: event.data.hits,
+        cached: event.data.cached,
       });
     case 'place.added':
       // Derselbe Ort kann mehrfach kommen (z. B. erneuter Aufruf mit Abreiseort)
@@ -86,6 +98,18 @@ export function applyRunEvent(state: RunState, event: RunEvent): RunState {
         : { ...state, places: [...state.places, event.data] };
     case 'route.added':
       return { ...state, routes: [...state.routes, event.data] };
+    case 'weather.updated': {
+      // Fragt der Agent denselben Ort erneut ab (z. B. mit anderen Daten),
+      // ersetzt der neue Bericht den alten an seiner Stelle
+      const name = event.data.place.name;
+      const exists = state.weather.some((report) => report.place.name === name);
+      return {
+        ...state,
+        weather: exists
+          ? state.weather.map((report) => (report.place.name === name ? event.data : report))
+          : [...state.weather, event.data],
+      };
+    }
     case 'stops.updated':
       return { ...state, stops: event.data.stops };
     case 'sources':
