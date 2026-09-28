@@ -14,6 +14,10 @@ Höchst- und Tiefstwert und Regenmenge. Regentage plant der Agent mit Indoor-Pro
 mehr als 16 Tage in der Zukunft, kommen die Werte desselben Zeitraums im Vorjahr, sichtbar als
 „Vorjahreswerte“ markiert. Ein zweiter gleicher Aufruf kommt aus dem Cache, im Ablauf steht dann „Cache“.
 
+![Wetter-Chips und Cache-Hinweis im Ablauf](weather.png)
+
+Screenshot aus dem echten Frontend. Das Backend war dabei ein Mock mit Beispielwerten, Open-Meteo selbst ist noch nicht live getestet.
+
 ## Die Idee in einem Satz
 
 Alle externen APIs laufen über **einen** HTTP-Client, der zuerst einen **Cache in Postgres** fragt, nie
