@@ -6,7 +6,8 @@ import type { ChatSource, GlobeFocus, ToolWeather } from '../tools';
 // ausschließlich in message.completed, das ohnehin nur der Nutzer selbst sieht.
 // apps/web/src/lib/run-events.ts spiegelt diese Typen für das Frontend.
 export interface RunEventPayloads {
-  'run.started': Record<string, never>;
+  // runId = Schlüssel des gespeicherten Laufs, für /replay?run=<runId>
+  'run.started': { runId: string };
   // LLM-Aufruf beginnt: das Frontend zeigt sofort eine laufende Zeile
   'llm.started': { stepId: string };
   // LLM-Aufruf ist fertig, mit allem, was die Timeline anzeigt

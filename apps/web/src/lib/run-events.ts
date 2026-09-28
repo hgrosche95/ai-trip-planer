@@ -43,7 +43,8 @@ export interface RunTotals {
 }
 
 export interface RunEventPayloads {
-  'run.started': Record<string, never>;
+  // runId = Schlüssel des gespeicherten Laufs, für /replay?run=<runId>
+  'run.started': { runId: string };
   'llm.started': { stepId: string };
   'llm.call': {
     stepId: string;

@@ -24,8 +24,9 @@ const MAX_STORED_MESSAGES = Number(process.env.LLM_MAX_STORED_MESSAGES ?? 40);
 // Unterhaltungen, die so lange nicht fortgesetzt wurden, werden gelöscht.
 // Chat-Inhalte können persönliche Angaben enthalten ("Hochzeitsreise mit
 // Anna"), die nicht ohne Grund unbegrenzt liegen sollen, und die Datenbank
-// soll nicht mit jedem Gast weiter wachsen.
-const CONVERSATION_RETENTION_DAYS = Number(
+// soll nicht mit jedem Gast weiter wachsen. Gilt auch für gespeicherte
+// Agentenläufe (runs/agent-run-store.ts).
+export const CONVERSATION_RETENTION_DAYS = Number(
   process.env.CONVERSATION_RETENTION_DAYS ?? 30,
 );
 // Aufgeräumt wird beim Speichern statt per Zeitplan: Die API skaliert auf 0,

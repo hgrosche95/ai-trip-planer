@@ -26,6 +26,8 @@ export interface TraceStep {
 
 export interface RunState {
   status: 'running' | 'done' | 'error';
+  // ID des gespeicherten Laufs aus run.started, für den Link nach /replay
+  runId?: string;
   steps: TraceStep[];
   places: (GlobePoint & { kind: 'destination' | 'origin' })[];
   routes: { from: GlobePoint; to: GlobePoint }[];
@@ -58,6 +60,8 @@ export function initialRunState(): RunState {
 // und später auch für das Abspielen gespeicherter Läufe nutzbar.
 export function applyRunEvent(state: RunState, event: RunEvent): RunState {
   switch (event.type) {
+    case 'run.started':
+      return { ...state, runId: event.data.runId };
     case 'llm.started':
       return addStep(state, {
         id: event.data.stepId,
