@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authFetch } from '@/lib/auth';
+import TripGlobe, { type GlobeFocus } from '@/components/trip-globe';
 import { formatDate, formatMoney, placeCode, tripDays } from '@/lib/format';
 import DeleteTripButton from './delete-trip-button';
 import DeleteStopButton from './delete-stop-button';
@@ -15,6 +16,8 @@ interface Stop {
   description: string | null;
   category: string;
   costCents: number | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 interface ItineraryDetail {
@@ -48,6 +51,19 @@ function CategoryStamp({ category }: { category: string }) {
       {stamp.label}
     </span>
   );
+}
+
+// Stationen mit Ort in Reiseablauf-Reihenfolge; direkt wiederholte Orte
+// (z.B. dasselbe Hotel) nur einmal, sonst entstünde ein Bogen der Länge null.
+function routeOf(stops: Stop[]): GlobeFocus[] {
+  const route: GlobeFocus[] = [];
+  for (const stop of stops) {
+    if (stop.lat == null || stop.lng == null) continue;
+    const previous = route.at(-1);
+    if (previous?.lat === stop.lat && previous.lng === stop.lng) continue;
+    route.push({ name: stop.title, lat: stop.lat, lng: stop.lng });
+  }
+  return route;
 }
 
 function weekdayOf(startIso: string, dayNumber: number) {
@@ -131,6 +147,8 @@ function TripDetail() {
     itinerary.budgetCents > 0 ? (plannedCents / itinerary.budgetCents) * 100 : 0;
   const isOverBudget = percent > 100;
   const tripLength = tripDays(itinerary.startDate, itinerary.endDate);
+  // Die API liefert die Stopps schon nach Tag und Reihenfolge sortiert
+  const route = routeOf(itinerary.stops);
 
     return (
     <div className="mx-auto w-full max-w-2xl p-4">
@@ -171,6 +189,16 @@ function TripDetail() {
           </p>
         )}
       </div>
+
+      {route.length > 0 && (
+        <div
+          aria-label={`Route: ${route.map((stop) => stop.name).join(' → ')}`}
+          role="img"
+          className="mx-auto mt-4 aspect-square w-full max-w-[22rem]"
+        >
+          <TripGlobe route={route} autoRotate={false} />
+        </div>
+      )}
 
       <div className="mt-6 flex flex-col gap-6">
         {days.map((day) => (

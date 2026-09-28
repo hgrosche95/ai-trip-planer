@@ -8,6 +8,7 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Length,
@@ -73,6 +74,19 @@ export class ItineraryStopDto {
   @Min(0)
   @Max(MAX_BUDGET_CENTS)
   costCents?: number;
+
+  // Ort des Programmpunkts für die Route auf dem Globus
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(-180)
+  @Max(180)
+  lng?: number;
 }
 
 export class CreateItineraryDto {

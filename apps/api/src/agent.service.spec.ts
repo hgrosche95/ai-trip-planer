@@ -82,6 +82,89 @@ describe('AgentService', () => {
     expect(itineraries.create).toHaveBeenCalledWith('user-a', plan);
   });
 
+  it('liefert die Stationen eines gespeicherten Plans als Route', async () => {
+    const plan = {
+      destination: 'Portugal',
+      startDate: '2026-09-01',
+      endDate: '2026-09-04',
+      budgetCents: 50000,
+      stops: [
+        {
+          dayNumber: 2,
+          order: 1,
+          title: 'Porto',
+          category: 'CULTURE',
+          lat: 41.15,
+          lng: -8.61,
+        },
+        {
+          dayNumber: 1,
+          order: 1,
+          title: 'Lissabon',
+          category: 'CULTURE',
+          lat: 38.72,
+          lng: -9.14,
+        },
+        { dayNumber: 1, order: 2, title: 'Freizeit', category: 'OTHER' },
+      ],
+    };
+    llm.chat
+      .mockResolvedValueOnce(toolCallResult('save_itinerary', plan))
+      .mockResolvedValueOnce(textResult('Gespeichert!'));
+
+    const result = await agent.sendMessage('user-a', 'session-1', 'Speicher');
+
+    expect(result.route).toEqual([
+      { name: 'Lissabon', lat: 38.72, lng: -9.14 },
+      { name: 'Porto', lat: 41.15, lng: -8.61 },
+    ]);
+  });
+
+  it('verbindet mehrere Ziele aus einer Antwort zu einer Route', async () => {
+    llm.chat
+      .mockResolvedValueOnce({
+        ...toolCallResult('show_destination_on_globe', {}),
+        toolCalls: [
+          {
+            id: 'c1',
+            name: 'show_destination_on_globe',
+            arguments: { name: 'Lissabon', lat: 38.72, lng: -9.14 },
+          },
+          {
+            id: 'c2',
+            name: 'show_destination_on_globe',
+            arguments: { name: 'Porto', lat: 41.15, lng: -8.61 },
+          },
+        ],
+      })
+      .mockResolvedValueOnce(textResult('Schöne Route!'));
+
+    const result = await agent.sendMessage('user-a', 'session-1', 'Rundreise');
+
+    expect(result.focus).toEqual({ name: 'Porto', lat: 41.15, lng: -8.61 });
+    expect(result.route?.map((stop) => stop.name)).toEqual([
+      'Lissabon',
+      'Porto',
+    ]);
+  });
+
+  it('liefert bei nur einem Ziel keine Route', async () => {
+    llm.chat
+      .mockResolvedValueOnce(
+        toolCallResult('show_destination_on_globe', {
+          name: 'Wien',
+          lat: 48.2,
+          lng: 16.37,
+        }),
+      )
+      .mockResolvedValueOnce(textResult('Wien!'));
+
+    const result = await agent.sendMessage('user-a', 'session-1', 'Wien');
+
+    expect(result.focus?.name).toBe('Wien');
+    expect(result.route).toBeUndefined();
+  });
+
   it('gibt einen ungültigen Plan als Tool-Fehler an das Modell zurück', async () => {
     const invalid = {
       destination: 'Wien',

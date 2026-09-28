@@ -17,6 +17,8 @@ export interface CreateItineraryInput {
     description?: string;
     category?: StopCategory;
     costCents?: number;
+    lat?: number;
+    lng?: number;
   }[];
 }
 
@@ -47,6 +49,8 @@ export class ItinerariesService {
             description: s.description,
             category: s.category ?? 'OTHER',
             costCents: s.costCents,
+            lat: s.lat,
+            lng: s.lng,
           })),
         },
       },

@@ -39,10 +39,27 @@ describe('CreateItineraryDto (über die ValidationPipe)', () => {
     ['einen Programmpunkt ohne Titel', { stops: [{ dayNumber: 1, order: 1 }] }],
     ['zu viele Programmpunkte', { stops: Array(101).fill(validPlan.stops[0]) }],
     ['fehlende stops', { stops: undefined }],
+    [
+      'einen Breitengrad außerhalb von -90 bis 90',
+      { stops: [{ ...validPlan.stops[0], lat: 91, lng: 0 }] },
+    ],
+    [
+      'einen Längengrad als Text',
+      { stops: [{ ...validPlan.stops[0], lat: 48.2, lng: '16.4' }] },
+    ],
   ])('lehnt %s mit 400 ab', async (_label, override) => {
     await expect(validate({ ...validPlan, ...override })).rejects.toThrow(
       BadRequestException,
     );
+  });
+
+  it('übernimmt die Koordinaten eines Programmpunkts', async () => {
+    const stop = { ...validPlan.stops[0], lat: 48.21, lng: 16.37 };
+    await expect(
+      validate({ ...validPlan, stops: [stop] }),
+    ).resolves.toMatchObject({
+      stops: [{ lat: 48.21, lng: 16.37 }],
+    });
   });
 
   it('entfernt unbekannte Felder, statt den Request abzulehnen', async () => {
