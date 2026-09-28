@@ -120,4 +120,35 @@ describe('fetchJsonCached', () => {
     expect(result.available).toBe(false);
     expect(cache.entries.size).toBe(0);
   });
+
+  it('schickt ohne Angabe ein GET ohne Body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ value: 42 }));
+
+    await fetchJsonCached('https://example.test/a', options());
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe('GET');
+    expect(init.body).toBeUndefined();
+    expect(
+      (init.headers as Record<string, string>)['Content-Type'],
+    ).toBeUndefined();
+  });
+
+  it('schickt auf Wunsch ein POST mit Body und Content-Type', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ value: 42 }));
+
+    await fetchJsonCached('https://example.test/a', {
+      ...options(),
+      method: 'POST',
+      body: 'data=abc',
+      contentType: 'application/x-www-form-urlencoded',
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe('POST');
+    expect(init.body).toBe('data=abc');
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe(
+      'application/x-www-form-urlencoded',
+    );
+  });
 });
