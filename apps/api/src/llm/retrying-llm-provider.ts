@@ -10,6 +10,11 @@ import {
 const DEFAULT_MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30000;
+// Längste Pause, die ein Chat auf den Anbieter wartet. Groqs Minutenlimit
+// verlangt oft 30-60 s, das lohnt sich abzuwarten (der Stream hält die
+// Verbindung per Heartbeat offen). Alles darüber ist ein aufgebrauchtes
+// Tages- oder Stundenkontingent: dann sofort melden statt minutenlang hängen.
+export const MAX_RETRY_AFTER_S = 60;
 
 interface RateLimitError {
   status?: number;
@@ -64,10 +69,7 @@ export class RetryingLlmProvider implements LlmProvider {
         }
         const retryAfter = error.headers?.get('retry-after') ?? null;
         const delay = computeBackoffDelayMs(attempt, retryAfter);
-        // Verlangt der Anbieter eine lange Pause (z.B. Tageskontingent
-        // aufgebraucht, retry-after in Minuten), wartet der Chat nicht so
-        // lange, sondern meldet den Fehler sofort.
-        if (delay > MAX_DELAY_MS) {
+        if (delay > MAX_RETRY_AFTER_S * 1000) {
           this.logger.warn(
             `Rate-Limit (429) mit retry-after ${retryAfter}s, gebe sofort auf`,
           );

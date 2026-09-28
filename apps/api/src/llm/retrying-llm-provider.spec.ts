@@ -75,6 +75,22 @@ describe('RetryingLlmProvider', () => {
     expect(chat).toHaveBeenCalledTimes(3); // initial attempt + 2 retries
   });
 
+  it('waits out a Retry-After within the per-minute window and retries', async () => {
+    // Groqs Minutenlimit verlangt oft 30-60 s: abwarten statt abbrechen
+    const chat = jest
+      .fn()
+      .mockRejectedValueOnce(makeRateLimitError('45'))
+      .mockResolvedValueOnce(successResult);
+    const inner: LlmProvider = { chat };
+    const sleep = jest.fn().mockResolvedValue(undefined);
+    const provider = new RetryingLlmProvider(inner, 3, sleep);
+
+    await expect(provider.chat([], [], { maxTokens: 10 })).resolves.toBe(
+      successResult,
+    );
+    expect(sleep).toHaveBeenCalledWith(45_000);
+  });
+
   it('gives up immediately when Retry-After exceeds the maximum delay', async () => {
     // Groq meldet bei aufgebrauchtem Tageskontingent z.B. retry-after: 1642
     const error = makeRateLimitError('1642');
