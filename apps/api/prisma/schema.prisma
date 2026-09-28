@@ -13,6 +13,13 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AgentRunStatus {
+  RUNNING
+  OK
+  ERROR
+  ABORTED
+}
+
 enum StopCategory {
   FOOD
   CULTURE
@@ -28,6 +35,7 @@ model User {
   createdAt   DateTime    @default(now())
   itineraries   Itinerary[]
   conversations Conversation[]
+  agentRuns     AgentRun[]
 }
 
 model Itinerary {
@@ -156,4 +164,34 @@ model ExternalApiCache {
   createdAt DateTime @default(now())
 
   @@index([expiresAt])
+}
+
+// Ein Agentenlauf (eine Nutzernachricht über POST /agent/runs) mit allen
+// Ereignissen, damit er sich unter /replay?run= erneut abspielen lässt.
+// Gespeichert wird einmal am Ende des Laufs, nicht pro Ereignis. Die Summen
+// liegen zusätzlich als Spalten vor, damit Auswertungen (z. B. Tokens pro
+// Gast und Tag) ohne das JSON auskommen. events enthält message.completed
+// und damit Nutzertext: nur für den Eigentümer abrufbar.
+// id wird im Controller vor dem Lauf erzeugt (randomUUID), damit sie schon
+// in run.started mitgeht; der Default greift nur, wenn keine gesetzt ist.
+model AgentRun {
+  id           String         @id @default(cuid())
+  sessionId    String
+  status       AgentRunStatus @default(RUNNING)
+  llmCalls     Int            @default(0)
+  toolCalls    Int            @default(0)
+  inputTokens  Int            @default(0)
+  outputTokens Int            @default(0)
+  // Integer statt Float wie budgetCents: 1 = 0,000001 US-Dollar
+  costMicroUsd Int            @default(0)
+  durationMs   Int?
+  // RunEvent[] in der Reihenfolge von seq, höchstens 500
+  events       Json           @default("[]")
+  createdAt    DateTime       @default(now())
+  finishedAt   DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@index([userId, createdAt])
 }
