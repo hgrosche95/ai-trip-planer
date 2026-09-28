@@ -158,6 +158,7 @@ export default function ChatWindow() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [globeFocus, setGlobeFocus] = useState<GlobeFocus | null>(null);
+  const [globeRoute, setGlobeRoute] = useState<GlobeFocus[] | null>(null);
 
   // Weckt den RAG-Service beim Öffnen des Chats, damit sein Kaltstart läuft,
   // während der Nutzer noch tippt, statt während der ersten Frage. Ohne Token
@@ -185,6 +186,13 @@ export default function ChatWindow() {
         throw new Error(`HTTP ${response.status}`, { cause: response.status });
       }
       const data = await response.json();
+      // Eine Route (gespeicherter Plan oder mehrere Ziele) bleibt stehen, bis
+      // ein neues einzelnes Ziel sie ablöst.
+      if (data.route?.length) {
+        setGlobeRoute(data.route);
+      } else if (data.focus) {
+        setGlobeRoute(null);
+      }
       if (data.focus) {
         setGlobeFocus(data.focus);
       }
@@ -233,7 +241,7 @@ export default function ChatWindow() {
             : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 dark:opacity-60')
         }
       >
-        <TripGlobe focus={globeFocus} />
+        <TripGlobe focus={globeFocus} route={globeRoute} />
       </div>
       <div className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
         <div className="mb-4 flex flex-1 flex-col gap-4 overflow-y-auto">

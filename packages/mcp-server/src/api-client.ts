@@ -22,6 +22,8 @@ export interface CreateItineraryInput {
       | 'TRANSPORT'
       | 'OTHER';
     costCents?: number;
+    lat?: number;
+    lng?: number;
   }[];
 }
 

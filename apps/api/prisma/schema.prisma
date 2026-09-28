@@ -57,6 +57,10 @@ model ItineraryStop {
   description String?
   category    StopCategory @default(OTHER)
   costCents   Int?
+  // Koordinaten des Programmpunkts für die Route auf dem Globus. Optional:
+  // ältere Pläne und Punkte ohne festen Ort (z.B. "Freizeit") haben keine.
+  lat         Float?
+  lng         Float?
   createdAt   DateTime     @default(now())
 
   itinerary   Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
