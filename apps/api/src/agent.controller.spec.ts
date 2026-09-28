@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import type { Response } from 'express';
-import { AgentController } from './agent.controller';
+import { HttpException } from '@nestjs/common';
+import { AgentController, toRunError } from './agent.controller';
 import type { AgentService } from './agent.service';
 
 // Nachgebaute Express-Response: sammelt alles, was geschrieben wird.
@@ -106,6 +107,25 @@ describe('AgentController POST /agent/runs', () => {
     expect(res.ended).toBe(true);
   });
 
+  it('meldet ein aufgebrauchtes Kontingent mit ungefährer Wartezeit', async () => {
+    // Groq bei aufgebrauchtem Tageskontingent: retry-after in Sekunden
+    const error = {
+      status: 429,
+      headers: new Headers({ 'retry-after': '1642' }),
+    };
+    const service = { sendMessage: jest.fn().mockRejectedValue(error) };
+    const res = fakeResponse();
+
+    await new AgentController(service as unknown as AgentService).run(
+      user,
+      body,
+      res as unknown as Response,
+    );
+
+    expect(res.written).toContain('"code":"quota_exhausted"');
+    expect(res.written).toContain('in etwa 28 Minuten');
+  });
+
   it('lehnt ungültige Anfragen vor dem Stream mit 400 ab', async () => {
     const res = fakeResponse();
     await expect(
@@ -116,5 +136,40 @@ describe('AgentController POST /agent/runs', () => {
       ),
     ).rejects.toThrow('sessionId');
     expect(res.flushHeaders).not.toHaveBeenCalled();
+  });
+});
+
+describe('AgentController POST /agent/chat', () => {
+  const user = { userId: 'user-a', role: 'guest' } as const;
+  const body = { sessionId: 's1', message: 'Lissabon' };
+
+  it('gibt ein Rate-Limit des LLM als 429 statt 500 weiter', async () => {
+    const service = {
+      sendMessage: jest.fn().mockRejectedValue({ status: 429 }),
+    };
+    const call = new AgentController(service as unknown as AgentService).chat(
+      user,
+      body,
+    );
+
+    await expect(call).rejects.toBeInstanceOf(HttpException);
+    await expect(call).rejects.toMatchObject({ status: 429 });
+  });
+
+  it('lässt andere Fehler unverändert durch', async () => {
+    const error = new Error('db down');
+    const service = { sendMessage: jest.fn().mockRejectedValue(error) };
+
+    await expect(
+      new AgentController(service as unknown as AgentService).chat(user, body),
+    ).rejects.toBe(error);
+  });
+});
+
+describe('toRunError', () => {
+  it('bleibt bei kurzer Wartezeit bei "zu viele Anfragen"', () => {
+    expect(
+      toRunError({ status: 429, headers: { 'retry-after': '5' } }).code,
+    ).toBe('rate_limited');
   });
 });
