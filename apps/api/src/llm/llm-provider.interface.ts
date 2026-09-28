@@ -37,12 +37,24 @@ export interface LlmUsage {
   outputTokens: number;
 }
 
+// Rate-Limit-Stand des Anbieters nach einem Aufruf, aus den
+// x-ratelimit-*-Headern (nur Groq liefert sie, Anthropic und Fake lassen das
+// Feld weg). Reset-Angaben sind Dauern in ms ab Eingang der Antwort. Bei Groq
+// zählen die Token-Werte pro Minute (TPM), die Request-Werte pro Tag (RPD).
+export interface LlmRateLimit {
+  remainingTokens?: number;
+  resetTokensMs?: number;
+  remainingRequests?: number;
+  resetRequestsMs?: number;
+}
+
 export interface LlmChatResult {
   content: string | null;
   toolCalls: LlmToolCall[];
   finishReason: LlmFinishReason;
   usage: LlmUsage;
   model: string;
+  rateLimit?: LlmRateLimit;
 }
 
 export interface LlmProvider {
