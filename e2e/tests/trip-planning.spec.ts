@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test('Chat-Nachricht führt zu gespeichertem und angezeigtem Reiseplan', async ({ page }) => {
+  // Bis zu zwei Agenten-Antworten à 150 s plus Login und Navigation
+  test.setTimeout(360_000);
   const username = process.env.E2E_AUTH_USERNAME;
   const password = process.env.E2E_AUTH_PASSWORD;
   if (!username || !password) {
@@ -40,18 +42,22 @@ test('Chat-Nachricht führt zu gespeichertem und angezeigtem Reiseplan', async (
   // wartet, würde daran zeitweise scheitern - ein echter Nutzer würde auf
   // eine Rückfrage schlicht antworten. Das bildet dieser Fallback nach,
   // statt eine perfekte Erstantwort per Prompt-Wortwahl erzwingen zu wollen.
-  const saved = page.getByText(/gespeichert/i);
-  try {
-    await expect(saved).toBeVisible({ timeout: 90_000 });
-  } catch {
+  // Erst die Antwort abwarten, statt nach fester Zeit nachzufragen: bei
+  // 429-Wartezeiten dauert sie länger, und solange sie läuft, ist Senden
+  // gesperrt - die Nachfrage käme sonst gar nicht durch.
+  const saved = page.getByText(/gespeichert/i).first();
+  const replies = page.getByText('KI-Planer', { exact: true });
+  const send = page.getByRole('button', { name: 'Senden' });
+  await expect(replies).toHaveCount(1, { timeout: 150_000 });
+  if (!(await saved.isVisible())) {
     await page
       .getByPlaceholder('Beschreib deine Reisewünsche...')
       .fill(
         'Nutze für alle offenen Details plausible Annahmen (1 Reisender, Abflug München, Budget frei ' +
           'auf Flug/Hotel/Aktivitäten aufteilen) und speichere den Plan jetzt ohne weitere Rückfragen.',
       );
-    await page.getByRole('button', { name: 'Senden' }).click();
-    await expect(saved).toBeVisible({ timeout: 90_000 });
+    await send.click();
+    await expect(saved).toBeVisible({ timeout: 150_000 });
   }
 
   await page.goto('/trips');
