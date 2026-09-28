@@ -10,7 +10,7 @@ export const travelKnowledgeTool: AgentTool<
   definition: {
     name: 'search_travel_knowledge',
     description:
-      'Durchsucht eine kuratierte Wissensbasis zu Reisezielen (Sehenswürdigkeiten, Essen & Trinken, Transport) nach Fakten. Bei Faktenfragen zu einem konkreten Reiseziel immer zuerst dieses Tool nutzen, statt aus dem Gedächtnis zu antworten - die Treffer enthalten Quellenangaben, mit denen du deine Aussage belegen kannst. Liefert das Tool keine passenden Treffer, sag das dem Nutzer ehrlich, statt zu raten.',
+      'Durchsucht eine kuratierte Wissensbasis zu Reisezielen (Sehenswürdigkeiten, Essen & Trinken, Transport) nach Fakten. Bei Faktenfragen zu einem konkreten Reiseziel immer zuerst dieses Tool nutzen, statt aus dem Gedächtnis zu antworten - die Treffer enthalten Quellenangaben, mit denen du deine Aussage belegen kannst. Nenne eine Quelle nur für Aussagen, die in ihren Treffern stehen; eigenes Wissen kennzeichne getrennt davon. Liefert das Tool keine passenden Treffer, sag das dem Nutzer ehrlich, statt zu raten.',
     parameters: {
       type: 'object',
       properties: {

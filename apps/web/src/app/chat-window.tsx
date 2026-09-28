@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { authFetch } from '@/lib/auth';
@@ -160,6 +160,13 @@ export default function ChatWindow() {
   // Der gerade laufende Agentenlauf, wird mit jedem Ereignis aktualisiert
   const [liveRun, setLiveRun] = useState<RunState | null>(null);
   const [globeRoute, setGlobeRoute] = useState<GlobeFocus[] | null>(null);
+
+  // Weckt den RAG-Service beim Öffnen des Chats, damit sein Kaltstart läuft,
+  // während der Nutzer noch tippt, statt während der ersten Frage. Ohne Token
+  // und ohne Warten auf die Antwort; schlägt es fehl, ändert sich nichts.
+  useEffect(() => {
+    fetch(`${API_URL}/health/warmup`, { method: 'POST' }).catch(() => {});
+  }, []);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
