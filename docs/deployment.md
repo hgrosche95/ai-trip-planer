@@ -66,6 +66,16 @@ Nutzersicht eine langsamere statt einer fehlschlagenden Antwort. Bei
 mehreren Personen, die bewusst gleichzeitig testen, zeigt sich genau dieser
 Unterschied.
 
+**Tokens/Minute vorab abwarten (Phase 2, Teil e):** Vor jedem Groq-Aufruf
+prüft der `TokenBudgetLimiter`, ob das Restbudget aus den
+`x-ratelimit-*`-Headern der letzten Antwort für den nächsten Aufruf reicht.
+Wenn nicht, wartet er bis zum angekündigten Reset (höchstens 20 s, sonst
+greift das 429-Handling oben) und der Chat zeigt „wartet 6 s auf
+Groq-Limit“. Der Zustand liegt pro Instanz im Arbeitsspeicher, bei mehreren
+Replikas bleibt 429 deshalb möglich. Abschalten mit `LLM_RATE_LIMITER=off`
+(Standard: an, nur bei `LLM_PROVIDER=groq`). Details:
+[`phase-2/README.md`](phase-2/README.md#teil-e-groq-limit-vorab-abwarten-statt-in-429-zu-laufen).
+
 **Fallback für eine wichtige Demo:** `LLM_PROVIDER=anthropic` in der
 Container-App-Konfiguration umschalten (Secret `ANTHROPIC_API_KEY` ist
 bereits hinterlegt) - kostenpflichtig, aber ohne die Free-Tier-Limits von

@@ -9,7 +9,11 @@ import { InMemoryExternalCache } from './external/external-cache';
 import { addDays } from './external/open-meteo.client';
 import type { ItinerariesService } from './itineraries.service';
 import type { ConversationStore } from './llm/conversation-store';
-import type { LlmChatResult, LlmMessage } from './llm/llm-provider.interface';
+import type {
+  LlmChatOptions,
+  LlmChatResult,
+  LlmMessage,
+} from './llm/llm-provider.interface';
 import { RunEventEmitter } from './runs/run-event-emitter';
 import type { RunEvent } from './runs/run-events';
 
@@ -295,6 +299,36 @@ describe('AgentService', () => {
     expect(toolDone?.data).toMatchObject({
       tool: 'show_destination_on_globe',
       ok: true,
+    });
+  });
+
+  it('meldet eine Wartezeit des Rate-Limiters als llm.throttled am laufenden Schritt', async () => {
+    // Der Provider (hier gefälscht) meldet vor dem Aufruf, dass er wartet
+    llm.chat.mockImplementation(
+      (_messages: unknown, _tools: unknown, options: LlmChatOptions) => {
+        options.onThrottle?.(6000, 'tokens');
+        return Promise.resolve(textResult('Fertig'));
+      },
+    );
+    const received: RunEvent[] = [];
+
+    await agent.sendMessage(
+      'user-a',
+      'session-1',
+      'Hallo',
+      new RunEventEmitter((event) => received.push(event)),
+    );
+
+    expect(received.map((event) => event.type)).toEqual([
+      'llm.started',
+      'llm.throttled',
+      'llm.call',
+    ]);
+    const started = received[0];
+    expect(received[1].data).toEqual({
+      stepId: (started.data as { stepId: string }).stepId,
+      waitMs: 6000,
+      reason: 'tokens',
     });
   });
 

@@ -295,6 +295,10 @@ export class AgentService {
         const startedAt = performance.now();
         const result = await this.llm.chat(messages, this.tools.definitions(), {
           maxTokens: MAX_TOKENS,
+          // Nur Groq drosselt vorab (RateLimitedLlmProvider), die Wartezeit
+          // erscheint dann an dieser Zeile der Timeline
+          onThrottle: (waitMs, reason) =>
+            events?.emit('llm.throttled', { stepId, waitMs, reason }),
         });
         events?.emit('llm.call', {
           stepId,

@@ -10,8 +10,15 @@ import {
   LlmToolCall,
   LlmToolDefinition,
 } from './llm-provider.interface';
+import { parseRateLimitHeaders } from './rate-limit-headers';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+
+// Welches Modell ein Aufruf tatsächlich nutzt. Auch der Rate-Limiter braucht
+// das schon VOR dem Aufruf, weil Groq die Limits pro Modell zählt.
+export function resolveGroqModel(model?: string): string {
+  return model ?? process.env.GROQ_MODEL ?? 'openai/gpt-oss-120b';
+}
 
 @Injectable()
 export class GroqProvider implements LlmProvider {
@@ -25,20 +32,25 @@ export class GroqProvider implements LlmProvider {
     tools: LlmToolDefinition[],
     options: LlmChatOptions,
   ): Promise<LlmChatResult> {
-    const model =
-      options.model ?? process.env.GROQ_MODEL ?? 'openai/gpt-oss-120b';
+    const model = resolveGroqModel(options.model);
 
-    const response = await this.client.chat.completions.create({
-      model,
-      max_completion_tokens: options.maxTokens,
-      temperature: options.temperature,
-      messages: messages.flatMap((m) => this.toOpenAiMessages(m)),
-      tools: tools.length
-        ? tools.map((tool) => this.toOpenAiTool(tool))
-        : undefined,
-    });
+    // withResponse() liefert neben dem geparsten Ergebnis die rohe Antwort,
+    // deren x-ratelimit-*-Header der TokenBudgetLimiter auswertet.
+    const { data, response } = await this.client.chat.completions
+      .create({
+        model,
+        max_completion_tokens: options.maxTokens,
+        temperature: options.temperature,
+        messages: messages.flatMap((m) => this.toOpenAiMessages(m)),
+        tools: tools.length
+          ? tools.map((tool) => this.toOpenAiTool(tool))
+          : undefined,
+      })
+      .withResponse();
 
-    return this.fromOpenAiResponse(response);
+    const result = this.fromOpenAiResponse(data);
+    const rateLimit = parseRateLimitHeaders(response.headers);
+    return rateLimit ? { ...result, rateLimit } : result;
   }
 
   private toOpenAiTool(

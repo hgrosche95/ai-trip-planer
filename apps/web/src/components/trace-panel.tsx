@@ -42,8 +42,15 @@ function stepLabel(step: TraceStep) {
   return TOOL_LABELS[step.name] ?? step.name;
 }
 
+// Ganze Sekunden reichen für eine Wartezeit, "6,2 s" wäre Scheingenauigkeit
+function formatWait(ms: number) {
+  return ms < 1000 ? `${ms} ms` : `${Math.round(ms / 1000)} s`;
+}
+
 function stepDetails(step: TraceStep) {
   const parts: string[] = [];
+  // Vorab eingeplante Pause statt HTTP 429: erklärt, warum ein Schritt dauert
+  if (step.throttledMs) parts.push(`wartet ${formatWait(step.throttledMs)} auf Groq-Limit`);
   if (step.inputTokens !== undefined && step.outputTokens !== undefined) {
     parts.push(`${numberFormat.format(step.inputTokens + step.outputTokens)} Tokens`);
   }

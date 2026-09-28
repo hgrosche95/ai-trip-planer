@@ -1,4 +1,4 @@
-# Phase 2: Echte Wetterdaten mit Cache, Läufe speichern und abspielen, Unterkünfte und Anreise
+# Phase 2: Echte Wetterdaten mit Cache, Läufe speichern und abspielen, Unterkünfte und Anreise, Groq-Limiter
 
 Teil des Plans in [`../trip-planner-2.0-plan.md`](../trip-planner-2.0-plan.md), Abschnitt 4, Phase 2.
 Baut auf [Phase 1](../phase-1/README.md) auf (Ereignisse, `POST /agent/runs`, Reducer).
@@ -393,17 +393,137 @@ Ereignisse bleiben gleich.
   (E2E) ruft die Tools nicht auf.
 - **`/agent/chat` liefert keine Unterkünfte im Ergebnis:** wie beim Wetter nur über den SSE-Weg.
 
-## Rest von Phase 2
+## Teil e: Groq-Limit vorab abwarten statt in 429 zu laufen
 
-Noch nicht umgesetzt, Reihenfolge als Vorschlag:
+**Vorher:** Groq erlaubt im Free Tier 8.000 Tokens pro Minute und Modell. Ein Lauf mit mehreren
+Tool-Runden schickt jedes Mal System-Prompt, Tool-Definitionen und Verlauf mit und stößt schnell an diese
+Grenze. Die App merkte das erst an der Antwort HTTP 429. `RetryingLlmProvider` wartete dann `Retry-After`
+ab (bis 60 s), im Chat stand währenddessen nur ein Spinner bei „KI denkt nach“. Das wirkte wie ein Hänger.
 
-1. **Token-Limiter:** `token-budget-limiter.ts` liest die Groq-Header `x-ratelimit-*` und wartet vor
-   einem Aufruf, statt in ein 429 zu laufen.
-2. **Aufräumen bündeln:** `RetentionService` für Chat-Verläufe, Läufe und Cache (heute räumen
+**Nachher:** Groq schickt in jeder Antwort mit, wie viel vom Budget noch übrig ist und wann es wieder voll
+ist (`x-ratelimit-remaining-tokens`, `x-ratelimit-reset-tokens`). Die App merkt sich das. Reicht der Rest
+für den nächsten Aufruf voraussichtlich nicht, wartet sie **vorher** bis zum Reset. In der Zeile des
+LLM-Schritts steht dann „wartet 6 s auf Groq-Limit“, live, im eingeklappten Ablauf und im Replay.
+
+### Ampel statt Schranke
+
+Der Limiter ist eine Ampel, keine Schranke. Er sperrt nie selbst und führt keine eigenen Kontingente. Er
+schaltet nur kurz auf Rot, wenn Groq in der letzten Antwort gesagt hat, dass es gleich knapp wird, und
+wieder auf Grün, sobald der angekündigte Reset vorbei ist. Ohne Wissen (erster Aufruf nach dem Start,
+Anthropic, Fake) ist immer Grün. Wer bei Rot zu lange stehen müsste (mehr als 20 s), fährt trotzdem. Dann
+antwortet Groq mit 429, und das bestehende Handling (Retry bis 60 s, danach `run.error` mit
+`quota_exhausted`) übernimmt. Der Limiter macht den Normalfall glatter, er ersetzt das Netz nicht.
+
+```mermaid
+sequenceDiagram
+    participant S as AgentService.callLlm
+    participant R as RetryingLlmProvider
+    participant L as RateLimitedLlmProvider
+    participant B as TokenBudgetLimiter
+    participant G as GroqProvider
+    participant UI as trace-panel.tsx
+
+    S-->>UI: llm.started {stepId}
+    S->>R: chat(…, {onThrottle})
+    R->>L: chat(…)
+    L->>B: acquire(model, ~2.300 Tokens)
+    B->>B: Rest 800 reicht nicht für 2.300, Reset in 6 s
+    B-->>L: onWait(6000, 'tokens')
+    L-->>S: onThrottle(6000, 'tokens')
+    S-->>UI: llm.throttled {stepId, waitMs: 6000}
+    B->>B: sleep(6000)
+    L->>G: chat(…)
+    G-->>L: Ergebnis + rateLimit aus den Headern
+    L->>B: update(model, rateLimit)
+    S-->>UI: llm.call {latencyMs inkl. Wartezeit}
+```
+
+### Rundgang durch den Code
+
+1. **Header lesen:** [`llm/groq.provider.ts`](../../apps/api/src/llm/groq.provider.ts) ruft das OpenAI-SDK
+   mit `.withResponse()` auf und bekommt so neben dem Ergebnis die rohe `Response`.
+   [`llm/rate-limit-headers.ts`](../../apps/api/src/llm/rate-limit-headers.ts) macht daraus
+   `LlmChatResult.rateLimit` (`remainingTokens`, `resetTokensMs`, `remainingRequests`, `resetRequestsMs`).
+   Groq schreibt Reset-Zeiten als Dauer („6.2s“, „1m2.5s“, „120ms“). `parseDurationMs` liest h, m, s, ms
+   und nackte Sekunden. Alles, was nicht vollständig passt, ergibt `undefined` statt einer falschen Zahl.
+   Anthropic und Fake lassen das Feld weg.
+2. **Schätzung:** `estimateCallTokens` in
+   [`llm/token-budget-limiter.ts`](../../apps/api/src/llm/token-budget-limiter.ts) rechnet
+   `Zeichen aus Nachrichten, Tool-Aufrufen, Tool-Ergebnissen und Tool-Definitionen / 4 + maxTokens / 4`.
+   Der erste Teil ist die übliche Faustregel für Text und JSON. Der zweite plant die Antwort ein, denn Groq
+   zählt auch erzeugte Tokens. Den vollen `maxTokens`-Wert (4096) einzuplanen würde fast jeden Aufruf
+   bremsen, obwohl die Antworten des Agenten meist ein paar hundert Tokens lang sind.
+3. **Limiter:** `TokenBudgetLimiter` im selben Modul, mit injizierbaren `sleep` und `now`.
+   - `update(model, rateLimit)` merkt sich pro Modell den Rest und den **absoluten** Reset-Zeitpunkt.
+     Groq zählt pro Modell, deshalb auch der Limiter. Eine Antwort ohne Header löscht das Wissen.
+   - `acquire(model, estimatedTokens, onWait)`: Reicht der Rest nicht und liegt der Reset in der Zukunft,
+     meldet er die Wartezeit über `onWait` und wartet. Danach vergisst er den alten Stand. Die
+     Request-Werte zählen bei Groq pro **Tag**. Ist dort nichts mehr frei, liegt der Reset meist Stunden
+     entfernt, weit über der Obergrenze von 20 s (`MAX_THROTTLE_MS`). Dann geht der Aufruf direkt raus,
+     und es erscheint die bekannte Meldung zum aufgebrauchten Kontingent.
+   - Bei Grün zieht er die Schätzung vom bekannten Rest ab. So rechnen zwei parallele Läufe auf derselben
+     Instanz nicht beide mit demselben Rest. Die nächste Antwort überschreibt das mit echten Werten.
+4. **Dekorator:** [`llm/rate-limited-llm-provider.ts`](../../apps/api/src/llm/rate-limited-llm-provider.ts)
+   hängt wie `RetryingLlmProvider` um einen Provider: vorher `acquire`, nachher `update`. Das Modell muss
+   schon vor dem Aufruf feststehen, dafür gibt es `resolveGroqModel` aus dem Groq-Provider.
+5. **Kette:** [`agent.module.ts`](../../apps/api/src/agent.module.ts) baut für Groq
+   `Retrying(RateLimited(Groq))`. Der Limiter sitzt **innen**: Jede echte Anfrage an Groq, auch eine
+   Wiederholung nach 429, geht durch die Budgetprüfung, und der Limiter lernt aus jeder Antwort sofort.
+   Anthropic bleibt `Retrying(Anthropic)`, Fake unverändert. `LLM_RATE_LIMITER=off` lässt den Limiter weg.
+6. **Sichtbar machen:** Die Provider kennen den Ereignis-Emitter nicht. `LlmChatOptions` hat deshalb den
+   Callback `onThrottle(waitMs, reason)`. [`agent.service.ts`](../../apps/api/src/agent.service.ts) setzt
+   ihn in `callLlm` und sendet daraus `llm.throttled { stepId, waitMs, reason }` zwischen `llm.started`
+   und `llm.call`. `latencyMs` in `llm.call` enthält die Wartezeit, damit der Wasserfall stimmt.
+7. **Frontend:** Spiegel in [`lib/run-events.ts`](../../apps/web/src/lib/run-events.ts). Der Reducer
+   ([`lib/run-state.ts`](../../apps/web/src/lib/run-state.ts)) addiert `waitMs` als `throttledMs` am
+   Schritt. [`trace-panel.tsx`](../../apps/web/src/components/trace-panel.tsx) zeigt „wartet 6 s auf
+   Groq-Limit“ in derselben Zeile, vor Tokens und Dauer. Weil das Replay dieselben Ereignisse durch
+   denselben Reducer schickt, erscheint der Hinweis dort ohne weiteren Code.
+
+### Tests
+
+| Test | Prüft |
+| --- | --- |
+| `apps/api/src/llm/rate-limit-headers.spec.ts` | Dauer-Strings (s, m+s, ms, h+m+s, 0s, nackte Zahl, Leerzeichen), ungültige Werte (Text, negativ, Rest hinter der Zahl), alle vier Header, einzelne kaputte Header fallen weg, ohne Header `undefined` |
+| `apps/api/src/llm/groq.provider.spec.ts` | `withResponse()` mit gefälschten Headern (OpenAI-SDK gemockt) ergibt `rateLimit`, ohne Header kein Feld |
+| `apps/api/src/llm/token-budget-limiter.spec.ts` | Schätzung (Zeichen / 4, Tool-Teile, maxTokens-Anteil); Grün ohne Wissen und bei genug Budget, Warten bis zum Reset mit `onWait`, Reset schon vorbei, zu lange Wartezeit lässt durch, Request-Limit, Modelle getrennt, Abzug bei parallelen Aufrufen, Vergessen nach dem Warten und bei Antwort ohne Header |
+| `apps/api/src/llm/rate-limited-llm-provider.spec.ts` | zweiter Aufruf wartet nach erschöpfendem ersten, `onThrottle` vor dem Warten, Budget unter dem aufgelösten Modellnamen, Fehler gehen unverändert durch |
+| `apps/api/src/agent.service.spec.ts` | Reihenfolge `llm.started` → `llm.throttled` → `llm.call` mit derselben `stepId` |
+| `apps/web/src/lib/run-state.test.ts` | `throttledMs` am laufenden Schritt, zweites Warten addiert sich, bleibt nach `llm.call` stehen, unbekannter Schritt wird ignoriert |
+
+Groq ist aus der Entwicklungsumgebung nicht erreichbar. Alle Tests arbeiten mit gefälschten Headern und
+einer Uhr, die `sleep` vorspult, statt echt zu warten.
+
+### Bewusst offen
+
+- **Kein Live-Test gegen Groq:** Header-Namen und Dauerformat stammen aus Groqs Dokumentation. Vor dem
+  Deployment einmal lokal mit echtem Key prüfen (im Log steht bei jedem Warten „Budget für … reicht
+  nicht“).
+- **Zustand pro Instanz:** Jede API-Instanz (bis zu 3 Replikas) hat ihren eigenen Limiter. Alle lernen aus
+  Groqs Headern, die den Stand des ganzen Keys zeigen. Zwischen zwei Antworten weiß eine Instanz aber
+  nicht, was die anderen verbrauchen. Das 429-Handling fängt das ab. Ein geteilter Zustand (Postgres oder
+  Redis) lohnt sich erst bei deutlich mehr Last.
+- **Warten bis zum vollen Reset ist vorsichtig:** Groq füllt das Minutenbudget laufend auf, der Reset
+  meint „wieder ganz voll“. Genauer wäre, nur so lange zu warten, bis die fehlenden Tokens nachgelaufen
+  sind (dafür bräuchte es zusätzlich `x-ratelimit-limit-tokens`). Die Obergrenze von 20 s hält den
+  Unterschied klein.
+- **Kein Lernen aus der 429-Antwort:** Auch eine 429 von Groq enthält die `x-ratelimit-*`-Header. Der
+  Limiter wertet nur erfolgreiche Antworten aus. Nach einem Retry lernt er beim nächsten Erfolg.
+- **Die Schätzung ist grob:** Zeichen / 4 liegt bei deutschem Text und dichtem JSON mal darüber, mal
+  darunter. Für die Frage „reicht der Rest ungefähr“ genügt das. Abgerechnet wird weiter über `usage`.
+- **Kein Countdown:** Die Zeile zeigt die angekündigte Wartezeit, sie zählt nicht herunter.
+
+## Stand von Phase 2
+
+Phase 2 ist mit den Teilen a bis e abgeschlossen: Wetter und API-Cache, Läufe speichern und abspielen,
+Unterkünfte, Anreise und Wechselkurse, Groq-Limiter. Offen sind nur die Punkte unter „Bewusst offen“ der
+einzelnen Teile. Die größeren davon, als Vorschlag für später:
+
+1. **Aufräumen bündeln:** `RetentionService` für Chat-Verläufe, Läufe und Cache (heute räumen
    `PrismaConversationStore`, `PrismaAgentRunStore` und `PrismaExternalCache` je für sich auf).
-3. **Globus unter `/trips/detail`** mit allen gespeicherten Stops.
-4. **E2E-Test für das Replay** mit einer eingecheckten Ereignis-Datei (siehe Teil c, bewusst offen).
-5. **Overpass-Cache vorwärmen** für die Städte der Wissensbasis und Preisniveau ins Frontmatter
-   (siehe Teil d, bewusst offen).
-
-Erledigt: Läufe speichern und abspielen (Teil c), Unterkünfte, Anreise und Wechselkurse (Teil d).
+2. **Globus unter `/trips/detail`** mit allen gespeicherten Stops.
+3. **E2E-Test für das Replay** mit einer eingecheckten Ereignis-Datei (siehe Teil c).
+4. **Overpass-Cache vorwärmen** für die Städte der Wissensbasis und Preisniveau ins Frontmatter
+   (siehe Teil d).
+5. **Live-Prüfung** gegen Open-Meteo, Overpass, Frankfurter und Groq mit echten Schlüsseln, bevor Phase 2
+   deployt wird (siehe jeweils „Bewusst offen“).
