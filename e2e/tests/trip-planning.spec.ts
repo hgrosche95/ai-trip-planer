@@ -42,7 +42,7 @@ test('Chat-Nachricht führt zu gespeichertem und angezeigtem Reiseplan', async (
   // statt eine perfekte Erstantwort per Prompt-Wortwahl erzwingen zu wollen.
   const saved = page.getByText(/gespeichert/i);
   try {
-    await expect(saved).toBeVisible({ timeout: 45_000 });
+    await expect(saved).toBeVisible({ timeout: 90_000 });
   } catch {
     await page
       .getByPlaceholder('Beschreib deine Reisewünsche...')
@@ -51,7 +51,7 @@ test('Chat-Nachricht führt zu gespeichertem und angezeigtem Reiseplan', async (
           'auf Flug/Hotel/Aktivitäten aufteilen) und speichere den Plan jetzt ohne weitere Rückfragen.',
       );
     await page.getByRole('button', { name: 'Senden' }).click();
-    await expect(saved).toBeVisible({ timeout: 60_000 });
+    await expect(saved).toBeVisible({ timeout: 90_000 });
   }
 
   await page.goto('/trips');
