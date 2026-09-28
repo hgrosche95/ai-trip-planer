@@ -65,6 +65,7 @@ test('baut den Globus wie im Chat aus Orten, Bögen und Route', () => {
   assert.deepEqual(view.places, [berlin, lissabon]);
   assert.deepEqual(view.arcs, [{ from: [52.5, 13.4], to: [38.7, -9.1] }]);
   assert.equal(view.route, null);
+  assert.deepEqual(view.pois, []);
 
   const withStops = applyRunEvent(events.reduce(applyRunEvent, initialRunState()), {
     type: 'stops.updated',
@@ -73,4 +74,27 @@ test('baut den Globus wie im Chat aus Orten, Bögen und Route', () => {
     data: { stops: [berlin, lissabon] },
   });
   assert.deepEqual(globeView(withStops).route, [berlin, lissabon]);
+});
+
+test('zeigt gemeldete Unterkünfte als Punkte auf dem Globus', () => {
+  const state = applyRunEvent(initialRunState(), {
+    type: 'lodging.updated',
+    seq: 1,
+    elapsedMs: 1,
+    data: {
+      place: { name: 'Wien', lat: 48.21, lng: 16.37 },
+      items: [
+        {
+          name: 'Hotel Sacher',
+          lat: 48.2039,
+          lng: 16.3699,
+          kind: 'hotel',
+          priceMinEur: 180,
+          priceMaxEur: 340,
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(globeView(state).pois, [{ name: 'Hotel Sacher', lat: 48.2039, lng: 16.3699 }]);
 });

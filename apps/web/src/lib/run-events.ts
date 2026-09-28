@@ -33,6 +33,24 @@ export interface WeatherReport {
   days: WeatherDay[];
 }
 
+export type LodgingKind = 'hotel' | 'hostel' | 'guest_house' | 'apartment';
+
+// Eine echte Unterkunft aus OpenStreetMap. Der Preis ist eine Schätzung aus
+// dem Preisniveau der Stadt, kein Angebot.
+export interface LodgingItem {
+  name: string;
+  lat: number;
+  lng: number;
+  kind: LodgingKind;
+  priceMinEur: number;
+  priceMaxEur: number;
+}
+
+export interface LodgingReport {
+  place: GlobePoint;
+  items: LodgingItem[];
+}
+
 export interface RunTotals {
   llmCalls: number;
   toolCalls: number;
@@ -70,6 +88,8 @@ export interface RunEventPayloads {
   'route.added': { from: GlobePoint; to: GlobePoint };
   // Wetter pro Reisetag, sobald get_weather lief
   'weather.updated': WeatherReport;
+  // Unterkünfte mit geschätzter Preisspanne, sobald search_lodging lief
+  'lodging.updated': LodgingReport;
   // Stationen in Reihenfolge (gespeicherter Plan oder Rundreise), kommt am
   // Ende des Laufs; der Globus verbindet sie mit Bögen
   'stops.updated': { stops: GlobePoint[] };

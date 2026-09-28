@@ -147,3 +147,36 @@ test('merkt sich Cache-Treffer eines Tools', () => {
 
   assert.equal(state.steps[0].cached, true);
 });
+
+test('sammelt Unterkünfte pro Ort, ein erneuter Bericht ersetzt den alten', () => {
+  const hotel = (name: string, priceMinEur: number) => ({
+    name,
+    lat: 48.2,
+    lng: 16.37,
+    kind: 'hotel' as const,
+    priceMinEur,
+    priceMaxEur: priceMinEur + 80,
+  });
+  const lodging = (seq: number, place: string, items: ReturnType<typeof hotel>[]): RunEvent => ({
+    type: 'lodging.updated',
+    seq,
+    elapsedMs: seq * 10,
+    data: { place: { name: place, lat: 48.21, lng: 16.37 }, items },
+  });
+
+  const state = [
+    lodging(1, 'Wien', [hotel('Hotel Sacher', 180)]),
+    lodging(2, 'Rom', [hotel('Hotel Artemide', 95)]),
+    lodging(3, 'Wien', [hotel('Pension Nossek', 65), hotel('Hotel Sacher', 180)]),
+  ].reduce(applyRunEvent, initialRunState());
+
+  assert.deepEqual(
+    state.lodging.map((report) => [report.place.name, report.items.map((item) => item.name)]),
+    [
+      ['Wien', ['Pension Nossek', 'Hotel Sacher']],
+      ['Rom', ['Hotel Artemide']],
+    ],
+  );
+  // Wetter bleibt davon unberührt
+  assert.deepEqual(state.weather, []);
+});

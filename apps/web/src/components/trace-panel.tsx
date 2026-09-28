@@ -8,10 +8,11 @@ import type { RunState, TraceStep } from '@/lib/run-state';
 // Anzeigenamen der Tools. Unbekannte Tools erscheinen mit ihrem technischen Namen.
 const TOOL_LABELS: Record<string, string> = {
   search_travel_knowledge: 'Wissensbasis durchsuchen',
-  search_flights: 'Flüge suchen',
-  search_hotels: 'Hotels suchen',
   show_destination_on_globe: 'Ziel auf dem Globus zeigen',
   get_weather: 'Wetter abrufen',
+  search_lodging: 'Unterkünfte suchen',
+  estimate_transport: 'Anreise schätzen',
+  convert_currency: 'Währung umrechnen',
   save_itinerary: 'Reiseplan speichern',
 };
 

@@ -190,6 +190,7 @@ export class AgentService {
             // Wie die Globus-Updates sofort, damit die Wetter-Chips schon
             // erscheinen, während das Modell noch am Plan schreibt
             if (run.weather) events?.emit('weather.updated', run.weather);
+            if (run.lodging) events?.emit('lodging.updated', run.lodging);
             toolResults.push({
               toolCallId: call.id,
               content: truncateToolResult(

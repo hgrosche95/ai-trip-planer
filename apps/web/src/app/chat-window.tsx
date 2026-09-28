@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { authFetch } from '@/lib/auth';
+import LodgingList from '@/components/lodging-list';
 import ReplyMarkdown from '@/components/reply-markdown';
 import TracePanel from '@/components/trace-panel';
 import TripGlobe, { type GlobeArc, type GlobeFocus } from '@/components/trip-globe';
 import WeatherStrip from '@/components/weather-strip';
 import type { ChatSource } from '@/lib/run-events';
+import { lodgingPoints } from '@/lib/replay';
 import { applyRunEvent, initialRunState, type RunState } from '@/lib/run-state';
 import { readRunEvents } from '@/lib/sse';
 
@@ -121,6 +123,8 @@ export default function ChatWindow() {
   // Der gerade laufende Agentenlauf, wird mit jedem Ereignis aktualisiert
   const [liveRun, setLiveRun] = useState<RunState | null>(null);
   const [globeRoute, setGlobeRoute] = useState<GlobeFocus[] | null>(null);
+  // Unterkünfte als kleine Punkte, ersetzt wie Marker und Bögen
+  const [globePois, setGlobePois] = useState<GlobeFocus[]>([]);
 
   // Weckt den RAG-Service beim Öffnen des Chats, damit sein Kaltstart läuft,
   // während der Nutzer noch tippt, statt während der ersten Frage. Ohne Token
@@ -164,6 +168,7 @@ export default function ChatWindow() {
             isFirstPlace = false;
             setGlobePlaces([]);
             setGlobeArcs([]);
+            setGlobePois([]);
           }
           setGlobePlaces((prev) =>
             prev.some((place) => place.name === name) ? prev : [...prev, { name, lat, lng }],
@@ -179,6 +184,8 @@ export default function ChatWindow() {
           setGlobeArcs((prev) => [...prev, { from: [from.lat, from.lng], to: [to.lat, to.lng] }]);
         } else if (event.type === 'stops.updated') {
           setGlobeRoute(event.data.stops);
+        } else if (event.type === 'lodging.updated') {
+          setGlobePois(lodgingPoints(run));
         }
       }
 
@@ -242,7 +249,13 @@ export default function ChatWindow() {
             : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 dark:opacity-60')
         }
       >
-        <TripGlobe focus={globeFocus} route={globeRoute} places={globePlaces} arcs={globeArcs} />
+        <TripGlobe
+          focus={globeFocus}
+          route={globeRoute}
+          places={globePlaces}
+          arcs={globeArcs}
+          pois={globePois}
+        />
       </div>
       <div className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
         <div className="mb-4 flex flex-1 flex-col gap-4 overflow-y-auto">
@@ -265,6 +278,9 @@ export default function ChatWindow() {
                   {message.trace?.weather.map((report) => (
                     <WeatherStrip key={report.place.name} report={report} />
                   ))}
+                  {message.trace?.lodging.map((report) => (
+                    <LodgingList key={report.place.name} report={report} />
+                  ))}
                   <SourcesPanel
                     sources={message.sources}
                     searchAttempted={message.searchAttempted}
@@ -281,6 +297,9 @@ export default function ChatWindow() {
               {/* Wetter schon während des Laufs, sobald get_weather fertig ist */}
               {liveRun.weather.map((report) => (
                 <WeatherStrip key={report.place.name} report={report} />
+              ))}
+              {liveRun.lodging.map((report) => (
+                <LodgingList key={report.place.name} report={report} />
               ))}
             </div>
           )}
