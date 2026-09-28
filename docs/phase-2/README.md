@@ -1,4 +1,4 @@
-# Phase 2: Echte Wetterdaten mit Cache, Läufe speichern und abspielen
+# Phase 2: Echte Wetterdaten mit Cache, Läufe speichern und abspielen, Unterkünfte und Anreise
 
 Teil des Plans in [`../trip-planner-2.0-plan.md`](../trip-planner-2.0-plan.md), Abschnitt 4, Phase 2.
 Baut auf [Phase 1](../phase-1/README.md) auf (Ereignisse, `POST /agent/runs`, Reducer).
@@ -246,18 +246,164 @@ Die Seite selbst wurde mit Playwright gegen einen Mock geprüft (Abspielen, Spru
   als hängender Lauf aufzutauchen. Für ein Replay ist das egal, für ein Tokens-Kontingent pro Gast
   (Plan: `GUEST_DAILY_TOKEN_BUDGET`, summiert aus `AgentRun`) muss das neu bewertet werden.
 
+## Teil d: Unterkünfte, Anreise und Wechselkurse
+
+**Vorher:** `search_flights` und `search_hotels` lieferten feste Beispieldaten („Hotel Central Wien“,
+90 € pro Nacht, „AirEurope“ für 120 €), egal wohin und wann. Das Modell gab sie wie echte Angebote aus.
+
+**Nachher:** `search_lodging` findet echte Unterkünfte im Zentrum (Name, Art, Lage aus OpenStreetMap).
+Der Preis pro Nacht ist eine Spanne, die überall als **geschätzt** markiert ist. Darunter stehen Links zur
+Suche auf Booking.com und Airbnb mit Ort, Reisedaten und Personenzahl: dort sind die echten Preise und
+freien Zimmer. `estimate_transport` schätzt die Anreise (Bahn oder Flug) aus der Entfernung mit einem
+offengelegten Tarifmodell und zeichnet den Bogen auf dem Globus. `convert_currency` rechnet mit dem
+EZB-Referenzkurs. Die Unterkünfte erscheinen als kleine türkise Punkte auf dem Globus und als Liste in der
+Antwortkarte, auch im Replay.
+
+![Unterkünfte mit geschätzten Preisen und Such-Links](lodging.png)
+
+Screenshot aus dem echten Frontend. Das Backend war ein Mock mit erfundenen Ereignissen (Berlin → Wien,
+7 Unterkünfte), Overpass und Frankfurter selbst sind noch nicht live getestet. Bei dieser Zoomstufe liegen
+die Unterkunfts-Punkte unter dem Marker von Wien, sie werden erst beim Heranzoomen einzeln sichtbar.
+
+```mermaid
+sequenceDiagram
+    participant UI as chat-window.tsx
+    participant S as AgentService
+    participant T as search_lodging
+    participant OM as OpenMeteoClient
+    participant OP as OverpassClient
+    participant H as fetchJsonCached
+
+    S-->>UI: tool.started
+    S->>T: execute({place, checkIn, checkOut, budgetPerNightEur, guests})
+    T->>OM: geocode("Wien")
+    OM->>H: open-meteo:geocode:wien (Cache 30 Tage)
+    T->>OP: lodgings(48.21, 16.37)
+    OP->>H: POST overpass-api.de (Cache 7 Tage)
+    T->>T: Preisspanne je Unterkunft, Such-Links
+    T-->>S: {place, estimate: true, note, priceBasis, searchLinks, items, cached}
+    S-->>UI: tool.finished {cached}
+    S-->>UI: lodging.updated {place, searchLinks, items}
+```
+
+### Rundgang durch den Code
+
+1. **HTTP-Client:** [`external/http-client.ts`](../../apps/api/src/external/http-client.ts) kann jetzt auch
+   POST mit Body (`method`, `body`, `contentType`). Ohne Angabe bleibt es beim GET.
+2. **Overpass:** [`external/overpass.client.ts`](../../apps/api/src/external/overpass.client.ts).
+   - Eine Abfrage `nwr["tourism"~"^(hotel|hostel|guest_house|apartment)$"]["name"](around:2500,lat,lng)`
+     mit `[out:json][timeout:10]` und `out center 60`: Punkte, Gebäude und Relationen, nur mit Namen.
+   - Danach: Dubletten (gleicher Name als Punkt und Gebäude) raus, nach Entfernung sortiert, höchstens 15.
+     Sterne nur, wenn als Zahl lesbar („3S“ wird 3), Webseite nur mit `http(s)`.
+   - Koordinaten auf 2 Nachkommastellen gerundet, in Schlüssel **und** Abfrage. Cache 7 Tage.
+3. **Frankfurter:** [`external/frankfurter.client.ts`](../../apps/api/src/external/frankfurter.client.ts).
+   `rate(from, to)`, Codes müssen drei Großbuchstaben sein, bevor sie in URL und Cache-Schlüssel landen.
+   Cache 12 h (die EZB veröffentlicht einmal pro Arbeitstag).
+4. **Such-Links:** [`external/booking-links.ts`](../../apps/api/src/external/booking-links.ts). Reine
+   Funktion, Ort über `URLSearchParams` bzw. `encodeURIComponent` (Airbnb hat den Ort im Pfad), ohne
+   Daten keine Datums-Parameter, keine Affiliate- oder Tracking-Parameter.
+5. **`search_lodging`:** [`tools/lodging.tool.ts`](../../apps/api/src/tools/lodging.tool.ts). Geokodiert
+   über den vorhandenen `OpenMeteoClient` (ein Client für alle Tools, geteilter Cache), holt die
+   Unterkünfte und schätzt pro Eintrag:
+
+   `Preis pro Nacht = Hotel-Spanne der Stadt × Faktor Art × Faktor Sterne`, auf 5 € gerundet
+
+   | Stellschraube | Werte |
+   | --- | --- |
+   | Hotel-Spanne (3 Sterne, Doppelzimmer) | Wien 90–170 €, Berlin 85–160 €, Rom 95–180 €, Lissabon 75–140 €, sonst 70–140 € |
+   | Art | Hotel 1, Apartment 0,9, Pension 0,7, Hostel 0,3 (pro Bett) |
+   | Sterne | 5: 2, 4: 1,35, 3 oder keine Angabe: 1, 1–2: 0,75 |
+
+   Mit `budgetPerNightEur` kommen Unterkünfte, deren untere Grenze ins Budget passt, zuerst. Ans Modell
+   gehen höchstens 8 Einträge mit auf 4 Stellen gerundeten Koordinaten (die es für `save_itinerary`
+   verwenden kann), damit alles in die Kürzung der Tool-Ergebnisse (2000 Zeichen) passt. `searchLinks`
+   steht vor den Einträgen, eine Kürzung trifft also eher Unterkünfte als Links.
+6. **`estimate_transport`:** [`tools/transport-estimate.tool.ts`](../../apps/api/src/tools/transport-estimate.tool.ts).
+   Beide Orte geokodieren, Luftlinie nach Haversine, dann das Tarifmodell (alle Werte als benannte
+   Konstanten, pro Person und einfache Fahrt):
+
+   | | Bahn | Flug |
+   | --- | --- | --- |
+   | angeboten | bis 1500 km Luftlinie | ab 300 km |
+   | empfohlen | unter 800 km | ab 800 km |
+   | Strecke | Luftlinie × 1,25 | Luftlinie |
+   | Preis | max(20 €, 0,06–0,18 € pro km) | 40–120 € + 0,05–0,14 € pro km |
+   | Dauer | Strecke / 100 km/h | Luftlinie / 750 km/h + 2,5 h |
+   | CO2e | 0,03 kg pro km | 0,2 kg pro km |
+
+   Berlin → Wien (524 km): Bahn ca. 40–120 €, 6,6 h; Flug ca. 65–195 €, 3,2 h. Die Formel geht als Text
+   mit ans Modell, damit es sie erklären kann. Der `flight`-Hook liefert den Bogen, der AgentService
+   sendet dafür wie bei `show_destination_on_globe` `place.added` (Abreiseort) und `route.added`.
+7. **`convert_currency`:** [`tools/currency.tool.ts`](../../apps/api/src/tools/currency.tool.ts). Codes
+   werden getrimmt und großgeschrieben („pln“ ist kein Fehler), Ergebnis auf Cent gerundet, mit Datum des
+   EZB-Kurses. Fällt Frankfurter aus, sagt das Tool dem Modell ausdrücklich, keinen Kurs zu schätzen.
+8. **Agent:** `AgentTool` hat den Hook `lodging(output)`, der AgentService sendet `lodging.updated` direkt
+   nach dem Tool. Der System-Prompt ersetzt die Zeile zu Flug/Hotel: Preise immer als geschätzte Spanne,
+   nur gelieferte Unterkünfte empfehlen, für echte Preise auf die `searchLinks` verweisen und keine
+   eigenen Links erfinden. `travel-search.tools.ts` ist entfernt.
+9. **Frontend:** `lodging.updated` in [`lib/run-events.ts`](../../apps/web/src/lib/run-events.ts), im Reducer
+   ein Bericht pro Ort wie beim Wetter. [`components/lodging-list.tsx`](../../apps/web/src/components/lodging-list.tsx)
+   zeigt bis zu 5 Einträge („ca. 80–120 € / Nacht (geschätzt)“, beim Hostel pro Bett), den Hinweis
+   „Preise geschätzt“, die beiden Such-Links (neues Fenster, `rel="noreferrer noopener"`, nur `https` auf
+   die beiden Hosts) und die OSM-Namensnennung. [`globe-canvas.tsx`](../../apps/web/src/components/globe-canvas.tsx)
+   hat ein optionales `pois`-Prop: kleine Punkte ohne Ring und Beschriftung. Die Tooltips werden jetzt
+   HTML-maskiert, weil Namen aus OpenStreetMap kommen. Die Ablaufzeile heißt „Unterkünfte suchen“,
+   „Anreise schätzen“ bzw. „Währung umrechnen“.
+
+### Warum Links statt Preis-API
+
+Airbnb hat keine öffentliche API. Booking.com und Expedia geben ihre Schnittstellen nur an freigeschaltete
+Partner (Affiliate-Vertrag, Prüfung). Kostenlose, verlässliche Echtzeitpreise gibt es damit nicht, und
+selbst ausgedachte Preise wären schlimmer als keine. Deshalb zwei ehrliche Teile: eine offen gelegte
+Schätzung für die Planung (Budget, Vergleich) und ein Link auf die echte Suche mit denselben Angaben. Eine
+Sandbox wie Amadeus Self-Service ließe sich später als Adapter hinter derselben Tool-Schnittstelle
+anschließen (`search_lodging` bzw. `estimate_transport` liefern dann `estimate: false`); Frontend und
+Ereignisse bleiben gleich.
+
+### Tests
+
+| Test | Prüft |
+| --- | --- |
+| `apps/api/src/external/overpass.client.spec.ts` | POST mit Abfrage (Umkreis, Arten, nur mit Namen), `center` bei Gebäuden, Filter (ohne Namen, andere Art, ohne Koordinaten, Dubletten, Webseite ohne http), höchstens 15 nach Entfernung, gerundeter Schlüssel und Cache-Treffer, TTL 7 Tage, Ausfall und ungültige Antwort werden nicht gecacht |
+| `apps/api/src/external/frankfurter.client.spec.ts` | Kurs und URL, TTL 12 h, Cache-Treffer, ungültige Codes ohne Netz, gleiche Währung, 404, Antwort ohne Kurs, Netzwerkfehler |
+| `apps/api/src/external/booking-links.spec.ts` | beide URLs mit und ohne Daten, Standard 2 Personen, Sonderzeichen in Ort und Pfad, keine zusätzlichen Parameter |
+| `apps/api/src/external/http-client.spec.ts` | zusätzlich: GET ohne Body, POST mit Body und Content-Type |
+| `apps/api/src/tools/lodging.tool.spec.ts` | Preisspannen je Art und Sterne, `estimate: true`, Budget-Sortierung, Nächte, höchstens 8 und unter 2000 Zeichen, Such-Links (Ort aus Geocoding, Daten, Personen), Validierung, unbekannter Ort, Ausfall, keine Treffer, Hooks |
+| `apps/api/src/tools/transport-estimate.tool.spec.ts` | Haversine gegen bekannte Entfernungen, Tarifmodell an den Grenzen 300/800/1500 km, Mindestpreis, Tool mit Bogen und Cache, unbekannter Ort, zu nah, Ausfall |
+| `apps/api/src/tools/currency.tool.spec.ts` | Umrechnung und Normalisierung, Validierung, kein Kurs bei Ausfall |
+| `apps/api/src/agent.service.spec.ts` | `lodging.updated` direkt nach dem Tool, `estimate: true` beim Modell, Bogen für `estimate_transport` |
+| `apps/web/src/lib/run-state.test.ts`, `replay.test.ts` | Unterkünfte pro Ort und Ersetzen, Such-Links, Punkte für den Globus |
+
+### Bewusst offen
+
+- **Kein Live-Test gegen Overpass und Frankfurter:** Die Entwicklungsumgebung blockiert beide. Die
+  Antwortformate sind aus der Dokumentation nachgebaut. Vor dem Deployment einmal lokal prüfen, auch ob
+  `api.frankfurter.app` noch direkt antwortet (der Dienst hat inzwischen auch `api.frankfurter.dev`).
+- **Preisniveau als Tabelle im Code:** Laut Plan gehört es ins Frontmatter von `data/knowledge/*.md`
+  (`price_level`, `hotel_night_eur`). Für vier Städte ist die Tabelle in `lodging.tool.ts` einfacher; mit
+  mehr Zielen sollte es dorthin wandern. Saison, Wochentag und Messen fließen nicht ein.
+- **Tarifmodell ohne Wasser und Grenzen:** Die Bahn wird bis 1500 km angeboten, auch wenn Meer dazwischen
+  liegt (z. B. nach London oder auf Inseln). Die Werte sind grobe Mittel, kein Fahrplan.
+- **Kein vorgewärmter Cache:** Der Plan schlägt vor, Overpass für die 4 Städte der Wissensbasis vorab zu
+  laden. Noch nicht umgesetzt; der erste Aufruf pro Stadt dauert deshalb bis zu 10 s.
+- **Unterkunfts-Punkte erst beim Heranzoomen:** Alle liegen im Umkreis von 2,5 km, in der Stadtansicht
+  also unter dem Zielmarker. Ein eigener Zoom auf die Unterkünfte fehlt.
+- **Evals und MCP nutzen die neuen Tools nicht:** Das Golden-Dataset prüft weiter nur
+  `search_travel_knowledge`, der MCP-Server bietet keine Unterkunftssuche an, und der Fake-LLM-Provider
+  (E2E) ruft die Tools nicht auf.
+- **`/agent/chat` liefert keine Unterkünfte im Ergebnis:** wie beim Wetter nur über den SSE-Weg.
+
 ## Rest von Phase 2
 
 Noch nicht umgesetzt, Reihenfolge als Vorschlag:
 
-1. **Unterkünfte, Anreise, Währung:** `lodging.tool.ts` (Overpass, über denselben Cache),
-   `transport-estimate.tool.ts` (Haversine + Tarifmodell, als Schätzung markiert), `currency.tool.ts`
-   (Frankfurter). Danach `travel-search.tools.ts` entfernen.
-2. **Token-Limiter:** `token-budget-limiter.ts` liest die Groq-Header `x-ratelimit-*` und wartet vor
+1. **Token-Limiter:** `token-budget-limiter.ts` liest die Groq-Header `x-ratelimit-*` und wartet vor
    einem Aufruf, statt in ein 429 zu laufen.
-3. **Aufräumen bündeln:** `RetentionService` für Chat-Verläufe, Läufe und Cache (heute räumen
+2. **Aufräumen bündeln:** `RetentionService` für Chat-Verläufe, Läufe und Cache (heute räumen
    `PrismaConversationStore`, `PrismaAgentRunStore` und `PrismaExternalCache` je für sich auf).
-4. **Globus unter `/trips/detail`** mit allen gespeicherten Stops.
-5. **E2E-Test für das Replay** mit einer eingecheckten Ereignis-Datei (siehe Teil c, bewusst offen).
+3. **Globus unter `/trips/detail`** mit allen gespeicherten Stops.
+4. **E2E-Test für das Replay** mit einer eingecheckten Ereignis-Datei (siehe Teil c, bewusst offen).
+5. **Overpass-Cache vorwärmen** für die Städte der Wissensbasis und Preisniveau ins Frontmatter
+   (siehe Teil d, bewusst offen).
 
-Erledigt: Läufe speichern und abspielen (Teil c oben).
+Erledigt: Läufe speichern und abspielen (Teil c), Unterkünfte, Anreise und Wechselkurse (Teil d).
