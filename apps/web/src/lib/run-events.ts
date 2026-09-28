@@ -16,6 +16,23 @@ export interface ChatSource {
   score: number;
 }
 
+// Wetter eines Tages, wie get_weather es liefert (code = WMO-Wettercode)
+export interface WeatherDay {
+  date: string;
+  tMin: number;
+  tMax: number;
+  precipMm: number;
+  code: number;
+  label: string;
+}
+
+export interface WeatherReport {
+  place: GlobePoint;
+  // forecast = echte Vorhersage, climate = Vorjahreswerte als Anhaltspunkt
+  source: 'forecast' | 'climate';
+  days: WeatherDay[];
+}
+
 export interface RunTotals {
   llmCalls: number;
   toolCalls: number;
@@ -45,9 +62,13 @@ export interface RunEventPayloads {
     latencyMs: number;
     ok: boolean;
     hits?: number;
+    // true, wenn das Ergebnis aus dem Cache externer APIs kam
+    cached?: boolean;
   };
   'place.added': GlobePoint & { kind: 'destination' | 'origin' };
   'route.added': { from: GlobePoint; to: GlobePoint };
+  // Wetter pro Reisetag, sobald get_weather lief
+  'weather.updated': WeatherReport;
   // Stationen in Reihenfolge (gespeicherter Plan oder Rundreise), kommt am
   // Ende des Laufs; der Globus verbindet sie mit Bögen
   'stops.updated': { stops: GlobePoint[] };

@@ -6,6 +6,7 @@ import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { AnthropicProvider } from './llm/anthropic.provider';
 import { GroqProvider } from './llm/groq.provider';
 import { RetryingLlmProvider } from './llm/retrying-llm-provider';
+import { EXTERNAL_CACHE, PrismaExternalCache } from './external/external-cache';
 import {
   CONVERSATION_STORE,
   PrismaConversationStore,
@@ -17,6 +18,7 @@ import {
   providers: [
     AgentService,
     { provide: CONVERSATION_STORE, useClass: PrismaConversationStore },
+    { provide: EXTERNAL_CACHE, useClass: PrismaExternalCache },
     {
       provide: LLM_PROVIDER,
       // Bewusst mit `new` statt über Nest-DI erzeugt: würden AnthropicProvider

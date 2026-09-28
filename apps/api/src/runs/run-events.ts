@@ -1,4 +1,4 @@
-import type { ChatSource, GlobeFocus } from '../tools';
+import type { ChatSource, GlobeFocus, ToolWeather } from '../tools';
 
 // Ereignisse, die ein Agentenlauf live an das Frontend schickt (POST
 // /agent/runs, Server-Sent Events). Jedes Ereignis beschreibt nur die FORM
@@ -29,9 +29,14 @@ export interface RunEventPayloads {
     ok: boolean;
     // nur bei retriever: Anzahl gefundener Quellen
     hits?: number;
+    // true, wenn das Ergebnis aus dem Cache externer APIs kam
+    cached?: boolean;
   };
   'place.added': GlobeFocus & { kind: 'destination' | 'origin' };
   'route.added': { from: GlobeFocus; to: GlobeFocus };
+  // Wetter pro Reisetag, sobald get_weather lief. source 'climate' heißt:
+  // Vorjahreswerte, keine Vorhersage - das Frontend weist darauf hin.
+  'weather.updated': ToolWeather;
   // Stationen in Reihenfolge (gespeicherter Plan oder Rundreise), kommt am
   // Ende des Laufs; der Globus verbindet sie mit Bögen
   'stops.updated': { stops: GlobeFocus[] };
