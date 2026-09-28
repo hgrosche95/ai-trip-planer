@@ -15,7 +15,10 @@ export interface ExchangeRate {
   date: string;
 }
 
-const FRANKFURTER_URL = 'https://api.frankfurter.app/latest';
+// Über FRANKFURTER_URL austauschbar, falls der Dienst umzieht oder eine
+// eigene Instanz genutzt wird (Frankfurter ist Open Source).
+const FRANKFURTER_URL =
+  process.env.FRANKFURTER_URL ?? 'https://api.frankfurter.app/latest';
 // Die Kurse ändern sich höchstens einmal am Tag. 12 h halten die Zahl der
 // Aufrufe klein und liefern trotzdem spätestens am Folgetag den neuen Kurs.
 const RATE_TTL_MS = 12 * 60 * 60 * 1000;

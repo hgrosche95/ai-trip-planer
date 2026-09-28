@@ -18,7 +18,10 @@ export interface Lodging {
   website?: string;
 }
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+// Öffentliche Instanz; über OVERPASS_URL auf einen Spiegel (z. B.
+// overpass.kumi.systems) umstellbar, wenn sie gedrosselt ist.
+const OVERPASS_URL =
+  process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter';
 const LODGING_KINDS: LodgingKind[] = [
   'hotel',
   'hostel',
