@@ -2,6 +2,8 @@ import {
   BadRequestException,
   Body,
   Controller,
+  HttpException,
+  HttpStatus,
   Logger,
   Post,
   Res,
@@ -12,6 +14,7 @@ import type { Response } from 'express';
 import { AgentService } from './agent.service';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from './auth/current-user';
+import { MAX_RETRY_AFTER_S } from './llm/retrying-llm-provider';
 import { RunEventEmitter, formatSse } from './runs/run-event-emitter';
 import type { RunEventPayloads } from './runs/run-events';
 
@@ -43,7 +46,19 @@ export class AgentController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async chat(@CurrentUser() user: AuthUser, @Body() body: ChatRequest) {
     const { sessionId, message } = parseChatRequest(body);
-    return this.agentService.sendMessage(user.userId, sessionId, message);
+    try {
+      return await this.agentService.sendMessage(
+        user.userId,
+        sessionId,
+        message,
+      );
+    } catch (error) {
+      // Rate-Limit des LLM-Anbieters als 429 mit verständlicher Meldung statt
+      // als nichtssagende 500
+      const runError = toRunError(error);
+      if (runError.code === 'internal') throw error;
+      throw new HttpException(runError, HttpStatus.TOO_MANY_REQUESTS);
+    }
   }
 
   // Derselbe Agent, aber jeder Schritt kommt sofort als Server-Sent Event.
@@ -131,19 +146,43 @@ function parseChatRequest(body: ChatRequest | undefined): ChatRequest {
   return { sessionId, message };
 }
 
-// Nur zwei Fälle unterscheidet das Frontend. Die Fehlermeldung selbst bleibt
-// im Server-Log, damit keine Interna (Provider, Stacktrace) nach außen gehen.
-function toRunError(error: unknown): RunEventPayloads['run.error'] {
-  const status = (error as { status?: unknown } | null)?.status;
-  return status === 429
-    ? {
-        code: 'rate_limited',
-        message:
-          'Gerade kommen zu viele Anfragen an. Warte kurz und versuch es dann noch einmal.',
-      }
-    : {
-        code: 'internal',
-        message:
-          'Der Reiseplaner ist gerade nicht erreichbar. Versuch es bitte gleich noch einmal.',
-      };
+// Drei Fälle unterscheidet das Frontend. Die Fehlermeldung selbst bleibt im
+// Server-Log, damit keine Interna (Provider, Stacktrace) nach außen gehen.
+export function toRunError(error: unknown): RunEventPayloads['run.error'] {
+  const { status, headers } =
+    (error as { status?: unknown; headers?: unknown } | null) ?? {};
+  if (status !== 429) {
+    return {
+      code: 'internal',
+      message:
+        'Der Reiseplaner ist gerade nicht erreichbar. Versuch es bitte gleich noch einmal.',
+    };
+  }
+  const retryAfter = retryAfterSeconds(headers);
+  // Über dieser Wartezeit hat RetryingLlmProvider gar nicht erst gewartet:
+  // Kontingent aufgebraucht, "warte kurz" wäre irreführend.
+  if (retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_S) {
+    const minutes = Math.ceil(retryAfter / 60);
+    return {
+      code: 'quota_exhausted',
+      message: `Das Kontingent des KI-Dienstes ist gerade aufgebraucht. Versuch es in etwa ${minutes} ${minutes === 1 ? 'Minute' : 'Minuten'} noch einmal.`,
+    };
+  }
+  return {
+    code: 'rate_limited',
+    message:
+      'Gerade kommen zu viele Anfragen an. Warte kurz und versuch es dann noch einmal.',
+  };
+}
+
+// Die SDKs liefern Header als Headers-Objekt (OpenAI/Groq, Anthropic) oder
+// als einfaches Objekt; beides abdecken.
+function retryAfterSeconds(headers: unknown): number | undefined {
+  if (!headers || typeof headers !== 'object') return undefined;
+  const raw =
+    typeof (headers as Headers).get === 'function'
+      ? (headers as Headers).get('retry-after')
+      : (headers as Record<string, unknown>)['retry-after'];
+  const seconds = Number(raw);
+  return raw != null && Number.isFinite(seconds) ? seconds : undefined;
 }

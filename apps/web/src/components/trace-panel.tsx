@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Spinner from '@/components/spinner';
 import type { RunState, TraceStep } from '@/lib/run-state';
 
@@ -86,6 +89,33 @@ function TotalsLine({ run }: { run: RunState }) {
   return <>{parts.join(' · ')}</>;
 }
 
+// API und RAG-Service skalieren in Azure auf null herunter. Nach einer Pause
+// startet der erste Aufruf deshalb erst einen Container, und bis zum ersten
+// Agentenschritt vergehen Sekunden ohne sichtbaren Fortschritt. Dauert es
+// länger als üblich, sagt der Chat, warum.
+const COLD_START_HINT_MS = 5_000;
+
+function StartingHint() {
+  const [isSlow, setIsSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsSlow(true), COLD_START_HINT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <>
+      <p className="flex items-center gap-2 py-1 text-dim">
+        <Spinner className="h-3 w-3" /> Startet…
+      </p>
+      {isSlow && (
+        <p className="pb-1 text-xs text-dim">
+          Der Server war im Ruhezustand und fährt gerade hoch. Die erste Anfrage nach
+          einer Pause kann bis zu einer halben Minute dauern, danach geht es schneller.
+        </p>
+      )}
+    </>
+  );
+}
+
 // Zeigt, was der Agent gerade tut bzw. getan hat: jede Zeile ein LLM-Aufruf
 // oder Tool, mit Tokens, Kosten und Dauer. Während des Laufs offen, danach
 // als eingeklappter Abschnitt unter der Antwort.
@@ -97,9 +127,7 @@ export default function TracePanel({ run, live = false }: { run: RunState; live?
           Agent arbeitet
         </p>
         {run.steps.length === 0 ? (
-          <p className="flex items-center gap-2 py-1 text-dim">
-            <Spinner className="h-3 w-3" /> Startet…
-          </p>
+          <StartingHint />
         ) : (
           <ol>
             {run.steps.map((step) => (
