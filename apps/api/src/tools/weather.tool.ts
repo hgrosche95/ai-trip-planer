@@ -137,7 +137,7 @@ function validate(
 
 // Prüft Format UND Kalender: "2026-02-30" hat das richtige Format, würde
 // aber von Date.parse still auf den 2. März verschoben.
-function isIsoDate(value: unknown): value is string {
+export function isIsoDate(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     ISO_DATE.test(value) &&

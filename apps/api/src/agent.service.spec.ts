@@ -90,9 +90,7 @@ describe('AgentService', () => {
 
   it(`bricht die Tool-Schleife nach ${MAX_TOOL_ITERATIONS} Runden ab`, async () => {
     // Ein Modell, das nie aufhört, Tools aufzurufen
-    llm.chat.mockResolvedValue(
-      toolCallResult('search_hotels', { city: 'Wien' }),
-    );
+    llm.chat.mockResolvedValue(toolCallResult('search_lodging', { place: '' }));
 
     const result = await agent.sendMessage('user-a', 'session-1', 'Hallo');
 

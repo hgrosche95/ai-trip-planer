@@ -37,6 +37,20 @@ export interface ToolWeather {
   }[];
 }
 
+// Echte Unterkünfte an einem Ort mit geschätzter Preisspanne pro Nacht,
+// für die Marker auf dem Globus und die Liste unter der Antwort.
+export interface ToolLodging {
+  place: GlobeFocus;
+  items: {
+    name: string;
+    lat: number;
+    lng: number;
+    kind: 'hotel' | 'hostel' | 'guest_house' | 'apartment';
+    priceMinEur: number;
+    priceMaxEur: number;
+  }[];
+}
+
 export interface ToolContext {
   userId: string;
 }
@@ -66,6 +80,8 @@ export interface AgentTool<TInput = unknown, TOutput = unknown> {
   cached?(output: TOutput): boolean | undefined;
   // Wetter pro Tag, falls das Tool welches liefert.
   weather?(output: TOutput): ToolWeather | undefined;
+  // Unterkünfte an einem Ort, falls das Tool welche liefert.
+  lodging?(output: TOutput): ToolLodging | undefined;
   // Was im Trace landet. Ohne eigene Angabe nur, ob ein Fehler kam, nie die
   // Ausgabe selbst, weil die Nutzerdaten enthalten kann.
   trace?(output: TOutput): {
@@ -84,6 +100,7 @@ export interface ToolRun {
   flight?: GlobeRoute;
   cached?: boolean;
   weather?: ToolWeather;
+  lodging?: ToolLodging;
 }
 
 export class ToolRegistry {
@@ -146,6 +163,7 @@ export class ToolRegistry {
       flight: tool.flight?.(output),
       cached: tool.cached?.(output),
       weather: tool.weather?.(output),
+      lodging: tool.lodging?.(output),
     };
   }
 }
