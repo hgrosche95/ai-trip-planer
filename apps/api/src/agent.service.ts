@@ -49,9 +49,12 @@ const MAX_TOOL_RESULT_CHARS = Number(
 );
 // Obergrenze für Tool-Runden pro Nachricht: Ohne sie könnte ein Modell (oder
 // eine manipulierte Eingabe) die Schleife unbegrenzt weiterlaufen lassen, und
-// jede Runde ist ein bezahlter LLM-Aufruf.
+// jede Runde ist ein bezahlter LLM-Aufruf. 8 statt 5: Groq (gpt-oss) ruft
+// die Tools meist einzeln nacheinander auf statt gebündelt in einer Runde -
+// bei einer vollständigen Reiseplanung (Wissen, Flüge, Hotels, Globus, ...)
+// fiel sonst genau der abschließende save_itinerary-Aufruf dem Limit zum Opfer.
 export const MAX_TOOL_ITERATIONS = Number(
-  process.env.LLM_MAX_TOOL_ITERATIONS ?? 5,
+  process.env.LLM_MAX_TOOL_ITERATIONS ?? 8,
 );
 const TOOL_LIMIT_REPLY =
   'Das war mir gerade zu viel auf einmal. Kannst du deine Anfrage etwas eingrenzen?';

@@ -75,10 +75,10 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://trip_planner:trip_planner@localhost:5432/trip_planner?schema=public
-      # Nur ein ANTHROPIC_API_KEY-Repository-Secret existiert, kein GROQ_API_KEY -
-      # deshalb hier explizit auf anthropic statt auf dem Groq-Default bleiben.
-      LLM_PROVIDER: anthropic
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Groq wie in nightly-eval.yml (kostenloses Tier) - mit Anthropic scheiterte
+      # der Job, sobald das Guthaben des Accounts aufgebraucht war.
+      LLM_PROVIDER: groq
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       NEXT_PUBLIC_API_URL: http://localhost:3000
       # services: kann nur fertige Images ziehen, nicht aus einem lokalen
       # Dockerfile bauen - der RAG-Service wird deshalb weiter unten per
