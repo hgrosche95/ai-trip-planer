@@ -89,6 +89,9 @@ export class AgentController {
         message,
         events,
       );
+      if (result.route) {
+        events.emit('stops.updated', { stops: result.route });
+      }
       events.emit('sources', {
         sources: result.sources,
         searchAttempted: result.searchAttempted,

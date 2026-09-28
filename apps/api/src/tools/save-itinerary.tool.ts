@@ -3,12 +3,36 @@ import type {
   ItinerariesService,
 } from '../itineraries.service';
 import { itineraryValidationErrors } from '../itinerary.dto';
-import type { AgentTool } from './tool-registry';
+import type { AgentTool, GlobeFocus } from './tool-registry';
+
+type SaveItineraryOutput =
+  { saved: true; itineraryId: string } | { error: string };
+
+// Programmpunkte mit Koordinaten in Reiseablauf-Reihenfolge (Tag, dann
+// Reihenfolge am Tag). Punkte ohne Ort fallen heraus. Liegen zwei aufeinander
+// folgende Punkte am selben Ort (z.B. Hotel am Abend und am Morgen), bleibt
+// nur einer übrig, sonst entstünde ein Bogen der Länge null.
+export function routeFromStops(
+  stops: CreateItineraryInput['stops'],
+): GlobeFocus[] {
+  const route: GlobeFocus[] = [];
+  const ordered = [...stops].sort(
+    (a, b) => a.dayNumber - b.dayNumber || a.order - b.order,
+  );
+  for (const stop of ordered) {
+    if (!Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) continue;
+    const point = { name: stop.title, lat: stop.lat!, lng: stop.lng! };
+    const previous = route.at(-1);
+    if (previous?.lat === point.lat && previous.lng === point.lng) continue;
+    route.push(point);
+  }
+  return route;
+}
 
 // Als Factory, weil das Tool den ItinerariesService aus Nest braucht
 export function createSaveItineraryTool(
   itinerariesService: ItinerariesService,
-): AgentTool<CreateItineraryInput> {
+): AgentTool<CreateItineraryInput, SaveItineraryOutput> {
   return {
     kind: 'tool',
     definition: {
@@ -45,6 +69,15 @@ export function createSaveItineraryTool(
                   ],
                 },
                 costCents: { type: 'integer' },
+                lat: {
+                  type: 'number',
+                  description:
+                    'Breitengrad des Orts, -90 bis 90. Weglassen, wenn der Punkt keinen festen Ort hat.',
+                },
+                lng: {
+                  type: 'number',
+                  description: 'Längengrad des Orts, -180 bis 180',
+                },
               },
               required: ['dayNumber', 'order', 'title', 'category'],
             },
@@ -69,6 +102,11 @@ export function createSaveItineraryTool(
       }
       const itinerary = await itinerariesService.create(userId, input);
       return { saved: true, itineraryId: itinerary.id };
+    },
+    route(output, input) {
+      if (!('saved' in output)) return undefined;
+      const route = routeFromStops(input.stops);
+      return route.length > 0 ? route : undefined;
     },
   };
 }

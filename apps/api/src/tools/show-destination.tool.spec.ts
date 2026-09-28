@@ -24,7 +24,7 @@ describe('showDestinationTool', () => {
       },
       { userId: 'u1' },
     );
-    expect(showDestinationTool.route?.(output as never)).toEqual({
+    expect(showDestinationTool.flight?.(output as never)).toEqual({
       from: { name: 'Berlin', lat: 52.52, lng: 13.4 },
       to: { name: 'Lissabon', lat: 38.72, lng: -9.14 },
     });
@@ -41,7 +41,7 @@ describe('showDestinationTool', () => {
       { userId: 'u1' },
     );
     expect(showDestinationTool.focus?.(output as never)?.name).toBe('Lissabon');
-    expect(showDestinationTool.route?.(output as never)).toBeUndefined();
+    expect(showDestinationTool.flight?.(output as never)).toBeUndefined();
   });
 
   it.each([

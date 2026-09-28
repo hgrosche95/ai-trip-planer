@@ -60,6 +60,20 @@ test('baut aus den Ereignissen Timeline, Globus-Daten und Antwort', () => {
   assert.equal(state.status, 'running');
 });
 
+test('übernimmt die Stationen einer Route', () => {
+  const stops = [
+    { name: 'Wien', lat: 48.2, lng: 16.37 },
+    { name: 'Prag', lat: 50.08, lng: 14.43 },
+  ];
+  const state = applyRunEvent(initialRunState(), {
+    type: 'stops.updated',
+    seq: 1,
+    elapsedMs: 10,
+    data: { stops },
+  });
+  assert.deepEqual(state.stops, stops);
+});
+
 test('zeigt einen gestarteten, noch nicht fertigen Schritt als laufend', () => {
   const state = EVENTS.slice(0, 2).reduce(applyRunEvent, initialRunState());
   assert.equal(state.steps[0].status, 'running');

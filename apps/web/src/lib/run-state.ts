@@ -21,6 +21,8 @@ export interface RunState {
   steps: TraceStep[];
   places: (GlobePoint & { kind: 'destination' | 'origin' })[];
   routes: { from: GlobePoint; to: GlobePoint }[];
+  // Stationen eines gespeicherten Plans oder einer Rundreise
+  stops: GlobePoint[];
   sources: ChatSource[];
   searchAttempted: boolean;
   reply?: string;
@@ -34,6 +36,7 @@ export function initialRunState(): RunState {
     steps: [],
     places: [],
     routes: [],
+    stops: [],
     sources: [],
     searchAttempted: false,
   };
@@ -83,6 +86,8 @@ export function applyRunEvent(state: RunState, event: RunEvent): RunState {
         : { ...state, places: [...state.places, event.data] };
     case 'route.added':
       return { ...state, routes: [...state.routes, event.data] };
+    case 'stops.updated':
+      return { ...state, stops: event.data.stops };
     case 'sources':
       return {
         ...state,

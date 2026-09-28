@@ -59,6 +59,36 @@ describe('AgentController POST /agent/runs', () => {
     expect(res.ended).toBe(true);
   });
 
+  it('schickt die Stationen einer Route vor der Antwort', async () => {
+    const stops = [
+      { name: 'Wien', lat: 48.2, lng: 16.37 },
+      { name: 'Prag', lat: 50.08, lng: 14.43 },
+    ];
+    const service = {
+      sendMessage: jest.fn().mockResolvedValue({
+        reply: 'Fertig',
+        sources: [],
+        searchAttempted: false,
+        route: stops,
+      }),
+    };
+    const res = fakeResponse();
+
+    await new AgentController(service as unknown as AgentService).run(
+      user,
+      body,
+      res as unknown as Response,
+    );
+
+    expect(eventTypes(res.written)).toEqual([
+      'run.started',
+      'stops.updated',
+      'sources',
+      'message.completed',
+      'run.finished',
+    ]);
+  });
+
   it('meldet ein Rate-Limit als run.error mit verständlicher Nachricht', async () => {
     const service = {
       sendMessage: jest.fn().mockRejectedValue({ status: 429 }),

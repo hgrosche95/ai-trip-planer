@@ -159,6 +159,7 @@ export default function ChatWindow() {
   const [globeArcs, setGlobeArcs] = useState<GlobeArc[]>([]);
   // Der gerade laufende Agentenlauf, wird mit jedem Ereignis aktualisiert
   const [liveRun, setLiveRun] = useState<RunState | null>(null);
+  const [globeRoute, setGlobeRoute] = useState<GlobeFocus[] | null>(null);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -182,19 +183,34 @@ export default function ChatWindow() {
       }
 
       // Jedes Ereignis sofort verarbeiten: Timeline und Globus aktualisieren
-      // sich, während der Agent noch arbeitet.
+      // sich, während der Agent noch arbeitet. Meldet dieser Lauf neue Orte,
+      // ersetzen sie Marker und Bögen der vorigen Antwort; Folgefragen ohne
+      // neuen Ort lassen das Globusbild stehen.
+      let isFirstPlace = true;
       for await (const event of readRunEvents(response)) {
         run = applyRunEvent(run, event);
         setLiveRun(run);
         if (event.type === 'place.added') {
           const { name, lat, lng, kind } = event.data;
+          if (isFirstPlace) {
+            isFirstPlace = false;
+            setGlobePlaces([]);
+            setGlobeArcs([]);
+          }
           setGlobePlaces((prev) =>
             prev.some((place) => place.name === name) ? prev : [...prev, { name, lat, lng }],
           );
-          if (kind === 'destination') setGlobeFocus({ name, lat, lng });
+          if (kind === 'destination') {
+            setGlobeFocus({ name, lat, lng });
+            // Ein neues Ziel löst eine ältere Route ab. Gehört das Ziel selbst
+            // zu einer Route, kommt die danach per stops.updated.
+            setGlobeRoute(null);
+          }
         } else if (event.type === 'route.added') {
           const { from, to } = event.data;
           setGlobeArcs((prev) => [...prev, { from: [from.lat, from.lng], to: [to.lat, to.lng] }]);
+        } else if (event.type === 'stops.updated') {
+          setGlobeRoute(event.data.stops);
         }
       }
 
@@ -258,7 +274,7 @@ export default function ChatWindow() {
             : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 dark:opacity-60')
         }
       >
-        <TripGlobe focus={globeFocus} places={globePlaces} arcs={globeArcs} />
+        <TripGlobe focus={globeFocus} route={globeRoute} places={globePlaces} arcs={globeArcs} />
       </div>
       <div className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
         <div className="mb-4 flex flex-1 flex-col gap-4 overflow-y-auto">

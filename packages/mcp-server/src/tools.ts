@@ -45,6 +45,8 @@ const CreateItinerarySchema = z.object({
         description: z.string().optional(),
         category: StopCategorySchema.optional(),
         costCents: z.number().int().nonnegative().optional(),
+        lat: z.number().min(-90).max(90).optional().describe('Breitengrad, für die Route auf dem Globus'),
+        lng: z.number().min(-180).max(180).optional().describe('Längengrad'),
       }),
     )
     .min(1)

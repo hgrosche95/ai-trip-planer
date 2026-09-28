@@ -48,6 +48,9 @@ export interface RunEventPayloads {
   };
   'place.added': GlobePoint & { kind: 'destination' | 'origin' };
   'route.added': { from: GlobePoint; to: GlobePoint };
+  // Stationen in Reihenfolge (gespeicherter Plan oder Rundreise), kommt am
+  // Ende des Laufs; der Globus verbindet sie mit Bögen
+  'stops.updated': { stops: GlobePoint[] };
   sources: { sources: ChatSource[]; searchAttempted: boolean };
   'message.completed': { text: string };
   'run.finished': { totals: RunTotals };

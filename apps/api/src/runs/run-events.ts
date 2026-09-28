@@ -32,6 +32,9 @@ export interface RunEventPayloads {
   };
   'place.added': GlobeFocus & { kind: 'destination' | 'origin' };
   'route.added': { from: GlobeFocus; to: GlobeFocus };
+  // Stationen in Reihenfolge (gespeicherter Plan oder Rundreise), kommt am
+  // Ende des Laufs; der Globus verbindet sie mit Bögen
+  'stops.updated': { stops: GlobeFocus[] };
   sources: { sources: ChatSource[]; searchAttempted: boolean };
   'message.completed': { text: string };
   'run.finished': { totals: RunTotals };

@@ -60,6 +60,7 @@ definiert. Jedes kommt im gleichen Umschlag an: `{ type, seq, elapsedMs, data }`
 | `llm.started` / `llm.call` | vor und nach jedem LLM-Aufruf | Zeile mit Spinner, danach Modell, Tokens, Kosten, Dauer |
 | `tool.started` / `tool.finished` | vor und nach jedem Tool | Zeile „Flüge suchen · 120 ms“, bei Suche mit Trefferzahl |
 | `place.added` / `route.added` | sobald das Globus-Tool lief | Marker, Kamerafahrt, Flugbogen |
+| `stops.updated` | am Ende, wenn ein Plan gespeichert wurde oder mehrere Ziele genannt wurden | Stationen verbunden auf dem Globus (Route aus PR #83) |
 | `sources` | am Ende | Quellen-Chips wie bisher |
 | `message.completed` | am Ende | Antworttext |
 | `run.finished` | am Ende | Summenzeile: LLM-Aufrufe, Tools, Tokens, Dauer, Kosten |

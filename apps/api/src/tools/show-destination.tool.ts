@@ -71,7 +71,7 @@ export const showDestinationTool: AgentTool<
     return from ? { shown, origin: from } : { shown };
   },
   focus: (output) => ('shown' in output ? output.shown : undefined),
-  route: (output) =>
+  flight: (output) =>
     'shown' in output && output.origin
       ? { from: output.origin, to: output.shown }
       : undefined,

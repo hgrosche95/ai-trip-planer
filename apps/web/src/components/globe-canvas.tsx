@@ -23,6 +23,9 @@ export interface GlobeCanvasProps {
   // Weitere Orte, die markiert werden (z. B. der Abreiseort), ohne dass die
   // Kamera zu ihnen dreht
   places?: GlobeFocus[];
+  // Stationen einer Reise in Reihenfolge: werden markiert und mit Bögen
+  // verbunden, die Kamera nimmt die ganze Route ins Bild. Hat Vorrang vor focus.
+  route?: GlobeFocus[] | null;
 }
 
 // Texturen stammen aus three-globe (NASA Blue Marble, gemeinfrei) und liegen
@@ -43,11 +46,45 @@ const TEXTURES = {
 const ALTITUDE_OVERVIEW = 2.2;
 const ALTITUDE_FOCUS = 0.5;
 
+type PointOfView = { lat: number; lng: number; altitude: number };
+
+// Kamera für eine Route: Mittelpunkt über Einheitsvektoren (klappt auch über
+// die Datumsgrenze hinweg), Abstand so, dass die am weitesten entfernte
+// Station noch mit Rand ins Bild passt. Etwa 25° Bogen pro Globus-Radius
+// Abstand, empirisch: 0,5 zeigt rund 12° um den Mittelpunkt.
+function viewForRoute(route: GlobeFocus[]): PointOfView {
+  const toRad = Math.PI / 180;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (const stop of route) {
+    x += Math.cos(stop.lat * toRad) * Math.cos(stop.lng * toRad);
+    y += Math.cos(stop.lat * toRad) * Math.sin(stop.lng * toRad);
+    z += Math.sin(stop.lat * toRad);
+  }
+  const lat = Math.atan2(z, Math.hypot(x, y)) / toRad;
+  const lng = Math.atan2(y, x) / toRad;
+  const maxDistance = Math.max(
+    ...route.map((stop) => greatCircleDegrees(lat, lng, stop.lat, stop.lng)),
+  );
+  const altitude = Math.min(ALTITUDE_OVERVIEW, Math.max(ALTITUDE_FOCUS, maxDistance / 20));
+  return { lat, lng, altitude };
+}
+
+function greatCircleDegrees(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const toRad = Math.PI / 180;
+  const cos =
+    Math.sin(lat1 * toRad) * Math.sin(lat2 * toRad) +
+    Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.cos((lng2 - lng1) * toRad);
+  return Math.acos(Math.min(1, Math.max(-1, cos))) / toRad;
+}
+
 export default function GlobeCanvas({
   arcs = [],
   autoRotate = true,
   focus = null,
   places = [],
+  route = null,
 }: GlobeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
@@ -76,17 +113,29 @@ export default function GlobeCanvas({
     return () => observer.disconnect();
   }, []);
 
-  // Neues Ziel: Drehung stoppen und in 1,5 s zum Ziel heranzoomen.
+  // Eine Route mit nur einer Station ist ein einzelnes Ziel
+  const hasRoute = route !== null && route.length > 1;
+  const view = useMemo<PointOfView | null>(() => {
+    if (route && route.length > 1) return viewForRoute(route);
+    const target = route?.[0] ?? focus;
+    if (!target) return null;
+    // Abreiseort und Ziel zusammen ins Bild, damit der Flugbogen ganz zu sehen ist
+    const others = route?.length ? [] : places.filter((place) => place.name !== target.name);
+    if (others.length > 0) return viewForRoute([...others, target]);
+    return { lat: target.lat, lng: target.lng, altitude: ALTITUDE_FOCUS };
+  }, [route, focus, places]);
+
+  // Neues Ziel oder neue Route: Drehung stoppen und in 1,5 s heranzoomen.
   useEffect(() => {
     const globe = globeRef.current;
-    if (!globe || !focus) return;
+    if (!globe || !view) return;
     globe.controls().autoRotate = false;
-    globe.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: ALTITUDE_FOCUS }, 1500);
-  }, [focus]);
+    globe.pointOfView(view, 1500);
+  }, [view]);
 
   // Die scharfe Textur erst vorladen und dann tauschen, damit der Globus
   // nicht kurz ohne Textur dasteht.
-  const wantsDetail = focus !== null;
+  const wantsDetail = view !== null && view.altitude < 1;
   useEffect(() => {
     if (!wantsDetail) return;
     const image = new Image();
@@ -97,24 +146,53 @@ export default function GlobeCanvas({
     };
   }, [wantsDetail]);
 
+  // Ohne Route: das Ziel plus weitere Orte wie der Abreiseort, jeder Ort einmal
   const markers = useMemo(() => {
+    if (route && route.length > 0) return route;
     const all = focus ? [...places, focus] : places;
     return all.filter((place, index) => all.findIndex((p) => p.name === place.name) === index);
-  }, [focus, places]);
+  }, [route, focus, places]);
+  // Aufeinanderfolgende Stationen verbinden
+  const routeArcs = useMemo<GlobeArc[]>(
+    () =>
+      hasRoute
+        ? route!.slice(1).map((stop, index) => ({
+            from: [route![index].lat, route![index].lng],
+            to: [stop.lat, stop.lng],
+          }))
+        : [],
+    [hasRoute, route],
+  );
+  const allArcs = useMemo(() => [...arcs, ...routeArcs], [arcs, routeArcs]);
+  // Der pulsierende Ring nur am Start der Route bzw. am Ziel, sonst flimmert
+  // es überall
+  const rings = hasRoute ? markers.slice(0, 1) : focus ? [focus] : markers.slice(0, 1);
+  // Jede Station bekommt einen Punkt, aber nur Stationen mit Abstand zu den
+  // schon beschrifteten einen Namen: in einer Stadt stünden die Namen sonst
+  // übereinander. Der Abstand wächst mit dem Zoom, weil Beschriftungen in
+  // Grad auf dem Globus bemessen sind.
+  const labels = useMemo(() => {
+    if (!hasRoute || !view) return markers;
+    const minDistance = view.altitude * 1.5;
+    const labeled: GlobeFocus[] = [];
+    for (const stop of markers) {
+      const isFree = labeled.every(
+        (other) => greatCircleDegrees(other.lat, other.lng, stop.lat, stop.lng) >= minDistance,
+      );
+      if (isFree) labeled.push(stop);
+    }
+    return labeled;
+  }, [hasRoute, view, markers]);
 
   function handleGlobeReady() {
     const globe = globeRef.current;
     if (!globe) return;
     const controls = globe.controls();
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    controls.autoRotate = autoRotate && !prefersReducedMotion && !focus;
+    controls.autoRotate = autoRotate && !prefersReducedMotion && !view;
     controls.autoRotateSpeed = 0.35;
     controls.enableZoom = false;
-    globe.pointOfView(
-      focus
-        ? { lat: focus.lat, lng: focus.lng, altitude: ALTITUDE_FOCUS }
-        : { lat: 35, lng: 10, altitude: ALTITUDE_OVERVIEW },
-    );
+    globe.pointOfView(view ?? { lat: 35, lng: 10, altitude: ALTITUDE_OVERVIEW });
   }
 
   // Heranzoomen füllt die ganze Fläche mit Erde; ohne Maske stünde dann ein
@@ -137,7 +215,7 @@ export default function GlobeCanvas({
           globeMaterial={material}
           atmosphereColor="#7FD1CF"
           atmosphereAltitude={0.18}
-          arcsData={arcs}
+          arcsData={allArcs}
           arcStartLat={(arc) => (arc as GlobeArc).from[0]}
           arcStartLng={(arc) => (arc as GlobeArc).from[1]}
           arcEndLat={(arc) => (arc as GlobeArc).to[0]}
@@ -148,20 +226,27 @@ export default function GlobeCanvas({
           arcDashGap={0.2}
           arcDashAnimateTime={2500}
           arcAltitudeAutoScale={0.4}
-          ringsData={markers}
+          ringsData={rings}
           ringLat={(marker) => (marker as GlobeFocus).lat}
           ringLng={(marker) => (marker as GlobeFocus).lng}
           ringColor={() => (t: number) => `rgba(242, 165, 65, ${1 - t})`}
           ringMaxRadius={2}
           ringPropagationSpeed={2}
           ringRepeatPeriod={1200}
-          labelsData={markers}
+          pointsData={hasRoute ? markers : []}
+          pointLat={(marker) => (marker as GlobeFocus).lat}
+          pointLng={(marker) => (marker as GlobeFocus).lng}
+          pointColor={() => '#FFFFFF'}
+          pointAltitude={0.002}
+          pointRadius={0.18}
+          pointLabel={(marker) => (marker as GlobeFocus).name}
+          labelsData={labels}
           labelLat={(marker) => (marker as GlobeFocus).lat}
           labelLng={(marker) => (marker as GlobeFocus).lng}
           labelText={(marker) => (marker as GlobeFocus).name}
           labelColor={() => '#FFFFFF'}
-          labelSize={0.7}
-          labelDotRadius={0.25}
+          labelSize={hasRoute ? 0.5 : 0.7}
+          labelDotRadius={hasRoute ? 0 : 0.25}
           labelResolution={3}
           onGlobeReady={handleGlobeReady}
         />

@@ -40,8 +40,12 @@ export interface AgentTool<TInput = unknown, TOutput = unknown> {
   sources?(output: TOutput): ChatSource[];
   // Ort, den das Frontend auf dem Globus zeigen soll, falls das Tool einen liefert.
   focus?(output: TOutput): GlobeFocus | undefined;
-  // Strecke, die das Frontend als Bogen zeigen soll, falls das Tool eine liefert.
-  route?(output: TOutput): GlobeRoute | undefined;
+  // Flugbogen vom Abreiseort zum Ziel, falls das Tool einen liefert.
+  flight?(output: TOutput): GlobeRoute | undefined;
+  // Stationen einer Reise, die das Frontend als Route auf dem Globus zeigt.
+  // Bekommt auch die Eingabe, damit die Koordinaten nicht als Tool-Ausgabe
+  // zurück ans Modell gehen müssen.
+  route?(output: TOutput, input: TInput): GlobeFocus[] | undefined;
   // Was im Trace landet. Ohne eigene Angabe nur, ob ein Fehler kam, nie die
   // Ausgabe selbst, weil die Nutzerdaten enthalten kann.
   trace?(output: TOutput): {
@@ -56,7 +60,8 @@ export interface ToolRun {
   retrieval: boolean;
   sources: ChatSource[];
   focus?: GlobeFocus;
-  route?: GlobeRoute;
+  route?: GlobeFocus[];
+  flight?: GlobeRoute;
 }
 
 export class ToolRegistry {
@@ -115,7 +120,8 @@ export class ToolRegistry {
       retrieval: tool.kind === 'retriever',
       sources: tool.sources?.(output) ?? [],
       focus: tool.focus?.(output),
-      route: tool.route?.(output),
+      route: tool.route?.(output, input),
+      flight: tool.flight?.(output),
     };
   }
 }
