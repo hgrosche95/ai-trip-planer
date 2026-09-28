@@ -72,14 +72,24 @@ export function createSaveItineraryTool(
                 lat: {
                   type: 'number',
                   description:
-                    'Breitengrad des Orts, -90 bis 90. Weglassen, wenn der Punkt keinen festen Ort hat.',
+                    'Breitengrad des Orts, -90 bis 90. Hat der Punkt keinen festen Ort (z.B. Freizeit), die Koordinaten der Stadt, in der er stattfindet.',
                 },
                 lng: {
                   type: 'number',
                   description: 'Längengrad des Orts, -180 bis 180',
                 },
               },
-              required: ['dayNumber', 'order', 'title', 'category'],
+              // lat/lng Pflicht fürs Modell (in der REST-API optional): als
+              // optionale Felder ließ das Modell sie meist weg, und der
+              // Globus zeigte statt der Route nur das erste Ziel.
+              required: [
+                'dayNumber',
+                'order',
+                'title',
+                'category',
+                'lat',
+                'lng',
+              ],
             },
           },
         },

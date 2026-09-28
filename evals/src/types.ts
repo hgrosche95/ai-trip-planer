@@ -28,3 +28,7 @@ export interface ToolOutcome {
 export interface InjectionOutcome {
   resisted: boolean;
 }
+
+export interface GroundednessOutcome {
+  grounded: boolean;
+}

@@ -40,9 +40,9 @@ export interface ChatResult {
 const SYSTEM_PROMPT = `Du bist ein Reiseplaner-Assistent. Du hilfst Nutzern dabei, einen Reiseplan zu erstellen, indem du im Dialog Ziel, Reisedaten, Budget und Präferenzen erfragst.
 
 Nutze die verfügbaren Werkzeuge.
-- search_travel_knowledge, um Faktenfragen zu einem Reiseziel (Sehenswürdigkeiten, Essen & Trinken, Transport) zu beantworten. Nutze es, BEVOR du aus dem Gedächtnis antwortest, und belege deine Aussage mit der zurückgegebenen Quelle (Titel + Quelle). Liefert es keine passenden Treffer, sag das ehrlich, statt zu raten oder zu spekulieren. Bei Vergleichen oder mehreren Fragen rufe das Werkzeug für alle Ziele und Themen gleichzeitig in derselben Antwort auf, statt nacheinander, und höchstens einmal pro Ziel.
+- search_travel_knowledge, um Faktenfragen zu einem Reiseziel (Sehenswürdigkeiten, Essen & Trinken, Transport) zu beantworten. Nutze es, BEVOR du aus dem Gedächtnis antwortest, und belege deine Aussage mit der zurückgegebenen Quelle (Titel + Quelle). Ordne einer Quelle nur zu, was tatsächlich in ihren Treffern steht. Ergänzt du etwas aus eigenem Wissen, trenne es sichtbar davon ab, z. B. in einem eigenen Abschnitt "Weitere Ideen (nicht aus der Wissensbasis)", statt es unter die Quellenangabe zu mischen. Liefert es keine passenden Treffer, sag das ehrlich, statt zu raten oder zu spekulieren. Bei Vergleichen oder mehreren Fragen rufe das Werkzeug für alle Ziele und Themen gleichzeitig in derselben Antwort auf, statt nacheinander, und höchstens einmal pro Ziel.
 - search_flights und search_hotels, um passende Optionen zu finden, sobald du Ziel, Zeitraum (Start-/Enddatum) und Budget kennst.
-- save_itinerary, um den fertigen Plan zu speichern, sobald du gemeinsam mit dem Nutzer einen konkreten Tagesplan mit einzelnen Programmpunkten erarbeitet hast. Gib bei jedem Programmpunkt mit festem Ort dessen ungefähre Koordinaten (lat, lng) an, damit die Route auf dem Globus erscheint.
+- save_itinerary, um den fertigen Plan zu speichern, sobald du gemeinsam mit dem Nutzer einen konkreten Tagesplan mit einzelnen Programmpunkten erarbeitet hast. Gib bei jedem Programmpunkt die ungefähren Koordinaten seines Orts an (lat, lng; bei Punkten ohne festen Ort die der Stadt), damit die ganze Route auf dem Globus erscheint.
 - get_weather, sobald Ziel und Reisedaten feststehen, für den Reisezeitraum. Plane Tage mit Regen oder Gewitter mit Indoor-Programm (Museen, Märkte, Cafés). Stammen die Werte aus dem Vorjahr (source "climate"), sag das dazu, statt sie als Vorhersage auszugeben.
 - show_destination_on_globe, sobald der Nutzer ein konkretes Reiseziel nennt: sofort in derselben Antwort, einmal pro Ziel (bei Rundreisen in Reihenfolge der Route), mit den Koordinaten des Ortszentrums. Kennst du den Abreiseort, gib ihn als origin mit; erfährst du ihn erst später, rufe das Werkzeug dann einmal erneut mit origin auf. Dieses Werkzeug braucht keine weiteren Angaben, rufe es also auch dann auf, wenn du noch Rückfragen stellst. Es läuft unsichtbar im Hintergrund: Erwähne den Globus oder die Markierung nie in deiner Antwort.
 
@@ -68,6 +68,34 @@ export const MAX_TOOL_ITERATIONS = Number(
 );
 const TOOL_LIMIT_REPLY =
   'Das war mir gerade zu viel auf einmal. Kannst du deine Anfrage etwas eingrenzen?';
+
+// Für den Vergleich von Titel und Antworttext: Anführungszeichen weg,
+// Binde-/Gedankenstriche vereinheitlicht, damit "Wien – Reiseziel-Überblick"
+// auch als „Wien-Reiseziel-Überblick“ in der Antwort erkannt wird.
+function normalizeForCitation(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/["'„“”‚‘’«»]/g, '')
+    .replace(/\s*[-‐‑‒–—]\s*/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+// Die Suche liefert die Top-k-Treffer unabhängig vom Reiseziel, bei einer
+// Wien-Frage also z. B. auch das Berlin-Dokument auf Platz 3. Angezeigt
+// werden deshalb nur die Quellen, die die Antwort selbst nennt (der
+// SYSTEM_PROMPT verlangt Titel + Quelle). Nennt sie keine, bleiben alle
+// Treffer stehen: lieber eine Quelle zu viel als eine belegte Antwort ganz
+// ohne Quellenangabe.
+export function citedSources(
+  sources: ChatSource[],
+  reply: string,
+): ChatSource[] {
+  const normalizedReply = normalizeForCitation(reply);
+  const cited = sources.filter((source) =>
+    normalizedReply.includes(normalizeForCitation(source.title)),
+  );
+  return cited.length > 0 ? cited : sources;
+}
 
 @Injectable()
 export class AgentService {
@@ -177,14 +205,18 @@ export class AgentService {
         turn.update({
           metadata: { searchAttempted, sourceCount: sources.size },
         });
+        const reply = result.content ?? '';
         // Ein gespeicherter Plan zeigt seine Stationen. Sonst werden mehrere
         // Ziele aus derselben Antwort (Rundreise) in Nennungsreihenfolge
         // verbunden.
         const route =
           savedRoute ?? (destinations.length > 1 ? destinations : undefined);
         return {
-          reply: result.content ?? '',
-          sources: [...sources.values()].sort((a, b) => b.score - a.score),
+          reply,
+          sources: citedSources(
+            [...sources.values()].sort((a, b) => b.score - a.score),
+            reply,
+          ),
           searchAttempted,
           focus: destinations.at(-1),
           route,
