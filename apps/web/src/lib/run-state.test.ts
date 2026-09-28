@@ -180,3 +180,18 @@ test('sammelt Unterkünfte pro Ort, ein erneuter Bericht ersetzt den alten', () 
   // Wetter bleibt davon unberührt
   assert.deepEqual(state.weather, []);
 });
+
+test('übernimmt die Such-Links eines Unterkunftsberichts, auch ohne Einträge', () => {
+  const searchLinks = {
+    booking: 'https://www.booking.com/searchresults.html?ss=Wien&group_adults=2&no_rooms=1',
+    airbnb: 'https://www.airbnb.de/s/Wien/homes?adults=2',
+  };
+  const state = applyRunEvent(initialRunState(), {
+    type: 'lodging.updated',
+    seq: 1,
+    elapsedMs: 1,
+    data: { place: { name: 'Wien', lat: 48.21, lng: 16.37 }, searchLinks, items: [] },
+  });
+
+  assert.deepEqual(state.lodging[0].searchLinks, searchLinks);
+});

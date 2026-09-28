@@ -496,6 +496,11 @@ describe('AgentService', () => {
       );
       expect(lodging?.data).toEqual({
         place: { name: 'Wien', lat: 48.21, lng: 16.37 },
+        searchLinks: {
+          booking:
+            'https://www.booking.com/searchresults.html?ss=Wien&group_adults=2&no_rooms=1',
+          airbnb: 'https://www.airbnb.de/s/Wien/homes?adults=2',
+        },
         items: [
           {
             name: 'Hotel Sacher',

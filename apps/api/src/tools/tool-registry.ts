@@ -41,6 +41,8 @@ export interface ToolWeather {
 // für die Marker auf dem Globus und die Liste unter der Antwort.
 export interface ToolLodging {
   place: GlobeFocus;
+  // Suche auf Booking.com und Airbnb mit Ort, Daten und Personenzahl
+  searchLinks: { booking: string; airbnb: string };
   items: {
     name: string;
     lat: number;

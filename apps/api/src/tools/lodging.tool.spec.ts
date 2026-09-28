@@ -132,20 +132,64 @@ describe('search_lodging', () => {
   it(`gibt höchstens ${MAX_LODGING_ITEMS} Unterkünfte ans Modell`, async () => {
     overpass.lodgings.mockResolvedValue({
       available: true,
+      // Lange, realistische Namen mit Sternen
       data: Array.from({ length: 15 }, (_, i) => ({
-        ...HOSTEL,
-        name: `Hostel ${i}`,
+        ...SACHER,
+        name: `Austria Trend Hotel Schloss Wilhelminenberg ${i}`,
+        lat: 48.2081234 + i / 1000,
       })),
       cached: false,
     });
 
-    const output = await tool().execute({ place: 'Wien' }, context);
+    const output = await tool().execute(
+      {
+        place: 'Wien',
+        checkIn: '2026-10-02',
+        checkOut: '2026-10-05',
+        budgetPerNightEur: 150,
+      },
+      context,
+    );
 
     if (!('items' in output)) throw new Error('Fehler statt Ergebnis');
     expect(output.items).toHaveLength(MAX_LODGING_ITEMS);
     expect(output.cached).toBe(false);
     // Die Ausgabe passt in die Kürzung der Tool-Ergebnisse (2000 Zeichen)
     expect(JSON.stringify(output).length).toBeLessThan(2000);
+  });
+
+  it('baut Such-Links zu Booking.com und Airbnb mit Ort, Daten und Personen', async () => {
+    const output = await tool().execute(
+      {
+        place: 'wien',
+        checkIn: '2026-10-02',
+        checkOut: '2026-10-05',
+        guests: 3,
+      },
+      context,
+    );
+
+    // Der Ort kommt aus dem Geocoding ("Wien"), nicht aus der Eingabe
+    expect(output).toMatchObject({
+      searchLinks: {
+        booking:
+          'https://www.booking.com/searchresults.html?ss=Wien&checkin=2026-10-02&checkout=2026-10-05&group_adults=3&no_rooms=1',
+        airbnb:
+          'https://www.airbnb.de/s/Wien/homes?checkin=2026-10-02&checkout=2026-10-05&adults=3',
+      },
+    });
+  });
+
+  it('nimmt ohne Angaben 2 Personen und lässt die Daten weg', async () => {
+    const output = await tool().execute({ place: 'Wien' }, context);
+
+    expect(output).toMatchObject({
+      searchLinks: {
+        booking:
+          'https://www.booking.com/searchresults.html?ss=Wien&group_adults=2&no_rooms=1',
+        airbnb: 'https://www.airbnb.de/s/Wien/homes?adults=2',
+      },
+    });
   });
 
   it.each([
@@ -158,6 +202,9 @@ describe('search_lodging', () => {
     [{ place: 'Wien', checkIn: '2026-10-05', checkOut: '2026-10-05' }, /nach/],
     [{ place: 'Wien', checkIn: '2026-10-01', checkOut: '2026-12-01' }, /30/],
     [{ place: 'Wien', budgetPerNightEur: -5 }, /budgetPerNightEur/],
+    [{ place: 'Wien', guests: 0 }, /guests/],
+    [{ place: 'Wien', guests: 2.5 }, /guests/],
+    [{ place: 'Wien', guests: 40 }, /guests/],
   ])('lehnt ungültige Eingaben ab: %j', async (input, message) => {
     const output = await tool().execute(input, context);
 
@@ -190,7 +237,7 @@ describe('search_lodging', () => {
     expect(errorOf(output)).toMatch(/504.*ohne konkrete Unterkunft/);
   });
 
-  it('sagt ehrlich, wenn es keine Unterkünfte gibt, und meldet dann keine', async () => {
+  it('sagt ehrlich, wenn es keine Unterkünfte gibt, und meldet trotzdem die Such-Links', async () => {
     overpass.lodgings.mockResolvedValue({
       available: true,
       data: [],
@@ -202,7 +249,10 @@ describe('search_lodging', () => {
 
     expect(output).toMatchObject({ items: [] });
     expect((output as { note?: string }).note).toMatch(/keine Unterkünfte/);
-    expect(t.lodging!(output)).toBeUndefined();
+    expect(t.lodging!(output)).toMatchObject({
+      items: [],
+      searchLinks: { booking: expect.stringContaining('ss=Wien') as string },
+    });
   });
 
   it('liefert über die Hooks Cache-Status und die Unterkünfte für den Globus', async () => {

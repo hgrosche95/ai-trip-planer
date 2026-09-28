@@ -1,3 +1,5 @@
+import { DEFAULT_GUESTS, lodgingSearchLinks } from '../external/booking-links';
+import type { LodgingSearchLinks } from '../external/booking-links';
 import type { OpenMeteoClient } from '../external/open-meteo.client';
 import { daysBetween } from '../external/open-meteo.client';
 import type { LodgingKind, OverpassClient } from '../external/overpass.client';
@@ -10,6 +12,7 @@ interface LodgingInput {
   checkIn?: string;
   checkOut?: string;
   budgetPerNightEur?: number;
+  guests?: number;
 }
 
 export interface LodgingItem {
@@ -34,6 +37,9 @@ type LodgingOutput =
       // Woraus die Preise geschätzt sind, damit das Modell es erklären kann
       priceBasis: string;
       nights?: number;
+      // Suche mit Ort, Daten und Personen auf Booking.com und Airbnb: Dort
+      // stehen die echten Preise und die Verfügbarkeit
+      searchLinks: LodgingSearchLinks;
       items: LodgingItem[];
       cached: boolean;
     }
@@ -126,9 +132,10 @@ function normalize(name: string): string {
 }
 
 // Das Tool-Ergebnis geht gekürzt ans Modell (LLM_MAX_TOOL_RESULT_CHARS,
-// Standard 2000 Zeichen). 10 Einträge mit gerundeten Koordinaten passen
-// sicher hinein.
-export const MAX_LODGING_ITEMS = 10;
+// Standard 2000 Zeichen). 8 Einträge mit gerundeten Koordinaten passen
+// neben Hinweisen und Such-Links sicher hinein.
+export const MAX_LODGING_ITEMS = 8;
+const MAX_GUESTS = 16;
 const MAX_NIGHTS = 30;
 const ESTIMATE_NOTE =
   'Namen und Lage stammen aus OpenStreetMap. Preise geschätzt aus dem Preisniveau der Stadt und der Art der Unterkunft, keine echten Angebote und keine Verfügbarkeit. So auch dem Nutzer sagen.';
@@ -163,12 +170,24 @@ export function createLodgingTool(
             description:
               'Optional: Budget pro Nacht in Euro; passende Unterkünfte kommen zuerst',
           },
+          guests: {
+            type: 'integer',
+            description: `Optional: Anzahl Personen für die Such-Links, Standard ${DEFAULT_GUESTS}`,
+          },
         },
         required: ['place'],
       },
     },
-    execute: async ({ place, checkIn, checkOut, budgetPerNightEur }) => {
-      const invalid = validate(place, checkIn, checkOut, budgetPerNightEur);
+    execute: async ({
+      place,
+      checkIn,
+      checkOut,
+      budgetPerNightEur,
+      guests,
+    }) => {
+      const invalid =
+        validate(place, checkIn, checkOut, budgetPerNightEur) ??
+        validateGuests(guests);
       if (invalid) return { error: invalid };
 
       const geo = await geocoder.geocode(place);
@@ -215,15 +234,24 @@ export function createLodgingTool(
             : `In OpenStreetMap keine Unterkünfte mit Namen im Umkreis von ${LODGING_RADIUS_M / 1000} km gefunden. Plane ohne konkrete Unterkunft und sag das dem Nutzer.`,
         priceBasis: `${city ? `Preisniveau ${name}` : 'Europäischer Durchschnitt'} (${level.level} von 4): Mittelklasse-Hotel ca. ${level.hotelNightEur[0]}–${level.hotelNightEur[1]} € pro Nacht und Doppelzimmer, Hostel pro Bett`,
         ...(checkIn && checkOut && { nights: daysBetween(checkIn, checkOut) }),
+        // Vor den Einträgen, damit eine Kürzung eher Unterkünfte als Links trifft
+        searchLinks: lodgingSearchLinks({
+          city: name,
+          checkIn,
+          checkOut,
+          guests,
+        }),
         items: items.slice(0, MAX_LODGING_ITEMS),
         cached: geo.cached && lodgings.cached,
       };
     },
     cached: (output) => ('items' in output ? output.cached : undefined),
+    // Auch ohne Unterkünfte: Die Such-Links helfen dann erst recht
     lodging: (output): ToolLodging | undefined =>
-      'items' in output && output.items.length > 0
+      'items' in output
         ? {
             place: output.place,
+            searchLinks: output.searchLinks,
             items: output.items.map(
               ({ name, lat, lng, kind, priceMinEur, priceMaxEur }) => ({
                 name,
@@ -247,6 +275,16 @@ export function createLodgingTool(
           : { hasError: true },
     }),
   };
+}
+
+function validateGuests(guests: unknown): string | undefined {
+  if (guests === undefined) return undefined;
+  return typeof guests === 'number' &&
+    Number.isInteger(guests) &&
+    guests >= 1 &&
+    guests <= MAX_GUESTS
+    ? undefined
+    : `guests muss eine ganze Zahl von 1 bis ${MAX_GUESTS} sein.`;
 }
 
 function round4(value: number): number {

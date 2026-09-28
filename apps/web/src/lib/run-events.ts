@@ -48,6 +48,9 @@ export interface LodgingItem {
 
 export interface LodgingReport {
   place: GlobePoint;
+  // Suche auf Booking.com und Airbnb mit Ort, Daten und Personenzahl. Optional,
+  // weil ältere gespeicherte Läufe (Replay) sie noch nicht enthalten.
+  searchLinks?: { booking: string; airbnb: string };
   items: LodgingItem[];
 }
 
