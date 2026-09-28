@@ -64,6 +64,15 @@ export class RetryingLlmProvider implements LlmProvider {
         }
         const retryAfter = error.headers?.get('retry-after') ?? null;
         const delay = computeBackoffDelayMs(attempt, retryAfter);
+        // Verlangt der Anbieter eine lange Pause (z.B. Tageskontingent
+        // aufgebraucht, retry-after in Minuten), wartet der Chat nicht so
+        // lange, sondern meldet den Fehler sofort.
+        if (delay > MAX_DELAY_MS) {
+          this.logger.warn(
+            `Rate-Limit (429) mit retry-after ${retryAfter}s, gebe sofort auf`,
+          );
+          throw error;
+        }
         this.logger.warn(
           `Rate-Limit (429) erhalten, Versuch ${attempt + 1}/${this.maxRetries}, warte ${delay}ms`,
         );

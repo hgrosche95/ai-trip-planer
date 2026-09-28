@@ -4,6 +4,7 @@ import { AgentService } from './agent.service';
 import { ItinerariesModule } from './itineraries.module';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { AnthropicProvider } from './llm/anthropic.provider';
+import { FakeLlmProvider } from './llm/fake.provider';
 import { GroqProvider } from './llm/groq.provider';
 import { RetryingLlmProvider } from './llm/retrying-llm-provider';
 import {
@@ -25,6 +26,8 @@ import {
       // und beide SDK-Clients würden sofort einen gültigen API-Key verlangen,
       // selbst wenn nur einer der beiden Anbieter tatsächlich genutzt wird.
       useFactory: () => {
+        // Fake braucht weder Key noch Retry: feste Antworten ohne Tokens
+        if (process.env.LLM_PROVIDER === 'fake') return new FakeLlmProvider();
         const selected =
           process.env.LLM_PROVIDER === 'anthropic'
             ? new AnthropicProvider()
