@@ -23,7 +23,7 @@ describe('RunEventEmitter', () => {
     }
     events.emit('tool.finished', {
       stepId: 't',
-      tool: 'search_hotels',
+      tool: 'search_lodging',
       kind: 'tool',
       latencyMs: 5,
       ok: true,

@@ -43,6 +43,8 @@ export interface GlobeView {
   places: GlobePoint[];
   arcs: { from: [number, number]; to: [number, number] }[];
   route: GlobePoint[] | null;
+  // Unterkünfte als kleine Punkte ohne Beschriftung
+  pois: GlobePoint[];
 }
 
 // Was der Globus für einen Laufzustand zeigt, wie im Chat: alle gemeldeten
@@ -59,5 +61,13 @@ export function globeView(state: RunState): GlobeView {
       to: [to.lat, to.lng],
     })),
     route: state.stops.length > 0 ? state.stops : null,
+    pois: lodgingPoints(state),
   };
+}
+
+// Alle gemeldeten Unterkünfte als Punkte für den Globus
+export function lodgingPoints(state: RunState): GlobePoint[] {
+  return state.lodging.flatMap((report) =>
+    report.items.map(({ name, lat, lng }) => ({ name, lat, lng })),
+  );
 }

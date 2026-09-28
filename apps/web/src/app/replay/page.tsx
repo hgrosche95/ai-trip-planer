@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { authFetch } from '@/lib/auth';
+import LodgingList from '@/components/lodging-list';
 import ReplyMarkdown from '@/components/reply-markdown';
 import TracePanel from '@/components/trace-panel';
 import TripGlobe from '@/components/trip-globe';
@@ -163,7 +164,13 @@ function Replay() {
       )}
 
       <div aria-hidden="true" className="mx-auto mt-4 aspect-square w-full max-w-[22rem]">
-        <TripGlobe focus={globe.focus} places={globe.places} arcs={globe.arcs} route={globe.route} />
+        <TripGlobe
+          focus={globe.focus}
+          places={globe.places}
+          arcs={globe.arcs}
+          route={globe.route}
+          pois={globe.pois}
+        />
       </div>
 
       <div className="mt-4">
@@ -172,6 +179,9 @@ function Replay() {
             <TracePanel run={run} live />
             {run.weather.map((report) => (
               <WeatherStrip key={report.place.name} report={report} />
+            ))}
+            {run.lodging.map((report) => (
+              <LodgingList key={report.place.name} report={report} />
             ))}
           </>
         ) : (
@@ -189,6 +199,9 @@ function Replay() {
               )}
               {run.weather.map((report) => (
                 <WeatherStrip key={report.place.name} report={report} />
+              ))}
+              {run.lodging.map((report) => (
+                <LodgingList key={report.place.name} report={report} />
               ))}
               <TracePanel run={run} replayLink={false} />
             </div>

@@ -1,6 +1,7 @@
 import type {
   ChatSource,
   GlobePoint,
+  LodgingReport,
   RunEvent,
   RunTotals,
   WeatherReport,
@@ -35,6 +36,8 @@ export interface RunState {
   stops: GlobePoint[];
   // Wetter pro Ort, in der Reihenfolge der ersten Meldung
   weather: WeatherReport[];
+  // Unterkünfte pro Ort, wie beim Wetter
+  lodging: LodgingReport[];
   sources: ChatSource[];
   searchAttempted: boolean;
   reply?: string;
@@ -50,6 +53,7 @@ export function initialRunState(): RunState {
     routes: [],
     stops: [],
     weather: [],
+    lodging: [],
     sources: [],
     searchAttempted: false,
   };
@@ -102,18 +106,12 @@ export function applyRunEvent(state: RunState, event: RunEvent): RunState {
         : { ...state, places: [...state.places, event.data] };
     case 'route.added':
       return { ...state, routes: [...state.routes, event.data] };
-    case 'weather.updated': {
+    case 'weather.updated':
       // Fragt der Agent denselben Ort erneut ab (z. B. mit anderen Daten),
       // ersetzt der neue Bericht den alten an seiner Stelle
-      const name = event.data.place.name;
-      const exists = state.weather.some((report) => report.place.name === name);
-      return {
-        ...state,
-        weather: exists
-          ? state.weather.map((report) => (report.place.name === name ? event.data : report))
-          : [...state.weather, event.data],
-      };
-    }
+      return { ...state, weather: upsertByPlace(state.weather, event.data) };
+    case 'lodging.updated':
+      return { ...state, lodging: upsertByPlace(state.lodging, event.data) };
     case 'stops.updated':
       return { ...state, stops: event.data.stops };
     case 'sources':
@@ -131,6 +129,13 @@ export function applyRunEvent(state: RunState, event: RunEvent): RunState {
     default:
       return state;
   }
+}
+
+function upsertByPlace<T extends { place: GlobePoint }>(reports: T[], report: T): T[] {
+  const name = report.place.name;
+  return reports.some((entry) => entry.place.name === name)
+    ? reports.map((entry) => (entry.place.name === name ? report : entry))
+    : [...reports, report];
 }
 
 function addStep(state: RunState, step: TraceStep): RunState {

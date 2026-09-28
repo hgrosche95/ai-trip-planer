@@ -90,9 +90,7 @@ describe('AgentService', () => {
 
   it(`bricht die Tool-Schleife nach ${MAX_TOOL_ITERATIONS} Runden ab`, async () => {
     // Ein Modell, das nie aufhört, Tools aufzurufen
-    llm.chat.mockResolvedValue(
-      toolCallResult('search_hotels', { city: 'Wien' }),
-    );
+    llm.chat.mockResolvedValue(toolCallResult('search_lodging', { place: '' }));
 
     const result = await agent.sendMessage('user-a', 'session-1', 'Hallo');
 
@@ -429,6 +427,124 @@ describe('AgentService', () => {
       );
       const toolDone = received.find((event) => event.type === 'tool.finished');
       expect(toolDone?.data).toMatchObject({ ok: false });
+    });
+  });
+
+  describe('search_lodging und estimate_transport', () => {
+    const originalFetch = global.fetch;
+    let fetchMock: jest.Mock;
+
+    beforeEach(() => {
+      // Open-Meteo (Geokodierung) und Overpass gemockt, nach URL
+      fetchMock = jest.fn((url: string) => {
+        const place = url.includes('name=Berlin')
+          ? { name: 'Berlin', latitude: 52.52, longitude: 13.41 }
+          : { name: 'Wien', latitude: 48.21, longitude: 16.37 };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve(
+              url.includes('geocoding-api')
+                ? { results: [place] }
+                : {
+                    elements: [
+                      {
+                        type: 'node',
+                        lat: 48.2039,
+                        lon: 16.3699,
+                        tags: { tourism: 'hotel', name: 'Hotel Sacher' },
+                      },
+                    ],
+                  },
+            ),
+        });
+      });
+      global.fetch = fetchMock;
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('meldet Unterkünfte direkt nach dem Tool, vor dem nächsten LLM-Aufruf', async () => {
+      llm.chat
+        .mockResolvedValueOnce(
+          toolCallResult('search_lodging', { place: 'Wien' }),
+        )
+        .mockResolvedValueOnce(textResult('Hotel Sacher, ca. 90–170 €.'));
+      const received: RunEvent[] = [];
+
+      await agent.sendMessage(
+        'user-a',
+        'session-1',
+        'Hotels in Wien?',
+        new RunEventEmitter((event) => received.push(event)),
+      );
+
+      expect(received.map((event) => event.type)).toEqual([
+        'llm.started',
+        'llm.call',
+        'tool.started',
+        'tool.finished',
+        'lodging.updated',
+        'llm.started',
+        'llm.call',
+      ]);
+      const lodging = received.find(
+        (event) => event.type === 'lodging.updated',
+      );
+      expect(lodging?.data).toEqual({
+        place: { name: 'Wien', lat: 48.21, lng: 16.37 },
+        searchLinks: {
+          booking:
+            'https://www.booking.com/searchresults.html?ss=Wien&group_adults=2&no_rooms=1',
+          airbnb: 'https://www.airbnb.de/s/Wien/homes?adults=2',
+        },
+        items: [
+          {
+            name: 'Hotel Sacher',
+            lat: 48.2039,
+            lng: 16.3699,
+            kind: 'hotel',
+            priceMinEur: 90,
+            priceMaxEur: 170,
+          },
+        ],
+      });
+      // Das Modell bekommt die Schätzung als solche markiert
+      const toolMessage = (llm.chat.mock.calls[1] as [LlmMessage[]])[0].at(-1);
+      expect(toolMessage?.toolResults?.[0].content).toContain(
+        '"estimate":true',
+      );
+    });
+
+    it('zeichnet für die Anreise-Schätzung einen Bogen auf dem Globus', async () => {
+      llm.chat
+        .mockResolvedValueOnce(
+          toolCallResult('estimate_transport', {
+            origin: 'Berlin',
+            destination: 'Wien',
+          }),
+        )
+        .mockResolvedValueOnce(textResult('Mit der Bahn ca. 40–120 €.'));
+      const received: RunEvent[] = [];
+
+      await agent.sendMessage(
+        'user-a',
+        'session-1',
+        'Wie komme ich von Berlin nach Wien?',
+        new RunEventEmitter((event) => received.push(event)),
+      );
+
+      const route = received.find((event) => event.type === 'route.added');
+      expect(route?.data).toEqual({
+        from: { name: 'Berlin', lat: 52.52, lng: 13.41 },
+        to: { name: 'Wien', lat: 48.21, lng: 16.37 },
+      });
+      expect(received.some((event) => event.type === 'lodging.updated')).toBe(
+        false,
+      );
     });
   });
 
