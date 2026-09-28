@@ -26,7 +26,7 @@ test('Wissensfrage zu einem Reiseziel zeigt eine Quellenanzeige', async ({ page 
   // Bewusst nicht auf einen konkreten Dokumenttitel (z.B. "Lissabon")
   // geprüft: welche Quelle das Modell exakt zitiert, hängt davon ab, wie
   // es die Suchanfrage an search_travel_knowledge formuliert - das kann
-  // sich zwischen Groq (lokal) und Anthropic (CI) unterscheiden. Getestet
+  // sich zwischen Providern und von Lauf zu Lauf unterscheiden. Getestet
   // wird die Funktion (Quellenanzeige mit echtem Inhalt erscheint), nicht
   // die exakte Trefferwahl der Suche.
   await expect(sources.getByRole('listitem').first()).toBeVisible();
