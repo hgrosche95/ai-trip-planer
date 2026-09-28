@@ -59,6 +59,12 @@ jobs:
   e2e:
     needs: lint-test-build
     runs-on: ubuntu-latest
+    # Alle E2E-Läufe teilen sich einen Groq-Key mit Token-pro-Minute-Limit.
+    # Laufen zwei PRs gleichzeitig, bremsen sie sich mit 429-Wartezeiten
+    # gegenseitig in den Timeout - deshalb repo-weit nacheinander.
+    concurrency:
+      group: e2e-groq
+      cancel-in-progress: false
     services:
       postgres:
         image: pgvector/pgvector:0.8.6-pg16
