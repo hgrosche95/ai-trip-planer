@@ -101,7 +101,10 @@ resource ragContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
                 port: 8001
               }
               initialDelaySeconds: 5
-              periodSeconds: 10
+              // Alle 3 statt 10 s: Nach einem Kaltstart bekommt der Service
+              // erst Traffic, wenn die Probe ihn als bereit sieht. Bei 10 s
+              // wartete die erste Suche im Schnitt 5 s länger als nötig.
+              periodSeconds: 3
             }
             {
               type: 'liveness'

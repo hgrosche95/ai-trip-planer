@@ -44,8 +44,8 @@ Cloud-Deployment, das bei Nichtnutzung nichts kostet.
   MCP-Client nutzbar - stdio- und abgesicherter HTTP-Transport
 - **Tracing** jedes Agentenlaufs (Langfuse), bewusst ohne Freitext-Inhalte
 - **Automatisierte Qualitätsmessung**: ein Eval-Harness misst Retrieval-,
-  Tool-Genauigkeit und Resistenz gegen Prompt-Injection-Versuche gegen ein
-  festes Golden Dataset, nachts gegen Groq wiederholt, Report als CI-Artefakt
+  Tool-Genauigkeit, Belegtreue der Antworten und Resistenz gegen
+  Prompt-Injection-Versuche gegen ein festes Golden Dataset, nachts gegen Groq wiederholt, Report als CI-Artefakt
 - **Cloud-Deployment** (Azure, Infrastructure-as-Code) mit Scale-to-Zero -
   keine laufenden Kosten ohne Nutzung
 
@@ -159,6 +159,7 @@ Chat unter `http://localhost:3001`, gespeicherte Reisen unter
 ## Backend-Endpunkte (`apps/api`)
 
 - `GET /health` – prüft die Datenbankverbindung (offen, kein Login nötig – Azure Container Apps pingt das ungeachtet von Auth)
+- `POST /health/warmup` – weckt den RAG-Service, ohne auf ihn zu warten (offen, max. 5 pro Minute und IP, höchstens ein Weckruf pro Minute). Das Frontend ruft das beim Öffnen des Chats auf, damit der Kaltstart des auf 0 skalierten RAG-Containers läuft, während man noch tippt
 - `POST /auth/login` – Besitzer-Login (`AUTH_USERNAME`/`AUTH_PASSWORD_HASH`), Body: `{ "username": "...", "password": "..." }`, gibt bei Erfolg `{ "accessToken": "..." }` zurück. Max. 10 Versuche pro 15 Min und IP.
 - `POST /auth/guest` – legt einen anonymen Gastnutzer an und gibt `{ "accessToken": "..." }` zurück (30 Tage gültig). Max. 10 pro Stunde und IP.
 - `POST /agent/chat` 🔒 – Chat mit dem Reiseplaner-Agenten, Body: `{ "sessionId": "...", "message": "..." }` (`message` max. 2000 Zeichen). Max. 10 Nachrichten pro Minute und IP, max. 8 Tool-Runden pro Nachricht.

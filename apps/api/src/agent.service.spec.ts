@@ -1,7 +1,36 @@
-import { AgentService, MAX_TOOL_ITERATIONS } from './agent.service';
+import {
+  AgentService,
+  MAX_TOOL_ITERATIONS,
+  citedSources,
+} from './agent.service';
+import type { ChatSource } from './agent.service';
+import { searchTravelKnowledge } from './rag-client';
 import type { ItinerariesService } from './itineraries.service';
 import type { ConversationStore } from './llm/conversation-store';
 import type { LlmChatResult, LlmMessage } from './llm/llm-provider.interface';
+
+jest.mock('./rag-client', () => ({ searchTravelKnowledge: jest.fn() }));
+
+function hit(title: string, score: number) {
+  return {
+    content: `Inhalt aus ${title}`,
+    title,
+    source: 'Eigene Recherche',
+    license: 'Eigene Inhalte',
+    url: null,
+    score,
+  };
+}
+
+function source(title: string, score: number): ChatSource {
+  return {
+    title,
+    source: 'Eigene Recherche',
+    license: 'Eigene Inhalte',
+    url: null,
+    score,
+  };
+}
 
 function toolCallResult(
   name: string,
@@ -218,5 +247,53 @@ describe('AgentService', () => {
     const contents = calls[1][0].map((m) => m.content);
     expect(contents).toContain('Ich will nach Wien');
     expect(stored.get('user-a:session-1')).toHaveLength(4);
+  });
+
+  it('zeigt nur die Quellen, die die Antwort nennt', async () => {
+    jest.mocked(searchTravelKnowledge).mockResolvedValue({
+      available: true,
+      results: [
+        hit('Wien – Reiseziel-Überblick', 0.71),
+        hit('Berlin – Reiseziel-Überblick', 0.64),
+      ],
+    });
+    llm.chat
+      .mockResolvedValueOnce(
+        toolCallResult('search_travel_knowledge', { query: 'Essen in Wien' }),
+      )
+      .mockResolvedValueOnce(
+        textResult('Tafelspitz. *Quelle: „Wien – Reiseziel-Überblick“*'),
+      );
+
+    const result = await agent.sendMessage('user-a', 'session-1', 'Essen?');
+
+    expect(result.sources.map((s) => s.title)).toEqual([
+      'Wien – Reiseziel-Überblick',
+    ]);
+    expect(result.searchAttempted).toBe(true);
+  });
+});
+
+describe('citedSources', () => {
+  const wien = source('Wien – Reiseziel-Überblick', 0.71);
+  const berlin = source('Berlin – Reiseziel-Überblick', 0.64);
+
+  it('erkennt den Titel auch mit anderen Strichen und Anführungszeichen', () => {
+    expect(
+      citedSources([wien, berlin], 'Quelle: "Wien-Reiseziel-Überblick"'),
+    ).toEqual([wien]);
+  });
+
+  it('behält bei einem Vergleich alle genannten Quellen', () => {
+    const reply =
+      'Laut Wien – Reiseziel-Überblick … und laut Berlin – Reiseziel-Überblick …';
+    expect(citedSources([wien, berlin], reply)).toEqual([wien, berlin]);
+  });
+
+  it('lässt alle Treffer stehen, wenn die Antwort keine Quelle nennt', () => {
+    expect(citedSources([wien, berlin], 'Schnitzel und Tafelspitz.')).toEqual([
+      wien,
+      berlin,
+    ]);
   });
 });

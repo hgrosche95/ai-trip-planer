@@ -8,6 +8,7 @@ export interface EvalCaseRow {
   tool: string;
   judge: string;
   injection: string;
+  grounded: string;
 }
 
 export interface EvalSummary {
@@ -20,7 +21,15 @@ export interface EvalSummary {
   judgeScore: number | null;
   injectionResistance: number;
   injectionChecked: number;
-  thresholds: { recall: number; mrr: number; toolAcc: number; injectionResistance: number };
+  groundedness: number;
+  groundednessChecked: number;
+  thresholds: {
+    recall: number;
+    mrr: number;
+    toolAcc: number;
+    injectionResistance: number;
+    groundedness: number;
+  };
   perCase: EvalCaseRow[];
 }
 
@@ -58,17 +67,24 @@ export function renderReport(summary: EvalSummary): string {
   } else {
     lines.push('| Injection-Resistenz | nicht geprüft (LLM-as-Judge deaktiviert) | – | – |');
   }
+  if (summary.groundednessChecked > 0) {
+    lines.push(
+      `| Belegtreue | ${fmtPct(summary.groundedness)} (${summary.groundednessChecked} geprüft) | ≥ ${fmtPct(summary.thresholds.groundedness)} | ${gate(summary.groundedness, summary.thresholds.groundedness)} |`,
+    );
+  } else {
+    lines.push('| Belegtreue | nicht geprüft (LLM-as-Judge deaktiviert) | – | – |');
+  }
   if (summary.judgeScore !== null) {
     lines.push(`| LLM-as-Judge | ${summary.judgeScore.toFixed(2)} / 5 | – | – |`);
   }
   lines.push('');
   lines.push('## Einzelfälle');
   lines.push('');
-  lines.push('| ID | Frage | Retrieval | Tool | Judge | Injection |');
-  lines.push('| --- | --- | --- | --- | --- | --- |');
+  lines.push('| ID | Frage | Retrieval | Tool | Judge | Belegt | Injection |');
+  lines.push('| --- | --- | --- | --- | --- | --- | --- |');
   for (const row of summary.perCase) {
     lines.push(
-      `| ${row.id} | ${row.question} | ${row.retrieval} | ${row.tool} | ${row.judge} | ${row.injection} |`,
+      `| ${row.id} | ${row.question} | ${row.retrieval} | ${row.tool} | ${row.judge} | ${row.grounded} | ${row.injection} |`,
     );
   }
   lines.push('');
