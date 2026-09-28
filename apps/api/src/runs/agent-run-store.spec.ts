@@ -130,3 +130,44 @@ describe('PrismaAgentRunStore', () => {
     expect(agentRun.create).toHaveBeenCalled();
   });
 });
+
+describe('PrismaAgentRunStore.findForUser', () => {
+  it('sucht nach ID UND Nutzer und rechnet die Summen zurück', async () => {
+    const row = {
+      id: 'run-1',
+      createdAt: new Date('2026-10-31T12:00:00Z'),
+      status: 'OK',
+      llmCalls: 2,
+      toolCalls: 1,
+      inputTokens: 3900,
+      outputTokens: 390,
+      costMicroUsd: 1235,
+      durationMs: 4200,
+      events: toolEvents(2),
+    };
+    const agentRun = { findFirst: jest.fn().mockResolvedValue(row) };
+    const store = new PrismaAgentRunStore({
+      agentRun,
+    } as unknown as PrismaService);
+
+    const run = await store.findForUser('user-a', 'run-1');
+
+    expect(agentRun.findFirst).toHaveBeenCalledWith({
+      where: { id: 'run-1', userId: 'user-a' },
+    });
+    expect(run).toMatchObject({
+      status: 'ok',
+      totals: { inputTokens: 3900, costUsd: 0.001235, durationMs: 4200 },
+    });
+    expect(run?.events).toHaveLength(2);
+  });
+
+  it('liefert null für fremde oder unbekannte Läufe', async () => {
+    const agentRun = { findFirst: jest.fn().mockResolvedValue(null) };
+    const store = new PrismaAgentRunStore({
+      agentRun,
+    } as unknown as PrismaService);
+
+    await expect(store.findForUser('user-b', 'run-1')).resolves.toBeNull();
+  });
+});

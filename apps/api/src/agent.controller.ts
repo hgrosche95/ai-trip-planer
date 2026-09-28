@@ -5,8 +5,11 @@ import {
   Controller,
   HttpException,
   HttpStatus,
+  Get,
   Inject,
   Logger,
+  NotFoundException,
+  Param,
   Post,
   Res,
   UseGuards,
@@ -162,6 +165,17 @@ export class AgentController {
       createdAt,
       finishedAt: new Date(),
     });
+  }
+
+  // Ein gespeicherter Lauf zum erneuten Abspielen (/replay?run=<id>). Nur
+  // für den Eigentümer: message.completed enthält die Antwort auf seine
+  // Frage. Fremde und unbekannte IDs sind beide 404, damit sich nicht
+  // herausfinden lässt, welche IDs es gibt.
+  @Get('runs/:id')
+  async findRun(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    const run = await this.runStore.findForUser(user.userId, id);
+    if (!run) throw new NotFoundException('Lauf nicht gefunden');
+    return run;
   }
 
   // Ein fehlgeschlagenes Speichern kostet nur das Replay, nicht den Lauf:

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { Response } from 'express';
-import { HttpException } from '@nestjs/common';
+import { HttpException, NotFoundException } from '@nestjs/common';
 import { AgentController, toRunError } from './agent.controller';
 import type { AgentService } from './agent.service';
 import { InMemoryAgentRunStore } from './runs/agent-run-store';
@@ -286,6 +286,61 @@ describe('AgentController: Läufe speichern', () => {
     ).resolves.toBeUndefined();
     expect(eventTypes(res.written).at(-1)).toBe('run.finished');
     expect(res.ended).toBe(true);
+  });
+});
+
+describe('AgentController GET /agent/runs/:id', () => {
+  const owner = { userId: 'user-a', role: 'guest' } as const;
+  const stranger = { userId: 'user-b', role: 'guest' } as const;
+
+  async function storeWithRun() {
+    const store = new InMemoryAgentRunStore();
+    const res = fakeResponse();
+    await controller(
+      {
+        sendMessage: jest.fn().mockResolvedValue({
+          reply: 'Drei Tage Lissabon',
+          sources: [],
+          searchAttempted: false,
+        }),
+      },
+      store,
+    ).run(
+      owner,
+      { sessionId: 's1', message: 'Lissabon' },
+      res as unknown as Response,
+    );
+    const [runId] = store.runs.keys();
+    return { store, runId };
+  }
+
+  it('liefert dem Eigentümer Status, Summen und Ereignisse', async () => {
+    const { store, runId } = await storeWithRun();
+
+    const run = await controller({}, store).findRun(owner, runId);
+
+    expect(run).toMatchObject({ id: runId, status: 'ok' });
+    expect(run.totals).toHaveProperty('durationMs');
+    expect(run.events.map((event) => event.type)).toEqual([
+      'run.started',
+      'sources',
+      'message.completed',
+      'run.finished',
+    ]);
+  });
+
+  it('antwortet einem fremden Nutzer mit 404', async () => {
+    const { store, runId } = await storeWithRun();
+
+    await expect(
+      controller({}, store).findRun(stranger, runId),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('antwortet bei unbekannter ID mit 404', async () => {
+    await expect(
+      controller({}).findRun(owner, 'gibt-es-nicht'),
+    ).rejects.toMatchObject({ status: 404 });
   });
 });
 

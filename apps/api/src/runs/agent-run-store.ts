@@ -21,11 +21,23 @@ export interface FinishedAgentRun {
   finishedAt: Date;
 }
 
+// Was GET /agent/runs/:id liefert: genug, um den Lauf abzuspielen
+export interface StoredAgentRun {
+  id: string;
+  createdAt: Date;
+  status: 'running' | 'ok' | 'error' | 'aborted';
+  totals: RunTotals;
+  events: RunEvent[];
+}
+
 // Wo abgeschlossene Agentenläufe liegen. Eigene Schnittstelle wie beim
 // ConversationStore: Der Controller kennt Prisma nicht, und Tests nutzen
 // InMemoryAgentRunStore.
 export interface AgentRunStore {
   save(run: FinishedAgentRun): Promise<void>;
+  // null, wenn es den Lauf nicht gibt ODER er einem anderen Nutzer gehört:
+  // Die Ereignisse enthalten mit message.completed Nutzertext.
+  findForUser(userId: string, id: string): Promise<StoredAgentRun | null>;
 }
 
 // Ein Lauf hat realistisch 60 bis 150 Ereignisse (Plan 2.4). Die Grenze
@@ -88,6 +100,32 @@ export class PrismaAgentRunStore implements AgentRunStore {
     await this.deleteExpired();
   }
 
+  async findForUser(
+    userId: string,
+    id: string,
+  ): Promise<StoredAgentRun | null> {
+    // Nutzer in der Bedingung statt danach prüfen: Ein fremder Lauf ist
+    // von einem nicht vorhandenen nicht zu unterscheiden.
+    const run = await this.prisma.agentRun.findFirst({
+      where: { id, userId },
+    });
+    if (!run) return null;
+    return {
+      id: run.id,
+      createdAt: run.createdAt,
+      status: run.status.toLowerCase() as StoredAgentRun['status'],
+      totals: {
+        llmCalls: run.llmCalls,
+        toolCalls: run.toolCalls,
+        inputTokens: run.inputTokens,
+        outputTokens: run.outputTokens,
+        costUsd: run.costMicroUsd / 1_000_000,
+        durationMs: run.durationMs ?? 0,
+      },
+      events: run.events as unknown as RunEvent[],
+    };
+  }
+
   // Läufe enthalten mit message.completed die Antwort und damit indirekt,
   // was der Nutzer gefragt hat. Sie liegen deshalb nicht länger als die
   // Chat-Verläufe (CONVERSATION_RETENTION_DAYS, Default 30).
@@ -117,5 +155,17 @@ export class InMemoryAgentRunStore implements AgentRunStore {
   save(run: FinishedAgentRun): Promise<void> {
     this.runs.set(run.id, { ...run, events: capEvents(run.events) });
     return Promise.resolve();
+  }
+
+  findForUser(userId: string, id: string): Promise<StoredAgentRun | null> {
+    const run = this.runs.get(id);
+    if (!run || run.userId !== userId) return Promise.resolve(null);
+    return Promise.resolve({
+      id: run.id,
+      createdAt: run.createdAt,
+      status: run.status.toLowerCase() as StoredAgentRun['status'],
+      totals: run.totals,
+      events: run.events,
+    });
   }
 }
