@@ -5,8 +5,10 @@ import { ItinerariesModule } from './itineraries.module';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { AnthropicProvider } from './llm/anthropic.provider';
 import { FakeLlmProvider } from './llm/fake.provider';
-import { GroqProvider } from './llm/groq.provider';
+import { GroqProvider, resolveGroqModel } from './llm/groq.provider';
+import { RateLimitedLlmProvider } from './llm/rate-limited-llm-provider';
 import { RetryingLlmProvider } from './llm/retrying-llm-provider';
+import { TokenBudgetLimiter } from './llm/token-budget-limiter';
 import { EXTERNAL_CACHE, PrismaExternalCache } from './external/external-cache';
 import { AGENT_RUN_STORE, PrismaAgentRunStore } from './runs/agent-run-store';
 import {
@@ -32,11 +34,26 @@ import {
       useFactory: () => {
         // Fake braucht weder Key noch Retry: feste Antworten ohne Tokens
         if (process.env.LLM_PROVIDER === 'fake') return new FakeLlmProvider();
-        const selected =
-          process.env.LLM_PROVIDER === 'anthropic'
-            ? new AnthropicProvider()
-            : new GroqProvider();
-        return new RetryingLlmProvider(selected);
+        if (process.env.LLM_PROVIDER === 'anthropic') {
+          return new RetryingLlmProvider(new AnthropicProvider());
+        }
+        // Groq: Der Limiter sitzt INNEN, direkt am Provider, der Retry
+        // außen. So geht jede echte Anfrage an Groq, auch eine Wiederholung
+        // nach 429, durch die Budgetprüfung, und der Limiter lernt aus jeder
+        // Antwort unmittelbar. Das 429-Handling bleibt das Netz darunter,
+        // falls die Schätzung daneben liegt oder andere Instanzen dasselbe
+        // Budget verbraucht haben. LLM_RATE_LIMITER=off schaltet ihn ab.
+        const groq = new GroqProvider();
+        if (process.env.LLM_RATE_LIMITER === 'off') {
+          return new RetryingLlmProvider(groq);
+        }
+        return new RetryingLlmProvider(
+          new RateLimitedLlmProvider(
+            groq,
+            new TokenBudgetLimiter(),
+            resolveGroqModel,
+          ),
+        );
       },
     },
   ],
