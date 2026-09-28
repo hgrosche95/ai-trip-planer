@@ -5,6 +5,8 @@ import {
 } from './agent.service';
 import type { ChatSource } from './agent.service';
 import { searchTravelKnowledge } from './rag-client';
+import { InMemoryExternalCache } from './external/external-cache';
+import { addDays } from './external/open-meteo.client';
 import type { ItinerariesService } from './itineraries.service';
 import type { ConversationStore } from './llm/conversation-store';
 import type { LlmChatResult, LlmMessage } from './llm/llm-provider.interface';
@@ -62,6 +64,7 @@ describe('AgentService', () => {
   let itineraries: { create: jest.Mock };
   let agent: AgentService;
   let stored: Map<string, LlmMessage[]>;
+  let externalCache: InMemoryExternalCache;
 
   beforeEach(() => {
     // Speicher im Arbeitsspeicher statt Prisma, wie ConversationStore es verlangt
@@ -76,10 +79,12 @@ describe('AgentService', () => {
     };
     llm = { chat: jest.fn() };
     itineraries = { create: jest.fn().mockResolvedValue({ id: 'plan-1' }) };
+    externalCache = new InMemoryExternalCache();
     agent = new AgentService(
       itineraries as unknown as ItinerariesService,
       llm,
       store,
+      externalCache,
     );
   });
 
@@ -242,6 +247,7 @@ describe('AgentService', () => {
       itineraries as unknown as ItinerariesService,
       llm,
       store,
+      externalCache,
     );
     await secondInstance.sendMessage('user-a', 'session-1', 'Im September');
 
@@ -291,6 +297,138 @@ describe('AgentService', () => {
     expect(toolDone?.data).toMatchObject({
       tool: 'show_destination_on_globe',
       ok: true,
+    });
+  });
+
+  describe('get_weather', () => {
+    const originalFetch = global.fetch;
+    // Relativ zu heute, damit der Test nicht mit dem Kalender altert
+    const today = new Date().toISOString().slice(0, 10);
+    const startDate = addDays(today, 2);
+    const endDate = addDays(today, 3);
+    let fetchMock: jest.Mock;
+
+    beforeEach(() => {
+      // Open-Meteo gemockt: Geokodierung und Tageswerte nach URL
+      fetchMock = jest.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve(
+              url.includes('geocoding-api')
+                ? {
+                    results: [
+                      { name: 'Lissabon', latitude: 38.72, longitude: -9.14 },
+                    ],
+                  }
+                : {
+                    daily: {
+                      time: [startDate, endDate],
+                      weather_code: [0, 63],
+                      temperature_2m_max: [24, 19],
+                      temperature_2m_min: [16, 14],
+                      precipitation_sum: [0, 12.5],
+                    },
+                  },
+            ),
+        }),
+      );
+      global.fetch = fetchMock;
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    const weatherCall = () =>
+      toolCallResult('get_weather', {
+        place: 'Lissabon',
+        startDate,
+        endDate,
+      });
+
+    it('meldet das Wetter direkt nach dem Tool, vor dem nächsten LLM-Aufruf', async () => {
+      llm.chat
+        .mockResolvedValueOnce(weatherCall())
+        .mockResolvedValueOnce(textResult('Tag 2 wird nass.'));
+      const received: RunEvent[] = [];
+
+      await agent.sendMessage(
+        'user-a',
+        'session-1',
+        'Wetter in Lissabon?',
+        new RunEventEmitter((event) => received.push(event)),
+      );
+
+      expect(received.map((event) => event.type)).toEqual([
+        'llm.started',
+        'llm.call',
+        'tool.started',
+        'tool.finished',
+        'weather.updated',
+        'llm.started',
+        'llm.call',
+      ]);
+      const weather = received.find(
+        (event) => event.type === 'weather.updated',
+      );
+      expect(weather?.data).toMatchObject({
+        place: { name: 'Lissabon', lat: 38.72, lng: -9.14 },
+        source: 'forecast',
+        days: [
+          { date: startDate, tMax: 24, precipMm: 0, label: 'Klar' },
+          { date: endDate, tMax: 19, precipMm: 12.5, label: 'Regen' },
+        ],
+      });
+      const toolDone = received.find((event) => event.type === 'tool.finished');
+      expect(toolDone?.data).toMatchObject({ ok: true, cached: false });
+    });
+
+    it('beantwortet einen zweiten gleichen Aufruf aus dem Cache', async () => {
+      llm.chat
+        .mockResolvedValueOnce(weatherCall())
+        .mockResolvedValueOnce(textResult('ok'))
+        .mockResolvedValueOnce(weatherCall())
+        .mockResolvedValueOnce(textResult('ok'));
+      const received: RunEvent[] = [];
+      const emitter = () =>
+        new RunEventEmitter((event) => received.push(event));
+
+      await agent.sendMessage('user-a', 'session-1', 'Wetter?', emitter());
+      await agent.sendMessage('user-a', 'session-1', 'Nochmal', emitter());
+
+      // Geokodierung + Vorhersage je einmal, der zweite Lauf kommt ohne Netz aus
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const finished = received.filter(
+        (event) => event.type === 'tool.finished',
+      );
+      expect(finished.map((event) => event.data)).toEqual([
+        expect.objectContaining({ cached: false }),
+        expect.objectContaining({ cached: true }),
+      ]);
+    });
+
+    it('meldet bei ausgefallenem Open-Meteo kein Wetter, aber einen Tool-Fehler', async () => {
+      fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+      llm.chat
+        .mockResolvedValueOnce(weatherCall())
+        .mockResolvedValueOnce(textResult('Wetter gerade nicht verfügbar.'));
+      const received: RunEvent[] = [];
+
+      const result = await agent.sendMessage(
+        'user-a',
+        'session-1',
+        'Wetter?',
+        new RunEventEmitter((event) => received.push(event)),
+      );
+
+      expect(result.reply).toBe('Wetter gerade nicht verfügbar.');
+      expect(received.some((event) => event.type === 'weather.updated')).toBe(
+        false,
+      );
+      const toolDone = received.find((event) => event.type === 'tool.finished');
+      expect(toolDone?.data).toMatchObject({ ok: false });
     });
   });
 

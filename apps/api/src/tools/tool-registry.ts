@@ -22,6 +22,21 @@ export interface GlobeRoute {
   to: GlobeFocus;
 }
 
+// Wetter pro Tag an einem Ort, für die Wetter-Chips im Frontend.
+export interface ToolWeather {
+  place: GlobeFocus;
+  // forecast = echte Vorhersage, climate = Vorjahreswerte als Anhaltspunkt
+  source: 'forecast' | 'climate';
+  days: {
+    date: string;
+    tMin: number;
+    tMax: number;
+    precipMm: number;
+    code: number;
+    label: string;
+  }[];
+}
+
 export interface ToolContext {
   userId: string;
 }
@@ -46,6 +61,11 @@ export interface AgentTool<TInput = unknown, TOutput = unknown> {
   // Bekommt auch die Eingabe, damit die Koordinaten nicht als Tool-Ausgabe
   // zurück ans Modell gehen müssen.
   route?(output: TOutput, input: TInput): GlobeFocus[] | undefined;
+  // true, wenn das Ergebnis aus dem Cache externer APIs kam. Die Timeline
+  // zeigt das an, damit eine auffällig kurze Laufzeit erklärt ist.
+  cached?(output: TOutput): boolean | undefined;
+  // Wetter pro Tag, falls das Tool welches liefert.
+  weather?(output: TOutput): ToolWeather | undefined;
   // Was im Trace landet. Ohne eigene Angabe nur, ob ein Fehler kam, nie die
   // Ausgabe selbst, weil die Nutzerdaten enthalten kann.
   trace?(output: TOutput): {
@@ -62,6 +82,8 @@ export interface ToolRun {
   focus?: GlobeFocus;
   route?: GlobeFocus[];
   flight?: GlobeRoute;
+  cached?: boolean;
+  weather?: ToolWeather;
 }
 
 export class ToolRegistry {
@@ -122,6 +144,8 @@ export class ToolRegistry {
       focus: tool.focus?.(output),
       route: tool.route?.(output, input),
       flight: tool.flight?.(output),
+      cached: tool.cached?.(output),
+      weather: tool.weather?.(output),
     };
   }
 }

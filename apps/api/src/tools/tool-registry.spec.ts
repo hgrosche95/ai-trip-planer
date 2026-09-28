@@ -1,3 +1,4 @@
+import { InMemoryExternalCache } from '../external/external-cache';
 import type { ItinerariesService } from '../itineraries.service';
 import { createAgentTools } from './index';
 import { ToolRegistry } from './tool-registry';
@@ -73,13 +74,17 @@ describe('ToolRegistry', () => {
 
 describe('createAgentTools', () => {
   it('registriert alle Tools des Chat-Agenten', () => {
-    const registry = createAgentTools({} as ItinerariesService);
+    const registry = createAgentTools(
+      {} as ItinerariesService,
+      new InMemoryExternalCache(),
+    );
 
     expect(registry.definitions().map((d) => d.name)).toEqual([
       'search_travel_knowledge',
       'search_flights',
       'search_hotels',
       'show_destination_on_globe',
+      'get_weather',
       'save_itinerary',
     ]);
   });

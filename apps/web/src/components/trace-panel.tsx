@@ -10,6 +10,7 @@ const TOOL_LABELS: Record<string, string> = {
   search_flights: 'Flüge suchen',
   search_hotels: 'Hotels suchen',
   show_destination_on_globe: 'Ziel auf dem Globus zeigen',
+  get_weather: 'Wetter abrufen',
   save_itinerary: 'Reiseplan speichern',
 };
 
@@ -47,6 +48,8 @@ function stepDetails(step: TraceStep) {
   if (step.hits !== undefined) {
     parts.push(`${step.hits} Treffer`);
   }
+  // Zeigt, warum ein Aufruf externer APIs nur wenige Millisekunden dauerte
+  if (step.cached) parts.push('Cache');
   if (step.costUsd) parts.push(formatCost(step.costUsd));
   if (step.latencyMs !== undefined) parts.push(formatMs(step.latencyMs));
   return parts.join(' · ');

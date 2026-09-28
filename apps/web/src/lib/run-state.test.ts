@@ -101,3 +101,47 @@ test('markiert fehlgeschlagene Tools und Laufabbrüche', () => {
   assert.equal(state.status, 'error');
   assert.equal(state.error, 'Zu viele Anfragen');
 });
+
+test('sammelt Wetter pro Ort, ein erneuter Bericht ersetzt den alten', () => {
+  const report = (tMax: number): RunEvent => ({
+    type: 'weather.updated',
+    seq: 1,
+    elapsedMs: 10,
+    data: {
+      place: { name: 'Lissabon', lat: 38.72, lng: -9.14 },
+      source: 'forecast',
+      days: [{ date: '2026-10-03', tMin: 15, tMax, precipMm: 0, code: 0, label: 'Klar' }],
+    },
+  });
+  const porto: RunEvent = {
+    type: 'weather.updated',
+    seq: 2,
+    elapsedMs: 20,
+    data: { place: { name: 'Porto', lat: 41.15, lng: -8.61 }, source: 'climate', days: [] },
+  };
+
+  const state = [report(22), porto, report(25)].reduce(applyRunEvent, initialRunState());
+
+  assert.deepEqual(
+    state.weather.map((entry) => [entry.place.name, entry.source]),
+    [
+      ['Lissabon', 'forecast'],
+      ['Porto', 'climate'],
+    ],
+  );
+  assert.equal(state.weather[0].days[0].tMax, 25);
+});
+
+test('merkt sich Cache-Treffer eines Tools', () => {
+  const state = [
+    { type: 'tool.started', seq: 1, elapsedMs: 1, data: { stepId: 'w1', tool: 'get_weather' } },
+    {
+      type: 'tool.finished',
+      seq: 2,
+      elapsedMs: 3,
+      data: { stepId: 'w1', tool: 'get_weather', kind: 'tool', latencyMs: 2, ok: true, cached: true },
+    },
+  ].reduce((current, event) => applyRunEvent(current, event as RunEvent), initialRunState());
+
+  assert.equal(state.steps[0].cached, true);
+});

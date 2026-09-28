@@ -141,3 +141,19 @@ model Conversation {
   @@unique([userId, sessionId])
   @@index([updatedAt])
 }
+
+// Zwischenspeicher für Antworten externer APIs (Open-Meteo, später Overpass,
+// Frankfurter). Die Gratis-APIs haben Rate-Limits und schwankende Latenz,
+// und ein zweiter gleicher Aufruf (Folgefrage, Eval-Lauf) soll dieselben
+// Daten liefern. In der Datenbank statt im Arbeitsspeicher, damit alle
+// Instanzen und jede nach einem Kaltstart denselben Cache sehen.
+// key ist z. B. "open-meteo:forecast:38.72,-9.14:2026-10-03:2026-10-06".
+model ExternalApiCache {
+  key       String   @id
+  provider  String
+  payload   Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
