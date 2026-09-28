@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled: damit das Label e2e-real-llm (siehe e2e-Job) sofort einen Lauf
+    # startet
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      real_llm:
+        description: 'E2E gegen das echte Groq statt Fake-LLM (verbraucht Groq-Kontingent)'
+        type: boolean
+        default: false
 
 jobs:
   lint-test-build:
@@ -59,12 +68,6 @@ jobs:
   e2e:
     needs: lint-test-build
     runs-on: ubuntu-latest
-    # Alle E2E-Läufe teilen sich einen Groq-Key mit Token-pro-Minute-Limit.
-    # Laufen zwei PRs gleichzeitig, bremsen sie sich mit 429-Wartezeiten
-    # gegenseitig in den Timeout - deshalb repo-weit nacheinander.
-    concurrency:
-      group: e2e-groq
-      cancel-in-progress: false
     services:
       postgres:
         image: pgvector/pgvector:0.8.6-pg16
@@ -81,10 +84,15 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://trip_planner:trip_planner@localhost:5432/trip_planner?schema=public
-      # Groq wie in nightly-eval.yml (kostenloses Tier) - mit Anthropic scheiterte
-      # der Job, sobald das Guthaben des Accounts aufgebraucht war.
-      LLM_PROVIDER: groq
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      # Fake-LLM mit festen Antworten statt Groq: jeder Lauf verbrauchte sonst
+      # 20-40k Tokens vom selben Groq-Kontingent, das auch die deployte App
+      # nutzt, und riss es an aktiven Tagen. Getestet wird hier die Kette
+      # Frontend -> API -> Tools -> Postgres/RAG; wie gut das echte Modell
+      # plant, prüft nightly-eval.yml.
+      # Bei Bedarf gegen das echte Groq: PR-Label e2e-real-llm setzen oder
+      # den Workflow manuell mit real_llm starten.
+      LLM_PROVIDER: ${{ (contains(github.event.pull_request.labels.*.name, 'e2e-real-llm') || inputs.real_llm) && 'groq' || 'fake' }}
+      GROQ_API_KEY: ${{ (contains(github.event.pull_request.labels.*.name, 'e2e-real-llm') || inputs.real_llm) && secrets.GROQ_API_KEY || '' }}
       NEXT_PUBLIC_API_URL: http://localhost:3000
       # services: kann nur fertige Images ziehen, nicht aus einem lokalen
       # Dockerfile bauen - der RAG-Service wird deshalb weiter unten per

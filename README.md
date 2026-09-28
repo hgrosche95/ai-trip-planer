@@ -90,7 +90,7 @@ beiden aktiv entwickelten Apps).
 | Agent-Fähigkeiten extern | MCP-Server | Macht dieselbe Tool-Logik ohne Duplikation auch außerhalb des eigenen Frontends nutzbar (Claude Code, Claude Desktop, ...) |
 | Observability | Langfuse (OpenTelemetry-basiertes SDK) | Anbieterneutral instrumentiert (Groq **und** Anthropic), sauber deaktiviert ohne Account |
 | Qualitätsmessung | Eigener Eval-Harness (Recall@k, MRR, Tool-Genauigkeit) | Ohne Messung ist RAG-Qualität eine Meinung - Grundlage für ein CI-Gate |
-| E2E-Tests | Playwright | Prüft den kompletten Flow gegen den echten Agenten, nicht nur einzelne Komponenten |
+| E2E-Tests | Playwright | Prüft den kompletten Flow über alle Komponenten, in CI mit Fake-LLM statt echtem Agenten |
 | Infrastruktur | Bicep, Azure Container Apps | Scale-to-Zero passt zu unregelmäßiger Portfolio-Nutzung; Infrastructure-as-Code statt Klick-Ops |
 
 ## Eval-Ergebnisse
@@ -124,7 +124,9 @@ In `apps/api/.env` ausfüllen:
 - **LLM-Provider:** Standardmäßig `LLM_PROVIDER=groq` mit kostenlosem
   `GROQ_API_KEY` ([console.groq.com/keys](https://console.groq.com/keys);
   Free Tier: 30 Requests/Minute, ca. 1.000/Tag, 8.000 Tokens/Minute).
-  Alternativ `LLM_PROVIDER=anthropic` mit `ANTHROPIC_API_KEY`.
+  Alternativ `LLM_PROVIDER=anthropic` mit `ANTHROPIC_API_KEY`. Für
+  Arbeit an der Oberfläche ohne Key und ohne Groq-Kontingent:
+  `LLM_PROVIDER=fake` (feste Antworten, plant immer einen Beispiel-Trip).
 - **Login-Zugangsdaten:**
   ```
   AUTH_USERNAME=dein-username
@@ -314,7 +316,7 @@ wichtigsten Entscheidungen im Überblick:
 
 ## E2E-Tests (`e2e`)
 
-Playwright-Test, der den kompletten Flow gegen den echten Chat-Agenten prüft (Backend, Frontend und Postgres müssen laufen). Der Test loggt sich zuerst ein, braucht dafür das Klartext-Gegenstück zu deinem `AUTH_PASSWORD_HASH` aus `apps/api/.env` (den Hash selbst kann man ja nicht zurückrechnen):
+Playwright-Test, der den kompletten Flow prüft (Backend, Frontend, Postgres und RAG-Service müssen laufen). In CI läuft das Backend mit `LLM_PROVIDER=fake`, damit die Tests kein Groq-Kontingent verbrauchen; lokal geht beides. Gegen das echte Groq laufen die CI-Tests nur auf Wunsch: Label `e2e-real-llm` am PR setzen oder `CI` unter *Actions → Run workflow* mit `real_llm` starten. Der Test loggt sich zuerst ein, braucht dafür das Klartext-Gegenstück zu deinem `AUTH_PASSWORD_HASH` aus `apps/api/.env` (den Hash selbst kann man ja nicht zurückrechnen):
 
 ```bash
 export E2E_AUTH_USERNAME=dein-username   # gleicher Wert wie AUTH_USERNAME
