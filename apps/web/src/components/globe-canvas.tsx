@@ -20,6 +20,9 @@ export interface GlobeCanvasProps {
   autoRotate?: boolean;
   // Ort, zu dem der Globus dreht und den er markiert
   focus?: GlobeFocus | null;
+  // Weitere Orte, die markiert werden (z. B. der Abreiseort), ohne dass die
+  // Kamera zu ihnen dreht
+  places?: GlobeFocus[];
   // Stationen einer Reise in Reihenfolge: werden markiert und mit Bögen
   // verbunden, die Kamera nimmt die ganze Route ins Bild. Hat Vorrang vor focus.
   route?: GlobeFocus[] | null;
@@ -107,6 +110,7 @@ export default function GlobeCanvas({
   arcs = [],
   autoRotate = true,
   focus = null,
+  places = [],
   route = null,
 }: GlobeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -141,8 +145,12 @@ export default function GlobeCanvas({
   const view = useMemo<PointOfView | null>(() => {
     if (route && route.length > 1) return viewForRoute(route);
     const target = route?.[0] ?? focus;
-    return target ? { lat: target.lat, lng: target.lng, altitude: ALTITUDE_FOCUS } : null;
-  }, [route, focus]);
+    if (!target) return null;
+    // Abreiseort und Ziel zusammen ins Bild, damit der Flugbogen ganz zu sehen ist
+    const others = route?.length ? [] : places.filter((place) => place.name !== target.name);
+    if (others.length > 0) return viewForRoute([...others, target]);
+    return { lat: target.lat, lng: target.lng, altitude: ALTITUDE_FOCUS };
+  }, [route, focus, places]);
 
   // Neues Ziel oder neue Route: Drehung stoppen und in 1,5 s heranzoomen.
   useEffect(() => {
@@ -165,10 +173,12 @@ export default function GlobeCanvas({
     };
   }, [wantsDetail]);
 
-  const markers = useMemo(
-    () => (route && route.length > 0 ? route : focus ? [focus] : []),
-    [route, focus],
-  );
+  // Ohne Route: das Ziel plus weitere Orte wie der Abreiseort, jeder Ort einmal
+  const markers = useMemo(() => {
+    if (route && route.length > 0) return route;
+    const all = focus ? [...places, focus] : places;
+    return all.filter((place, index) => all.findIndex((p) => p.name === place.name) === index);
+  }, [route, focus, places]);
   // Aufeinanderfolgende Stationen verbinden
   const routeArcs = useMemo<GlobeArc[]>(
     () =>
@@ -181,8 +191,9 @@ export default function GlobeCanvas({
     [hasRoute, route],
   );
   const allArcs = useMemo(() => [...arcs, ...routeArcs], [arcs, routeArcs]);
-  // Der pulsierende Ring nur am Start der Route, sonst flimmert es überall
-  const rings = markers.slice(0, 1);
+  // Der pulsierende Ring nur am Start der Route bzw. am Ziel, sonst flimmert
+  // es überall
+  const rings = hasRoute ? markers.slice(0, 1) : focus ? [focus] : markers.slice(0, 1);
   // Jede Station bekommt einen Punkt. Liegen Stationen zu nah beieinander
   // (z.B. Düsseldorf, Köln, Bonn), stünden ihre Namen übereinander: dann
   // trägt die erste Beschriftung die Namen der Nachbarn mit, statt dass die

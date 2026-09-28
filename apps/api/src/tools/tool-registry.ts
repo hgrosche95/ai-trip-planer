@@ -16,6 +16,12 @@ export interface GlobeFocus {
   lng: number;
 }
 
+// Strecke vom Abreiseort zum Ziel, als Bogen auf dem Globus.
+export interface GlobeRoute {
+  from: GlobeFocus;
+  to: GlobeFocus;
+}
+
 export interface ToolContext {
   userId: string;
 }
@@ -34,6 +40,8 @@ export interface AgentTool<TInput = unknown, TOutput = unknown> {
   sources?(output: TOutput): ChatSource[];
   // Ort, den das Frontend auf dem Globus zeigen soll, falls das Tool einen liefert.
   focus?(output: TOutput): GlobeFocus | undefined;
+  // Flugbogen vom Abreiseort zum Ziel, falls das Tool einen liefert.
+  flight?(output: TOutput): GlobeRoute | undefined;
   // Stationen einer Reise, die das Frontend als Route auf dem Globus zeigt.
   // Bekommt auch die Eingabe, damit die Koordinaten nicht als Tool-Ausgabe
   // zurück ans Modell gehen müssen.
@@ -53,6 +61,7 @@ export interface ToolRun {
   sources: ChatSource[];
   focus?: GlobeFocus;
   route?: GlobeFocus[];
+  flight?: GlobeRoute;
 }
 
 export class ToolRegistry {
@@ -112,10 +121,11 @@ export class ToolRegistry {
       sources: tool.sources?.(output) ?? [],
       focus: tool.focus?.(output),
       route: tool.route?.(output, input),
+      flight: tool.flight?.(output),
     };
   }
 }
 
-function hasError(output: unknown): boolean {
+export function hasError(output: unknown): boolean {
   return typeof output === 'object' && output !== null && 'error' in output;
 }

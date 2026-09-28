@@ -8,6 +8,8 @@ import { searchTravelKnowledge } from './rag-client';
 import type { ItinerariesService } from './itineraries.service';
 import type { ConversationStore } from './llm/conversation-store';
 import type { LlmChatResult, LlmMessage } from './llm/llm-provider.interface';
+import { RunEventEmitter } from './runs/run-event-emitter';
+import type { RunEvent } from './runs/run-events';
 
 jest.mock('./rag-client', () => ({ searchTravelKnowledge: jest.fn() }));
 
@@ -247,6 +249,49 @@ describe('AgentService', () => {
     const contents = calls[1][0].map((m) => m.content);
     expect(contents).toContain('Ich will nach Wien');
     expect(stored.get('user-a:session-1')).toHaveLength(4);
+  });
+
+  it('meldet jeden Schritt als Ereignis, Globus-Updates vor der Antwort', async () => {
+    llm.chat
+      .mockResolvedValueOnce(
+        toolCallResult('show_destination_on_globe', {
+          name: 'Lissabon',
+          lat: 38.72,
+          lng: -9.14,
+          origin: { name: 'Berlin', lat: 52.52, lng: 13.4 },
+        }),
+      )
+      .mockResolvedValueOnce(textResult('Los geht es!'));
+    const received: RunEvent[] = [];
+
+    await agent.sendMessage(
+      'user-a',
+      'session-1',
+      '3 Tage Lissabon ab Berlin',
+      new RunEventEmitter((event) => received.push(event)),
+    );
+
+    expect(received.map((event) => event.type)).toEqual([
+      'llm.started',
+      'llm.call',
+      'tool.started',
+      'tool.finished',
+      'place.added',
+      'route.added',
+      'place.added',
+      'llm.started',
+      'llm.call',
+    ]);
+    const route = received.find((event) => event.type === 'route.added');
+    expect(route?.data).toEqual({
+      from: { name: 'Berlin', lat: 52.52, lng: 13.4 },
+      to: { name: 'Lissabon', lat: 38.72, lng: -9.14 },
+    });
+    const toolDone = received.find((event) => event.type === 'tool.finished');
+    expect(toolDone?.data).toMatchObject({
+      tool: 'show_destination_on_globe',
+      ok: true,
+    });
   });
 
   it('zeigt nur die Quellen, die die Antwort nennt', async () => {

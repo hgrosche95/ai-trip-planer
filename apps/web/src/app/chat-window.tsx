@@ -4,22 +4,19 @@ import { useEffect, useState } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { authFetch } from '@/lib/auth';
-import Spinner from '@/components/spinner';
-import TripGlobe, { type GlobeFocus } from '@/components/trip-globe';
-
-interface ChatSource {
-  title: string;
-  source: string;
-  license: string;
-  url: string | null;
-  score: number;
-}
+import TracePanel from '@/components/trace-panel';
+import TripGlobe, { type GlobeArc, type GlobeFocus } from '@/components/trip-globe';
+import type { ChatSource } from '@/lib/run-events';
+import { applyRunEvent, initialRunState, type RunState } from '@/lib/run-state';
+import { readRunEvents } from '@/lib/sse';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   sources?: ChatSource[];
   searchAttempted?: boolean;
+  // Ablauf des Agenten, der zu dieser Antwort geführt hat
+  trace?: RunState;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -158,6 +155,10 @@ export default function ChatWindow() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [globeFocus, setGlobeFocus] = useState<GlobeFocus | null>(null);
+  const [globePlaces, setGlobePlaces] = useState<GlobeFocus[]>([]);
+  const [globeArcs, setGlobeArcs] = useState<GlobeArc[]>([]);
+  // Der gerade laufende Agentenlauf, wird mit jedem Ereignis aktualisiert
+  const [liveRun, setLiveRun] = useState<RunState | null>(null);
   const [globeRoute, setGlobeRoute] = useState<GlobeFocus[] | null>(null);
 
   // Weckt den RAG-Service beim Öffnen des Chats, damit sein Kaltstart läuft,
@@ -175,51 +176,90 @@ export default function ChatWindow() {
     setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
     setInput('');
     setIsLoading(true);
+    let run = initialRunState();
+    setLiveRun(run);
 
     try {
-      const response = await authFetch(`${API_URL}/agent/chat`, {
+      const response = await authFetch(`${API_URL}/agent/runs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
         body: JSON.stringify({ sessionId, message: userMessage }),
       });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`, { cause: response.status });
       }
-      const data = await response.json();
-      // Eine Route (gespeicherter Plan oder mehrere Ziele) bleibt stehen, bis
-      // ein neues einzelnes Ziel sie ablöst.
-      if (data.route?.length) {
-        setGlobeRoute(data.route);
-      } else if (data.focus) {
-        setGlobeRoute(null);
-      }
-      if (data.focus) {
-        setGlobeFocus(data.focus);
+
+      // Jedes Ereignis sofort verarbeiten: Timeline und Globus aktualisieren
+      // sich, während der Agent noch arbeitet. Meldet dieser Lauf neue Orte,
+      // ersetzen sie Marker und Bögen der vorigen Antwort; Folgefragen ohne
+      // neuen Ort lassen das Globusbild stehen.
+      let isFirstPlace = true;
+      for await (const event of readRunEvents(response)) {
+        run = applyRunEvent(run, event);
+        setLiveRun(run);
+        if (event.type === 'place.added') {
+          const { name, lat, lng, kind } = event.data;
+          if (isFirstPlace) {
+            isFirstPlace = false;
+            setGlobePlaces([]);
+            setGlobeArcs([]);
+          }
+          setGlobePlaces((prev) =>
+            prev.some((place) => place.name === name) ? prev : [...prev, { name, lat, lng }],
+          );
+          if (kind === 'destination') {
+            setGlobeFocus({ name, lat, lng });
+            // Ein neues Ziel löst eine ältere Route ab. Gehört das Ziel selbst
+            // zu einer Route, kommt die danach per stops.updated.
+            setGlobeRoute(null);
+          }
+        } else if (event.type === 'route.added') {
+          const { from, to } = event.data;
+          setGlobeArcs((prev) => [...prev, { from: [from.lat, from.lng], to: [to.lat, to.lng] }]);
+        } else if (event.type === 'stops.updated') {
+          setGlobeRoute(event.data.stops);
+        }
       }
 
+      if (run.status === 'error') {
+        throw new Error(run.error, { cause: 'run.error' });
+      }
+      if (run.reply === undefined) {
+        // Verbindung ist abgerissen, bevor die Antwort kam
+        throw new Error('Stream ohne Antwort beendet');
+      }
+      const finished = run;
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: data.reply,
-          sources: data.sources,
-          searchAttempted: data.searchAttempted,
+          content: finished.reply ?? '',
+          sources: finished.sources,
+          searchAttempted: finished.searchAttempted,
+          trace: finished,
         },
       ]);
     } catch (error) {
       // Kein Absturz und kein ewiger Spinner, wenn die API nicht erreichbar
       // ist oder mit einem Fehler antwortet: der Chat sagt es stattdessen.
+      // Ein run.error bringt seine eigene, verständliche Meldung mit.
+      const serverMessage =
+        error instanceof Error && error.cause === 'run.error' ? error.message : null;
       const tooManyRequests = error instanceof Error && error.cause === 429;
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: tooManyRequests
-            ? 'Gerade kommen zu viele Anfragen an. Warte kurz und versuch es dann noch einmal.'
-            : 'Der Reiseplaner ist gerade nicht erreichbar. Versuch es bitte gleich noch einmal.',
+          content:
+            serverMessage ??
+            (tooManyRequests
+              ? 'Gerade kommen zu viele Anfragen an. Warte kurz und versuch es dann noch einmal.'
+              : 'Der Reiseplaner ist gerade nicht erreichbar. Versuch es bitte gleich noch einmal.'),
+          trace: run,
         },
       ]);
     } finally {
+      setLiveRun(null);
       setIsLoading(false);
     }
   }
@@ -241,7 +281,7 @@ export default function ChatWindow() {
             : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 dark:opacity-60')
         }
       >
-        <TripGlobe focus={globeFocus} route={globeRoute} />
+        <TripGlobe focus={globeFocus} route={globeRoute} places={globePlaces} arcs={globeArcs} />
       </div>
       <div className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
         <div className="mb-4 flex flex-1 flex-col gap-4 overflow-y-auto">
@@ -267,16 +307,16 @@ export default function ChatWindow() {
                     sources={message.sources}
                     searchAttempted={message.searchAttempted}
                   />
+                  {message.trace && <TracePanel run={message.trace} />}
                 </div>
               </div>
             ),
           )}
 
-          {isLoading && (
-            <p className="flex items-center gap-2 text-sm font-semibold text-teal dark:text-teal-300">
-              <Spinner />
-              Plant deine Reise…
-            </p>
+          {liveRun && (
+            <div className="max-w-[92%]">
+              <TracePanel run={liveRun} live />
+            </div>
           )}
         </div>
 
