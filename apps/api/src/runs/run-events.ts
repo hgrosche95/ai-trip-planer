@@ -38,7 +38,10 @@ export interface RunEventPayloads {
   sources: { sources: ChatSource[]; searchAttempted: boolean };
   'message.completed': { text: string };
   'run.finished': { totals: RunTotals };
-  'run.error': { code: 'rate_limited' | 'internal'; message: string };
+  'run.error': {
+    code: 'rate_limited' | 'quota_exhausted' | 'internal';
+    message: string;
+  };
 }
 
 export type RunEventType = keyof RunEventPayloads;
