@@ -58,6 +58,8 @@ test('baut aus den Ereignissen Timeline, Globus-Daten und Antwort', () => {
   assert.equal(state.routes.length, 1);
   assert.equal(state.reply, 'Los geht es!');
   assert.equal(state.status, 'running');
+  // für den Link "Lauf erneut abspielen"
+  assert.equal(state.runId, 'run-1');
 });
 
 test('übernimmt die Stationen einer Route', () => {

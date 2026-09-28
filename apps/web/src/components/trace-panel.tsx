@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Spinner from '@/components/spinner';
 import type { RunState, TraceStep } from '@/lib/run-state';
@@ -118,8 +119,17 @@ function StartingHint() {
 
 // Zeigt, was der Agent gerade tut bzw. getan hat: jede Zeile ein LLM-Aufruf
 // oder Tool, mit Tokens, Kosten und Dauer. Während des Laufs offen, danach
-// als eingeklappter Abschnitt unter der Antwort.
-export default function TracePanel({ run, live = false }: { run: RunState; live?: boolean }) {
+// als eingeklappter Abschnitt unter der Antwort, dort mit Link zum erneuten
+// Abspielen (/replay), sobald der Lauf gespeichert ist.
+export default function TracePanel({
+  run,
+  live = false,
+  replayLink = true,
+}: {
+  run: RunState;
+  live?: boolean;
+  replayLink?: boolean;
+}) {
   if (live) {
     return (
       <div className="rounded-xl border border-rule bg-card px-3 py-2 text-sm" aria-live="polite">
@@ -150,6 +160,14 @@ export default function TracePanel({ run, live = false }: { run: RunState; live?
           <StepRow key={step.id} step={step} />
         ))}
       </ol>
+      {replayLink && run.runId && (
+        <Link
+          href={`/replay?run=${encodeURIComponent(run.runId)}`}
+          className="mt-1 inline-block font-mono text-[10px] uppercase tracking-widest text-teal hover:underline dark:text-teal-300"
+        >
+          ▶ Lauf erneut abspielen
+        </Link>
+      )}
     </details>
   );
 }
