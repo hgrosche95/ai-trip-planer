@@ -14,6 +14,7 @@ import type { Response } from 'express';
 import { AgentService } from './agent.service';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from './auth/current-user';
+import { MAX_RETRY_AFTER_S } from './llm/retrying-llm-provider';
 import { RunEventEmitter, formatSse } from './runs/run-event-emitter';
 import type { RunEventPayloads } from './runs/run-events';
 
@@ -145,11 +146,6 @@ function parseChatRequest(body: ChatRequest | undefined): ChatRequest {
   return { sessionId, message };
 }
 
-// Ab dieser Wartezeit ist nicht "zu viel auf einmal" das Problem, sondern
-// ein aufgebrauchtes Kontingent (z.B. Groqs Tageslimit, retry-after in
-// Minuten): "warte kurz" wäre dann irreführend.
-const QUOTA_RETRY_AFTER_S = 60;
-
 // Drei Fälle unterscheidet das Frontend. Die Fehlermeldung selbst bleibt im
 // Server-Log, damit keine Interna (Provider, Stacktrace) nach außen gehen.
 export function toRunError(error: unknown): RunEventPayloads['run.error'] {
@@ -163,7 +159,9 @@ export function toRunError(error: unknown): RunEventPayloads['run.error'] {
     };
   }
   const retryAfter = retryAfterSeconds(headers);
-  if (retryAfter !== undefined && retryAfter > QUOTA_RETRY_AFTER_S) {
+  // Über dieser Wartezeit hat RetryingLlmProvider gar nicht erst gewartet:
+  // Kontingent aufgebraucht, "warte kurz" wäre irreführend.
+  if (retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_S) {
     const minutes = Math.ceil(retryAfter / 60);
     return {
       code: 'quota_exhausted',
