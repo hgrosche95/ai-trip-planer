@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { AgentController } from './agent.controller';
 import { AgentService } from './agent.service';
 import { ItinerariesModule } from './itineraries.module';
+import { ItinerariesService } from './itineraries.service';
+import { Orchestrator, createOrchestrator } from './orchestrator/orchestrator';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { AnthropicProvider } from './llm/anthropic.provider';
 import { FakeLlmProvider } from './llm/fake.provider';
@@ -24,6 +26,18 @@ import {
     { provide: CONVERSATION_STORE, useClass: PrismaConversationStore },
     { provide: EXTERNAL_CACHE, useClass: PrismaExternalCache },
     { provide: AGENT_RUN_STORE, useClass: PrismaAgentRunStore },
+    // Multi-Agenten-Modus (AGENT_MODE=multi): dieselben Abhängigkeiten wie
+    // AgentService, die Agenten bekommen je eine eigene ToolRegistry
+    {
+      provide: Orchestrator,
+      useFactory: createOrchestrator,
+      inject: [
+        ItinerariesService,
+        LLM_PROVIDER,
+        CONVERSATION_STORE,
+        EXTERNAL_CACHE,
+      ],
+    },
     {
       provide: LLM_PROVIDER,
       // Bewusst mit `new` statt über Nest-DI erzeugt: würden AnthropicProvider

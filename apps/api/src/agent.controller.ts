@@ -20,6 +20,11 @@ import { AgentService } from './agent.service';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from './auth/current-user';
 import { MAX_RETRY_AFTER_S } from './llm/retrying-llm-provider';
+import {
+  Orchestrator,
+  RUN_TIMEOUT_MS,
+  agentMode,
+} from './orchestrator/orchestrator';
 import { RunEventEmitter, formatSse } from './runs/run-event-emitter';
 import type { RunEvent, RunEventPayloads } from './runs/run-events';
 import {
@@ -52,6 +57,7 @@ export class AgentController {
   constructor(
     private readonly agentService: AgentService,
     @Inject(AGENT_RUN_STORE) private readonly runStore: AgentRunStore,
+    private readonly orchestrator: Orchestrator,
   ) {}
 
   // Antwortet erst, wenn der Agent fertig ist, mit einem JSON. Bleibt für
@@ -75,7 +81,8 @@ export class AgentController {
     }
   }
 
-  // Derselbe Agent, aber jeder Schritt kommt sofort als Server-Sent Event.
+  // Derselbe Agent (bzw. mit AGENT_MODE=multi der Orchestrator mit Planer,
+  // Recherche und Budget), aber jeder Schritt kommt sofort als Server-Sent Event.
   // Der Stream läuft in DERSELBEN Antwort, die den Lauf startet: Bei bis zu
   // drei API-Instanzen könnte ein zweiter Request (z. B. GET /events) auf
   // einer anderen Instanz landen, die vom Lauf nichts weiß.
@@ -122,15 +129,25 @@ export class AgentController {
     const runId = randomUUID();
     const createdAt = new Date();
     let status: FinishedRunStatus = 'OK';
+    // Pro Lauf gelesen: Umschalten braucht nur einen Neustart mit anderer
+    // Umgebungsvariable, Tests setzen sie direkt
+    const mode = agentMode();
 
     try {
-      events.emit('run.started', { runId });
-      const result = await this.agentService.sendMessage(
-        user.userId,
-        sessionId,
-        message,
-        events,
-      );
+      events.emit('run.started', { runId, mode });
+      const result =
+        mode === 'multi'
+          ? await this.orchestrator.run(
+              { runId, userId: user.userId, sessionId, message },
+              (type, data) => events.emit(type, data),
+              AbortSignal.timeout(RUN_TIMEOUT_MS),
+            )
+          : await this.agentService.sendMessage(
+              user.userId,
+              sessionId,
+              message,
+              events,
+            );
       if (result.route) {
         events.emit('stops.updated', { stops: result.route });
       }

@@ -3,12 +3,21 @@ import type { Response } from 'express';
 import { HttpException, NotFoundException } from '@nestjs/common';
 import { AgentController, toRunError } from './agent.controller';
 import type { AgentService } from './agent.service';
+import type { Orchestrator } from './orchestrator/orchestrator';
 import { InMemoryAgentRunStore } from './runs/agent-run-store';
 import type { RunEventEmitter } from './runs/run-event-emitter';
 
 // Controller mit nachgebautem AgentService und Lauf-Speicher im Arbeitsspeicher
-function controller(service: object, store = new InMemoryAgentRunStore()) {
-  return new AgentController(service as unknown as AgentService, store);
+function controller(
+  service: object,
+  store = new InMemoryAgentRunStore(),
+  orchestrator: object = {},
+) {
+  return new AgentController(
+    service as unknown as AgentService,
+    store,
+    orchestrator as unknown as Orchestrator,
+  );
 }
 
 // Nachgebaute Express-Response: sammelt alles, was geschrieben wird.
@@ -371,5 +380,107 @@ describe('toRunError', () => {
     expect(
       toRunError({ status: 429, headers: { 'retry-after': '5' } }).code,
     ).toBe('rate_limited');
+  });
+});
+
+describe('AgentController AGENT_MODE', () => {
+  const user = { userId: 'user-a', role: 'guest' } as const;
+  const body = { sessionId: 's1', message: 'Lissabon' };
+  const original = process.env.AGENT_MODE;
+  afterEach(() => {
+    if (original === undefined) delete process.env.AGENT_MODE;
+    else process.env.AGENT_MODE = original;
+  });
+
+  function runStarted(sse: string) {
+    const line = sse.split('\n').find((l) => l.startsWith('data: '));
+    return (JSON.parse(line!.slice(6)) as { data: object }).data;
+  }
+
+  it('nutzt ohne Angabe den Classic-Agenten und meldet den Modus', async () => {
+    delete process.env.AGENT_MODE;
+    const service = {
+      sendMessage: jest.fn().mockResolvedValue({
+        reply: 'ok',
+        sources: [],
+        searchAttempted: false,
+      }),
+    };
+    const orchestrator = { run: jest.fn() };
+    const res = fakeResponse();
+
+    await controller(service, undefined, orchestrator).run(
+      user,
+      body,
+      res as unknown as Response,
+    );
+
+    expect(service.sendMessage).toHaveBeenCalled();
+    expect(orchestrator.run).not.toHaveBeenCalled();
+    expect(runStarted(res.written)).toMatchObject({ mode: 'classic' });
+  });
+
+  it('startet mit AGENT_MODE=multi den Orchestrator, dessen Ereignisse mitlaufen', async () => {
+    process.env.AGENT_MODE = 'multi';
+    const service = { sendMessage: jest.fn() };
+    const orchestrator = {
+      run: jest.fn(
+        (_input: unknown, emit: (type: string, data: unknown) => void) => {
+          emit('agent.started', {
+            stepId: 'a1',
+            agent: 'planner',
+            task: 'triage',
+          });
+          return Promise.resolve({
+            reply: 'Wohin?',
+            sources: [],
+            searchAttempted: false,
+          });
+        },
+      ),
+    };
+    const res = fakeResponse();
+
+    await controller(service, undefined, orchestrator).run(
+      user,
+      body,
+      res as unknown as Response,
+    );
+
+    expect(service.sendMessage).not.toHaveBeenCalled();
+    expect(orchestrator.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-a',
+        sessionId: 's1',
+        message: 'Lissabon',
+      }),
+      expect.any(Function),
+      expect.any(AbortSignal),
+    );
+    expect(runStarted(res.written)).toMatchObject({ mode: 'multi' });
+    expect(eventTypes(res.written)).toEqual([
+      'run.started',
+      'agent.started',
+      'sources',
+      'message.completed',
+      'run.finished',
+    ]);
+  });
+
+  it('POST /agent/chat bleibt auch mit AGENT_MODE=multi beim Classic-Agenten', async () => {
+    process.env.AGENT_MODE = 'multi';
+    const service = {
+      sendMessage: jest.fn().mockResolvedValue({
+        reply: 'ok',
+        sources: [],
+        searchAttempted: false,
+      }),
+    };
+    const orchestrator = { run: jest.fn() };
+
+    await controller(service, undefined, orchestrator).chat(user, body);
+
+    expect(service.sendMessage).toHaveBeenCalled();
+    expect(orchestrator.run).not.toHaveBeenCalled();
   });
 });
