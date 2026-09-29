@@ -93,6 +93,11 @@ jobs:
       # den Workflow manuell mit real_llm starten.
       LLM_PROVIDER: ${{ (contains(github.event.pull_request.labels.*.name, 'e2e-real-llm') || inputs.real_llm) && 'groq' || 'fake' }}
       GROQ_API_KEY: ${{ (contains(github.event.pull_request.labels.*.name, 'e2e-real-llm') || inputs.real_llm) && secrets.GROQ_API_KEY || '' }}
+      # Der Umschalter im Chat schickt standardmäßig mode=multi, das Fake-LLM
+      # kennt den Multi-Agenten-Modus aber nicht (docs/phase-3). Die Sperre
+      # hält E2E beim Classic-Agenten, egal was das Frontend wählt.
+      AGENT_MODE: classic
+      AGENT_MODE_LOCKED: 'true'
       NEXT_PUBLIC_API_URL: http://localhost:3000
       # services: kann nur fertige Images ziehen, nicht aus einem lokalen
       # Dockerfile bauen - der RAG-Service wird deshalb weiter unten per

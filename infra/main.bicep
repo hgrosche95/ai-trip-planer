@@ -45,6 +45,16 @@ param authPasswordHash string
 @secure()
 param jwtSecret string
 
+@description('Server-Default für POST /agent/runs: classic (ein Agent) oder multi (Planer, Recherche, Budget). Gilt, wenn der Client keinen Modus schickt.')
+@allowed([
+  'classic'
+  'multi'
+])
+param agentMode string = 'classic'
+
+@description('Notbremse: true erzwingt agentMode und ignoriert den Umschalter im Chat.')
+param agentModeLocked bool = false
+
 // psycopg (RAG-Service) kennt Prisma-Query-Parameter wie ?schema=public nicht
 // (derselbe Fix wie im e2e-CI-Job) - einmalig hier statt im aufrufenden
 // Workflow abgeschnitten, weil beide Container denselben databaseUrl-Parameter
@@ -84,6 +94,8 @@ module containerApp 'modules/container-app.bicep' = {
     authUsername: authUsername
     authPasswordHash: authPasswordHash
     jwtSecret: jwtSecret
+    agentMode: agentMode
+    agentModeLocked: agentModeLocked
   }
 }
 

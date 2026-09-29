@@ -24,9 +24,11 @@ import {
   Orchestrator,
   RUN_TIMEOUT_MS,
   agentMode,
+  agentModeLocked,
+  resolveAgentMode,
 } from './orchestrator/orchestrator';
 import { RunEventEmitter, formatSse } from './runs/run-event-emitter';
-import type { RunEvent, RunEventPayloads } from './runs/run-events';
+import type { AgentMode, RunEvent, RunEventPayloads } from './runs/run-events';
 import {
   AGENT_RUN_STORE,
   type AgentRunStore,
@@ -38,6 +40,13 @@ interface ChatRequest {
   sessionId: string;
   message: string;
 }
+
+// POST /agent/runs darf zusätzlich den Modus wählen (Umschalter im Chat)
+interface RunRequest extends ChatRequest {
+  mode?: AgentMode;
+}
+
+const AGENT_MODES: readonly AgentMode[] = ['classic', 'multi'];
 
 // Jede Nachricht kostet LLM-Tokens (bei LLM_PROVIDER=anthropic echtes Geld),
 // deshalb Token-Pflicht (Gäste bekommen es automatisch), Rate-Limit und
@@ -60,8 +69,15 @@ export class AgentController {
     private readonly orchestrator: Orchestrator,
   ) {
     // Einmal beim Start ins Log, damit man lokal wie in Azure sofort sieht,
-    // welcher Agent die Chats beantwortet (AGENT_MODE in apps/api/.env).
-    this.logger.log(`Agentenmodus für POST /agent/runs: ${agentMode()}`);
+    // welcher Agent die Chats beantwortet (AGENT_MODE in apps/api/.env) und
+    // ob Clients ihn per Umschalter wählen dürfen (AGENT_MODE_LOCKED).
+    this.logger.log(
+      `Agentenmodus für POST /agent/runs: ${agentMode()} (${
+        agentModeLocked()
+          ? 'gesperrt, Wahl des Clients wird ignoriert'
+          : 'Default, Client kann per mode wählen'
+      })`,
+    );
   }
 
   // Antwortet erst, wenn der Agent fertig ist, mit einem JSON. Bleibt für
@@ -85,8 +101,9 @@ export class AgentController {
     }
   }
 
-  // Derselbe Agent (bzw. mit AGENT_MODE=multi der Orchestrator mit Planer,
+  // Derselbe Agent (bzw. mit mode 'multi' der Orchestrator mit Planer,
   // Recherche und Budget), aber jeder Schritt kommt sofort als Server-Sent Event.
+  // Ohne mode im Body gilt AGENT_MODE, mit AGENT_MODE_LOCKED=true immer.
   // Der Stream läuft in DERSELBEN Antwort, die den Lauf startet: Bei bis zu
   // drei API-Instanzen könnte ein zweiter Request (z. B. GET /events) auf
   // einer anderen Instanz landen, die vom Lauf nichts weiß.
@@ -94,12 +111,13 @@ export class AgentController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async run(
     @CurrentUser() user: AuthUser,
-    @Body() body: ChatRequest,
+    @Body() body: RunRequest,
     @Res() res: Response,
   ): Promise<void> {
     // Vor dem ersten Byte prüfen: Ungültige Anfragen bekommen so noch eine
     // normale 400 statt eines Streams.
     const { sessionId, message } = parseChatRequest(body);
+    const requestedMode = parseMode(body?.mode);
 
     res.status(200);
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -133,9 +151,10 @@ export class AgentController {
     const runId = randomUUID();
     const createdAt = new Date();
     let status: FinishedRunStatus = 'OK';
-    // Pro Lauf gelesen: Umschalten braucht nur einen Neustart mit anderer
-    // Umgebungsvariable, Tests setzen sie direkt
-    const mode = agentMode();
+    // Pro Lauf gelesen: Default und Notbremse brauchen nur einen Neustart mit
+    // anderer Umgebungsvariable, Tests setzen sie direkt. run.started meldet
+    // den tatsächlich genutzten Modus.
+    const mode = resolveAgentMode(requestedMode);
 
     try {
       events.emit('run.started', { runId, mode });
@@ -229,6 +248,16 @@ function parseChatRequest(body: ChatRequest | undefined): ChatRequest {
     );
   }
   return { sessionId, message };
+}
+
+// mode ist optional; alles außer 'classic' und 'multi' ist ein Fehler, damit
+// ein Tippfehler im Client nicht still beim Default landet.
+function parseMode(mode: unknown): AgentMode | undefined {
+  if (mode === undefined || mode === null) return undefined;
+  if (typeof mode === 'string' && AGENT_MODES.includes(mode as AgentMode)) {
+    return mode as AgentMode;
+  }
+  throw new BadRequestException("mode muss 'classic' oder 'multi' sein");
 }
 
 // Drei Fälle unterscheidet das Frontend. Die Fehlermeldung selbst bleibt im

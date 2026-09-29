@@ -80,8 +80,20 @@ Replikas bleibt 429 deshalb möglich. Abschalten mit `LLM_RATE_LIMITER=off`
 über den Orchestrator laufen (Planer, Recherche, Budget). Recherche und Budget
 brauchen kein LLM, ein vollständiger Lauf macht 3 Aufrufe (triage, compose,
 final; höchstens 4 mit Reparaturversuch) mit zusammen etwa 5.000–5.500 Tokens,
-eine Rückfrage 1 Aufruf. Standard ist `classic`. Details und Token-Rechnung:
+eine Rückfrage 1 Aufruf. Details und Token-Rechnung:
 [`phase-3/README.md`](phase-3/README.md).
+
+Der Modus ist pro Anfrage wählbar (Umschalter im Chat, Default dort
+Multi-Agent). Deployt wird der Server-Default über den Bicep-Parameter
+`agentMode` (in `infra/main.parameters.json`: `multi`; ohne Eintrag
+`classic`), er gilt für Clients ohne `mode`. **Notbremse**, falls der
+Multi-Modus live Probleme macht: `agentModeLocked: true` in
+`main.parameters.json` zusammen mit `agentMode: classic` erzwingt den
+Classic-Agenten für alle Anfragen, egal was der Umschalter schickt. Schneller
+ohne Deploy geht es mit
+`az containerapp update -n <namePrefix>-api -g <resource-group> --set-env-vars AGENT_MODE=classic AGENT_MODE_LOCKED=true`
+(neue Revision, kein Image-Build); der nächste Deploy setzt dann wieder die
+Werte aus den Parametern, deshalb dort nachziehen.
 
 **Fallback für eine wichtige Demo:** `LLM_PROVIDER=anthropic` in der
 Container-App-Konfiguration umschalten (Secret `ANTHROPIC_API_KEY` ist
