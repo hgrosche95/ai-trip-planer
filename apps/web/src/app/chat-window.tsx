@@ -253,6 +253,10 @@ export default function ChatWindow() {
   // danach rückt er ganz sichtbar an den rechten Rand, damit der Chat lesbar bleibt.
   // Nur Position und Deckkraft animieren: eine Größenänderung würde die
   // WebGL-Fläche in jedem Frame neu aufbauen.
+  // Fest am Browserfenster (fixed) statt am Chat-Bereich: Der wächst mit jeder
+  // Antwort, ein daran zentrierter Globus rutschte sonst nach unten und
+  // verschwand beim Scrollen aus dem Blick. Die Mitte liegt 1,5rem unter der
+  // Fenstermitte, also in der Mitte der Fläche unter der Navigationsleiste.
   const hasStarted = messages.length > 0 || isLoading;
   // Welche Antwort den neuesten Entwurf trägt ("Plan speichern")
   const versions = draftVersions(messages.map((message) => message.trace));
@@ -262,10 +266,10 @@ export default function ChatWindow() {
       <div
         aria-hidden="true"
         className={
-          'pointer-events-none absolute size-[min(36rem,100vw)] transition-all duration-1000 ease-in-out motion-reduce:transition-none ' +
+          'pointer-events-none fixed top-[calc(50%_+_1.5rem)] size-[min(36rem,100vw)] -translate-y-1/2 transition-all duration-1000 ease-in-out motion-reduce:transition-none ' +
           (hasStarted
-            ? 'top-1/2 left-[calc(100%_-_min(36rem,100vw)_-_1.5rem)] translate-x-0 -translate-y-1/2 opacity-40 sm:opacity-90'
-            : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 dark:opacity-60')
+            ? 'left-[calc(100%_-_min(36rem,100vw)_-_1.5rem)] translate-x-0 opacity-40 sm:opacity-90'
+            : 'left-1/2 -translate-x-1/2 opacity-40 dark:opacity-60')
         }
       >
         <TripGlobe
