@@ -261,7 +261,8 @@ test('übernimmt den Entwurf aus itinerary.draft, ohne etwas anderes zu ändern'
     data: { itinerary, assumptions: ['1 Person'] },
   });
 
-  assert.deepEqual(state.draft, { itinerary, assumptions: ['1 Person'] });
+  // Ohne revision (Läufe vor den Überarbeitungen): Fassung 1
+  assert.deepEqual(state.draft, { itinerary, assumptions: ['1 Person'], revision: 1 });
   assert.equal(state.status, 'running');
   assert.equal(state.lastMs, 900);
   assert.deepEqual(state.stops, []);
@@ -270,4 +271,29 @@ test('übernimmt den Entwurf aus itinerary.draft, ohne etwas anderes zu ändern'
 test('ein Lauf ohne itinerary.draft (Classic, Rückfrage) hat keinen Entwurf', () => {
   const state = EVENTS.reduce(applyRunEvent, initialRunState());
   assert.equal(state.draft, undefined);
+});
+
+test('übernimmt Fassung und Änderung einer Überarbeitung', () => {
+  const state = applyRunEvent(initialRunState(), {
+    type: 'itinerary.draft',
+    seq: 1,
+    elapsedMs: 10,
+    data: {
+      itinerary: {
+        destination: 'Lissabon',
+        startDate: '2026-10-14',
+        endDate: '2026-10-16',
+        budgetCents: 80_000,
+        currency: 'EUR',
+        preferences: [],
+        stops: [],
+      },
+      assumptions: [],
+      revision: 2,
+      change: 'Tag 2 ruhiger',
+    },
+  });
+
+  assert.equal(state.draft?.revision, 2);
+  assert.equal(state.draft?.change, 'Tag 2 ruhiger');
 });

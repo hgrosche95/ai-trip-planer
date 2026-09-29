@@ -15,14 +15,25 @@ type SaveState =
 
 // "Plan speichern" unter einer Antwort des Multi-Agenten-Modus: Der Planer
 // liefert nur einen Entwurf, gespeichert wird er erst hier, mit genau dem
-// Body von POST /itineraries.
-export default function SaveDraftButton({ itinerary }: { itinerary: ItineraryDraft }) {
+// Body von POST /itineraries. Nur der neueste Entwurf des Chats bietet den
+// Button an; ältere (superseded) zeigen "Überholt durch neuere Version",
+// wurden sie schon gespeichert, bleibt der Link zur gespeicherten Reise.
+// revision: Fassung in der Session, ab 2 steht sie im Hinweis.
+export default function SaveDraftButton({
+  itinerary,
+  revision = 1,
+  superseded = false,
+}: {
+  itinerary: ItineraryDraft;
+  revision?: number;
+  superseded?: boolean;
+}) {
   const [state, setState] = useState<SaveState>({ kind: 'idle' });
   // Sperre gegen Doppelklick: greift sofort, nicht erst nach dem nächsten Rendern
   const busy = useRef(false);
 
   async function save() {
-    if (busy.current || state.kind === 'saved') return;
+    if (busy.current || superseded || state.kind === 'saved') return;
     busy.current = true;
     setState({ kind: 'saving' });
     try {
@@ -44,6 +55,29 @@ export default function SaveDraftButton({ itinerary }: { itinerary: ItineraryDra
   }
 
   const saved = state.kind === 'saved';
+  const savedLink = saved && (
+    <p role="status" className="text-sm">
+      <span className="font-semibold text-teal dark:text-teal-300">Gespeichert</span>
+      {' · '}
+      <Link
+        href={`/trips/detail?id=${encodeURIComponent(state.id)}`}
+        className="underline decoration-dotted underline-offset-2 hover:text-teal"
+      >
+        In Meine Reisen ansehen
+      </Link>
+    </p>
+  );
+
+  if (superseded) {
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <p className="text-xs text-dim">Überholt durch neuere Version</p>
+        {savedLink}
+      </div>
+    );
+  }
+
+  const version = revision > 1 ? `Fassung ${revision}, ` : '';
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
       <button
@@ -55,22 +89,13 @@ export default function SaveDraftButton({ itinerary }: { itinerary: ItineraryDra
         {state.kind === 'saving' ? 'Wird gespeichert …' : 'Plan speichern'}
       </button>
       {saved ? (
-        <p role="status" className="text-sm">
-          <span className="font-semibold text-teal dark:text-teal-300">Gespeichert</span>
-          {' · '}
-          <Link
-            href={`/trips/detail?id=${encodeURIComponent(state.id)}`}
-            className="underline decoration-dotted underline-offset-2 hover:text-teal"
-          >
-            In Meine Reisen ansehen
-          </Link>
-        </p>
+        savedLink
       ) : state.kind === 'error' ? (
         <p role="alert" className="text-xs text-stamp">
           {state.message}
         </p>
       ) : (
-        <p className="text-xs text-dim">Entwurf, noch nicht gespeichert</p>
+        <p className="text-xs text-dim">Entwurf, {version}noch nicht gespeichert</p>
       )}
     </div>
   );

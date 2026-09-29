@@ -21,6 +21,7 @@ export const TASK_LABELS: Record<TaskType, string> = {
   'research:knowledge': 'Wissensbasis',
   'research:currency': 'Währung',
   compose: 'Tagesplan entwerfen',
+  revise: 'Entwurf anpassen',
   budget: 'Budget rechnen',
   final: 'Antwort schreiben',
 };

@@ -16,6 +16,7 @@ import {
   storeAgentMode,
   subscribeAgentMode,
 } from '@/lib/agent-mode';
+import { draftVersions } from '@/lib/draft-versions';
 import type { ChatSource } from '@/lib/run-events';
 import { lodgingPoints } from '@/lib/replay';
 import { applyRunEvent, initialRunState, type RunState } from '@/lib/run-state';
@@ -253,6 +254,8 @@ export default function ChatWindow() {
   // Nur Position und Deckkraft animieren: eine Größenänderung würde die
   // WebGL-Fläche in jedem Frame neu aufbauen.
   const hasStarted = messages.length > 0 || isLoading;
+  // Welche Antwort den neuesten Entwurf trägt ("Plan speichern")
+  const versions = draftVersions(messages.map((message) => message.trace));
 
   return (
     <>
@@ -304,9 +307,14 @@ export default function ChatWindow() {
                   />
                   {message.trace && <TracePanel run={message.trace} />}
                 </div>
-                {/* Multi-Modus: Der Plan ist ein Entwurf, gespeichert wird erst hier */}
-                {message.trace?.status === 'done' && message.trace.draft && (
-                  <SaveDraftButton itinerary={message.trace.draft.itinerary} />
+                {/* Multi-Modus: Der Plan ist ein Entwurf, gespeichert wird erst
+                    hier, und nur der neueste; ältere Fassungen sind überholt */}
+                {message.trace?.draft && versions[index] && (
+                  <SaveDraftButton
+                    itinerary={message.trace.draft.itinerary}
+                    revision={message.trace.draft.revision}
+                    superseded={versions[index] === 'superseded'}
+                  />
                 )}
               </div>
             ),
