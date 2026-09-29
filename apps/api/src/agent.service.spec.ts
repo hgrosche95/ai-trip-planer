@@ -2,6 +2,7 @@ import {
   AgentService,
   MAX_TOOL_ITERATIONS,
   citedSources,
+  systemPrompt,
 } from './agent.service';
 import type { ChatSource } from './agent.service';
 import { searchTravelKnowledge } from './rag-client';
@@ -223,6 +224,17 @@ describe('AgentService', () => {
     const toolMessage = calls[1][0].find((m) => m.role === 'tool');
     expect(toolMessage?.toolResults?.[0].content).toContain('startDate');
     expect(result.reply).toBe('Ich korrigiere das Datum.');
+  });
+
+  it('schickt dem Modell das heutige Datum im System-Prompt mit', async () => {
+    llm.chat.mockResolvedValue(textResult('ok'));
+    agent.today = () => '2026-09-29';
+
+    await agent.sendMessage('user-a', 'session-1', 'Lissabon ab 10. Oktober');
+
+    const calls = llm.chat.mock.calls as [LlmMessage[]][];
+    expect(calls[0][0][0]).toMatchObject({ role: 'system' });
+    expect(calls[0][0][0].content).toContain('Heute ist 2026-09-29');
   });
 
   it('trennt Chat-Verläufe verschiedener Nutzer mit gleicher sessionId', async () => {
@@ -628,5 +640,13 @@ describe('citedSources', () => {
       wien,
       berlin,
     ]);
+  });
+});
+
+describe('systemPrompt', () => {
+  it('nennt das heutige Datum und verbietet Werkzeugnamen in der Antwort', () => {
+    const prompt = systemPrompt('2026-09-29');
+    expect(prompt).toContain('Heute ist 2026-09-29');
+    expect(prompt).toContain('nie die Namen der Werkzeuge');
   });
 });

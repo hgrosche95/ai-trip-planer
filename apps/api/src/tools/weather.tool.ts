@@ -130,9 +130,21 @@ function validate(
     return `Höchstens ${MAX_WEATHER_DAYS} Tage pro Aufruf. Teile längere Reisen in mehrere Aufrufe auf.`;
   }
   if (startDate < today) {
-    return `startDate liegt in der Vergangenheit (heute ist ${today}).`;
+    // Häufigster Grund: Das Modell hat bei "10. Oktober" ein Jahr aus
+    // seinem Training eingesetzt. Der Hinweis nennt das gemeinte Datum,
+    // damit es den Aufruf korrigiert, statt den Nutzer zu fragen.
+    return `startDate liegt in der Vergangenheit (heute ist ${today}). Nennt der Nutzer kein Jahr, ist das nächste zukünftige Datum gemeint, hier ${nextOccurrence(startDate, today)}. Rufe das Werkzeug damit erneut auf.`;
   }
   return undefined;
+}
+
+// Dasselbe Datum (Monat und Tag) im nächsten Jahr, in dem es nicht vor
+// heute liegt: "2025-10-10" wird am 2026-09-29 zu "2026-10-10".
+export function nextOccurrence(date: string, today: string): string {
+  const monthDay = date.slice(5);
+  const year = Number(today.slice(0, 4));
+  const candidate = `${year}-${monthDay}`;
+  return candidate >= today ? candidate : `${year + 1}-${monthDay}`;
 }
 
 // Prüft Format UND Kalender: "2026-02-30" hat das richtige Format, würde
