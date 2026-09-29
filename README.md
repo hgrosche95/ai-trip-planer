@@ -320,7 +320,7 @@ wichtigsten Entscheidungen im Überblick:
 
 ## E2E-Tests (`e2e`)
 
-Playwright-Test, der den kompletten Flow prüft (Backend, Frontend, Postgres und RAG-Service müssen laufen). In CI läuft das Backend mit `LLM_PROVIDER=fake`, damit die Tests kein Groq-Kontingent verbrauchen; lokal geht beides. Gegen das echte Groq laufen die CI-Tests nur auf Wunsch: Label `e2e-real-llm` am PR setzen oder `CI` unter *Actions → Run workflow* mit `real_llm` starten. Der Test loggt sich zuerst ein, braucht dafür das Klartext-Gegenstück zu deinem `AUTH_PASSWORD_HASH` aus `apps/api/.env` (den Hash selbst kann man ja nicht zurückrechnen):
+Playwright-Test, der den kompletten Flow prüft (Backend, Frontend, Postgres und RAG-Service müssen laufen). In CI läuft das Backend mit `LLM_PROVIDER=fake`, damit die Tests kein Groq-Kontingent verbrauchen, und mit `AGENT_MODE_LOCKED=true` im Classic-Modus (das Fake-LLM kennt den Multi-Agenten-Modus nicht, der Umschalter im Chat schickt aber standardmäßig `multi`); lokal geht beides. Gegen das echte Groq laufen die CI-Tests nur auf Wunsch: Label `e2e-real-llm` am PR setzen oder `CI` unter *Actions → Run workflow* mit `real_llm` starten. Der Test loggt sich zuerst ein, braucht dafür das Klartext-Gegenstück zu deinem `AUTH_PASSWORD_HASH` aus `apps/api/.env` (den Hash selbst kann man ja nicht zurückrechnen):
 
 ```bash
 export E2E_AUTH_USERNAME=dein-username   # gleicher Wert wie AUTH_USERNAME

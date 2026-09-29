@@ -236,7 +236,9 @@ Die bestehenden Tests des Classic-Agenten laufen unverändert.
 - **Kein Live-Test:** Prompts und JSON-Ausgaben sind nur mit Mocks geprüft. Vor dem Umschalten auf
   `multi` einmal mit echtem Groq-Key laufen lassen, besonders triage mit „im Oktober“ (Datumswahl) und
   compose (Koordinaten, Kategorien).
-- **`FakeLlmProvider` kennt den Multi-Modus nicht:** E2E mit `LLM_PROVIDER=fake` bleibt classic.
+- **`FakeLlmProvider` kennt den Multi-Modus nicht:** E2E mit `LLM_PROVIDER=fake` bleibt classic; der
+  CI-Job setzt dafür `AGENT_MODE_LOCKED=true`, weil der Umschalter sonst `multi` schickt. Lokal mit
+  `LLM_PROVIDER=fake` den Umschalter auf „Klassisch“ stellen oder ebenfalls sperren.
 - **Reisen über 14 Tage** beantwortet der Multi-Modus mit einer Rückfrage (Wetter-Tool und ein
   Tagesplan pro Aufruf sind darauf begrenzt); Rundreisen mit mehreren Zielen plant nur Classic.
 - **Abbruch beim Schließen des Tabs:** wie bisher läuft der Lauf zu Ende; das `AbortSignal` greift nur
