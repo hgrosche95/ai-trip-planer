@@ -1,10 +1,9 @@
-import type { ItinerariesService } from '../itineraries.service';
+import { ValidationPipe } from '@nestjs/common';
+import { CreateItineraryDto } from '../itinerary.dto';
 import type { ConversationStore } from '../llm/conversation-store';
 import type { LlmChatResult, LlmMessage } from '../llm/llm-provider.interface';
 import { RunEventEmitter } from '../runs/run-event-emitter';
 import type { RunEvent, RunEventPayloads } from '../runs/run-events';
-import { ToolRegistry } from '../tools';
-import { createSaveItineraryTool } from '../tools/save-itinerary.tool';
 import { BudgetAgent } from './agents/budget.agent';
 import { PlannerAgent } from './agents/planner.agent';
 import { ResearchAgent } from './agents/research.agent';
@@ -33,6 +32,7 @@ const TRIAGE = JSON.stringify({
   travelers: 1,
   budget: { amount: 800, currency: 'EUR' },
   preferences: [],
+  assumptions: ['1 Person', 'Unterkunft: Mittelklasse'],
 });
 
 const COMPOSE = JSON.stringify({
@@ -105,19 +105,11 @@ function setup() {
   const llm = {
     chat: jest.fn<Promise<LlmChatResult>, [LlmMessage[], unknown[]]>(),
   };
-  const itineraries = {
-    create: jest.fn<Promise<{ id: string }>, [string, unknown]>(),
-  };
-  itineraries.create.mockResolvedValue({ id: 'plan-1' });
   const tools = researchTools();
   const orchestrator = new Orchestrator({
     conversationStore: store,
     llm,
-    planner: new PlannerAgent(
-      new ToolRegistry([
-        createSaveItineraryTool(itineraries as unknown as ItinerariesService),
-      ]),
-    ),
+    planner: new PlannerAgent(),
     research: new ResearchAgent(tools.registry),
     budget: new BudgetAgent(),
     today: () => TODAY,
@@ -129,7 +121,7 @@ function setup() {
       { runId: 'run-1', userId: 'user-a', sessionId: 's1', message },
       (type, data) => emitter.emit(type, data),
     );
-  return { run, llm, events, emitter, itineraries, stored, tools };
+  return { run, llm, events, emitter, stored, tools };
 }
 
 // Kurzform eines Ereignisses für die erwartete Reihenfolge
@@ -151,9 +143,15 @@ function label(event: RunEvent): string {
   }
 }
 
+function draftOf(events: RunEvent[]): RunEventPayloads['itinerary.draft'] {
+  const drafts = events.filter((e) => e.type === 'itinerary.draft');
+  expect(drafts).toHaveLength(1);
+  return drafts[0].data;
+}
+
 describe('Orchestrator', () => {
   it('Szenario "3 Tage Lissabon im Oktober, 800 €, ab Berlin": Ereignisfolge und höchstens 4 LLM-Aufrufe', async () => {
-    const { run, llm, events, emitter, itineraries } = setup();
+    const { run, llm, events, emitter } = setup();
     llm.chat
       .mockResolvedValueOnce(reply(TRIAGE, 900, 250))
       .mockResolvedValueOnce(reply(COMPOSE, 1400, 900))
@@ -209,7 +207,8 @@ describe('Orchestrator', () => {
     ]) {
       expect(research).toContain(expected);
     }
-    // Nach der Recherche: compose (1 LLM), budget (Code), final (Speichern + 1 LLM)
+    // Nach der Recherche: compose (1 LLM), budget (Code), final (1 LLM und
+    // der Entwurf; gespeichert wird nichts)
     const after = labels
       .slice(labels.indexOf('agent.started planner/compose'))
       .filter((l) => l !== 'plan.updated');
@@ -222,10 +221,9 @@ describe('Orchestrator', () => {
       'budget.updated',
       'agent.finished budget/budget',
       'agent.started planner/final',
-      'tool.started save_itinerary',
-      'tool.finished save_itinerary',
       'llm.started planner',
       'llm.call planner',
+      'itinerary.draft',
       'agent.finished planner/final',
     ]);
 
@@ -235,14 +233,22 @@ describe('Orchestrator', () => {
     expect(totals.llmCalls).toBeLessThanOrEqual(4);
     expect(totals.inputTokens + totals.outputTokens).toBeLessThanOrEqual(7_000);
 
-    // Plan gespeichert, alle Stops mit Koordinaten, Budgetbericht, Antwort
-    const saved = itineraries.create.mock.calls[0][1] as {
-      stops: { lat?: number; lng?: number }[];
-    };
-    expect(saved.stops).toHaveLength(6);
+    // Kein Tool speichert, der Plan kommt als Entwurf: alle Stops mit
+    // Koordinaten, Budget = genanntes Budget, Annahmen dabei
+    expect(labels).not.toContain('tool.started save_itinerary');
+    const { itinerary, assumptions } = draftOf(events);
+    expect(itinerary).toMatchObject({
+      destination: 'Lissabon',
+      startDate: '2026-10-14',
+      endDate: '2026-10-16',
+      budgetCents: 80_000,
+      currency: 'EUR',
+    });
+    expect(itinerary.stops).toHaveLength(6);
     expect(
-      saved.stops.every((s) => s.lat !== undefined && s.lng !== undefined),
+      itinerary.stops.every((s) => s.lat !== undefined && s.lng !== undefined),
     ).toBe(true);
+    expect(assumptions).toEqual(['1 Person', 'Unterkunft: Mittelklasse']);
     const budget = events.find((e) => e.type === 'budget.updated')
       ?.data as RunEventPayloads['budget.updated'];
     expect(budget.limitCents).toBe(80_000);
@@ -291,8 +297,8 @@ describe('Orchestrator', () => {
     ]);
   });
 
-  it('meldet einen gescheiterten Plan als Fehler, ohne zu speichern', async () => {
-    const { run, llm, events, itineraries } = setup();
+  it('meldet einen gescheiterten Plan als Fehler, ohne Entwurf', async () => {
+    const { run, llm, events } = setup();
     llm.chat
       .mockResolvedValueOnce(reply(TRIAGE, 1, 1))
       .mockResolvedValueOnce(reply('kaputt', 1, 1))
@@ -303,12 +309,36 @@ describe('Orchestrator', () => {
     );
 
     expect(llm.chat).toHaveBeenCalledTimes(3);
-    expect(itineraries.create).not.toHaveBeenCalled();
+    expect(events.some((e) => e.type === 'itinerary.draft')).toBe(false);
     const lastPlan = events.filter((e) => e.type === 'plan.updated').at(-1)
       ?.data as RunEventPayloads['plan.updated'];
     expect(lastPlan.tasks.find((t) => t.id === 'compose')?.status).toBe(
       'error',
     );
+  });
+
+  it('der Entwurf passiert POST /itineraries unverändert (ValidationPipe wie in main.ts)', async () => {
+    const { run, llm, events } = setup();
+    llm.chat
+      .mockResolvedValueOnce(reply(TRIAGE, 1, 1))
+      .mockResolvedValueOnce(reply(COMPOSE, 1, 1))
+      .mockResolvedValueOnce(reply('## Entwurf', 1, 1));
+    await run('3 Tage Lissabon im Oktober, 800 €, ab Berlin');
+    // Genau der Body, den "Plan speichern" im Frontend schickt
+    const body: unknown = JSON.parse(JSON.stringify(draftOf(events).itinerary));
+
+    // forbidNonWhitelisted: kein Feld, das die API nicht kennt
+    const strict = new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    });
+    const dto: unknown = await strict.transform(body, {
+      type: 'body',
+      metatype: CreateItineraryDto,
+    });
+    expect(dto).toBeInstanceOf(CreateItineraryDto);
+    expect(JSON.parse(JSON.stringify(dto))).toEqual(body);
   });
 
   it('bricht nach Ablauf des Laufzeitlimits ab', async () => {

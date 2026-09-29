@@ -207,6 +207,8 @@ export class Orchestrator {
         return 'finalize';
       }
       case 'finalize': {
+        // Speichert nicht: Der Plan geht als itinerary.draft ans Frontend,
+        // gespeichert wird erst per "Plan speichern" (POST /itineraries)
         data.final = await board.track('final', () =>
           planner.finalize(
             {
@@ -281,7 +283,7 @@ export function createOrchestrator(
   return new Orchestrator({
     conversationStore,
     llm,
-    planner: new PlannerAgent(new ToolRegistry([tools.saveItinerary])),
+    planner: new PlannerAgent(),
     research: new ResearchAgent(
       new ToolRegistry([
         tools.weather,

@@ -29,6 +29,7 @@ import { isIsoDate } from '../tools/weather.tool';
 export const MAX_TRIP_DAYS = 14;
 const MAX_TRAVELERS = 16;
 const MAX_PREFERENCES = 10;
+const MAX_ASSUMPTIONS = 6;
 
 // Eckdaten der Reise aus der triage des Planers
 export interface TripBrief {
@@ -43,6 +44,10 @@ export interface TripBrief {
   // Gesamtbudget für alle Reisenden, wie genannt
   budget?: { amount: number; currency: string };
   preferences: string[];
+  // Was der Planer ergänzt hat, weil der Nutzer es nicht genannt hat
+  // (Personenzahl, Interessen, Unterkunftsniveau), als kurze deutsche
+  // Stichpunkte. Die Antwort nennt sie offen, statt vorab nachzufragen.
+  assumptions: string[];
 }
 
 export interface PlanTask {
@@ -127,6 +132,12 @@ export function parseTripBrief(
     : [];
 
   if (errors.length > 0) return { errors };
+  const stated = Array.isArray(input.assumptions)
+    ? input.assumptions
+        .map((entry) => shortText(entry, 150))
+        .filter((entry): entry is string => entry !== undefined)
+        .slice(0, MAX_ASSUMPTIONS)
+    : [];
   return {
     brief: {
       destination: destination!,
@@ -137,8 +148,29 @@ export function parseTripBrief(
       travelers,
       ...(budget && { budget }),
       preferences,
+      assumptions:
+        stated.length > 0
+          ? stated
+          : defaultAssumptions(preferences, budget !== undefined),
     },
   };
+}
+
+// Liefert das Modell keine Annahmen, nennt der Code wenigstens die, die er
+// selbst kennt: ohne Vorlieben ein gemischtes Programm, ohne Budget
+// mittlere Preise (der Budget-Agent rechnet ohne Hostels).
+function defaultAssumptions(
+  preferences: string[],
+  hasBudget: boolean,
+): string[] {
+  return [
+    ...(preferences.length === 0
+      ? [
+          'Keine Vorlieben genannt: gemischtes Programm aus Sehenswürdigkeiten, Kultur und Essen',
+        ]
+      : []),
+    ...(hasBudget ? [] : ['Kein Budget genannt: mittleres Preisniveau']),
+  ];
 }
 
 // Prüft einen Entwurf: dieselben Regeln wie beim Speichern

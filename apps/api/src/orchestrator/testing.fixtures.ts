@@ -127,4 +127,5 @@ export const LISBON_BRIEF: TripBrief = {
   travelers: 1,
   budget: { amount: 800, currency: 'EUR' },
   preferences: [],
+  assumptions: ['1 Person', 'Unterkunft: Mittelklasse'],
 };

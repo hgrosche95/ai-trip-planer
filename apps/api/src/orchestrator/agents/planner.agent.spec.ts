@@ -1,14 +1,12 @@
-import type { ItinerariesService } from '../../itineraries.service';
 import type {
   LlmChatResult,
   LlmMessage,
 } from '../../llm/llm-provider.interface';
+import { itineraryValidationErrors } from '../../itinerary.dto';
 import { PROMPT_INJECTION_RULES } from '../../llm/prompt-rules';
 import type { RunEventPayloads } from '../../runs/run-events';
-import { ToolRegistry } from '../../tools';
-import { createSaveItineraryTool } from '../../tools/save-itinerary.tool';
 import { LISBON_BRIEF, TODAY, testContext } from '../testing.fixtures';
-import { emptyFindings } from '../trip-draft';
+import { emptyFindings, parseTripBrief } from '../trip-draft';
 import type { ResearchFindings } from '../trip-draft';
 import { PlannerAgent, buildTaskPlan } from './planner.agent';
 import { composePrompt, finalPrompt, triagePrompt } from './planner.prompts';
@@ -32,13 +30,7 @@ function scriptedLlm(...contents: string[]) {
 }
 
 function planner() {
-  const itineraries = { create: jest.fn().mockResolvedValue({ id: 'plan-1' }) };
-  const agent = new PlannerAgent(
-    new ToolRegistry([
-      createSaveItineraryTool(itineraries as unknown as ItinerariesService),
-    ]),
-  );
-  return { agent, itineraries };
+  return { agent: new PlannerAgent() };
 }
 
 const READY = JSON.stringify({
@@ -51,6 +43,7 @@ const READY = JSON.stringify({
   travelers: 1,
   budget: { amount: 800, currency: 'EUR' },
   preferences: [],
+  assumptions: ['1 Person', 'Unterkunft: Mittelklasse'],
 });
 
 const findings: ResearchFindings = {
@@ -314,50 +307,114 @@ describe('PlannerAgent', () => {
     });
   });
 
-  it('finalize speichert den Plan mit Koordinaten und schreibt die Antwort', async () => {
-    const llm = scriptedLlm('## Dein Plan für Lissabon');
-    const { ctx, events } = testContext(() => llm);
-    const { agent, itineraries } = planner();
-    const draft = await planner().agent.compose(
-      { brief: LISBON_BRIEF, findings },
-      testContext(() => scriptedLlm(VALID_STOPS)).ctx,
-    );
-
-    const result = await agent.finalize(
-      {
-        brief: LISBON_BRIEF,
-        draft,
-        findings,
-        budget: {
-          currency: 'EUR',
-          limitCents: 80_000,
-          totalCents: 57_600,
-          status: 'ok',
-          items: [],
+  describe('finalize', () => {
+    async function finalizeLisbon(limitCents: number | null = 80_000) {
+      const llm = scriptedLlm('## Dein Plan für Lissabon\n\n## Annahmen');
+      const { ctx, events } = testContext(() => llm);
+      const draft = await planner().agent.compose(
+        { brief: LISBON_BRIEF, findings },
+        testContext(() => scriptedLlm(VALID_STOPS)).ctx,
+      );
+      const result = await planner().agent.finalize(
+        {
+          brief: LISBON_BRIEF,
+          draft,
+          findings,
+          budget: {
+            currency: 'EUR',
+            limitCents,
+            totalCents: 57_600,
+            status: 'ok',
+            items: [],
+          },
         },
-      },
-      ctx,
-    );
+        ctx,
+      );
+      const drafted = events.find((e) => e.type === 'itinerary.draft')
+        ?.data as RunEventPayloads['itinerary.draft'];
+      return { llm, events, result, drafted };
+    }
 
-    expect(itineraries.create).toHaveBeenCalledWith(
-      'user-a',
-      expect.objectContaining({ destination: 'Lissabon', budgetCents: 80_000 }),
-    );
-    expect(result.reply).toBe('## Dein Plan für Lissabon');
-    expect(result.itineraryId).toBe('plan-1');
-    expect(result.route?.[0]).toEqual({
-      name: 'Ankunft',
-      lat: 38.77,
-      lng: -9.13,
+    it('speichert nicht, sondern schickt den geprüften Entwurf als itinerary.draft', async () => {
+      const { llm, events, result, drafted } = await finalizeLisbon();
+
+      expect(events.some((e) => e.type.startsWith('tool.'))).toBe(false);
+      expect(llm.chat).toHaveBeenCalledTimes(1);
+      expect(drafted.itinerary).toMatchObject({
+        destination: 'Lissabon',
+        startDate: '2026-10-14',
+        endDate: '2026-10-16',
+        budgetCents: 80_000,
+        currency: 'EUR',
+        preferences: [],
+      });
+      expect(drafted.itinerary.stops).toHaveLength(4);
+      expect(drafted.itinerary.stops[2]).toMatchObject({
+        title: 'Museu Nacional do Azulejo',
+        category: 'CULTURE',
+        costCents: 800,
+        lat: 38.72,
+        lng: -9.14,
+      });
+      expect(drafted.assumptions).toEqual(LISBON_BRIEF.assumptions);
+      expect(itineraryValidationErrors(drafted.itinerary)).toEqual([]);
+      expect(result.itinerary).toEqual(drafted.itinerary);
+      expect(result.reply).toBe('## Dein Plan für Lissabon\n\n## Annahmen');
+      expect(result.route?.[0]).toEqual({
+        name: 'Ankunft',
+        lat: 38.77,
+        lng: -9.13,
+      });
+      const finished = events.find((e) => e.type === 'agent.finished')
+        ?.data as RunEventPayloads['agent.finished'];
+      expect(finished.summary).toBe(
+        'Antwort geschrieben, Entwurf mit 4 Programmpunkten',
+      );
     });
-    const tool = events.find((e) => e.type === 'tool.started')
-      ?.data as RunEventPayloads['tool.started'];
-    expect(tool).toMatchObject({ tool: 'save_itinerary', agent: 'planner' });
-    // Die Antwort bekommt Budget, Speicherstatus und datesAssumed mit
-    const facts = llm.chat.mock.calls[0][0][1].content ?? '';
-    expect(facts).toContain('"saved":true');
-    expect(facts).toContain('"datesAssumed":true');
-    expect(facts).toContain('"status":"ok"');
+
+    it('nimmt ohne genanntes Budget die geschätzte Summe', async () => {
+      const { drafted } = await finalizeLisbon(null);
+      expect(drafted.itinerary.budgetCents).toBe(57_600);
+    });
+
+    it('gibt der Antwort Annahmen, Budget und datesAssumed mit, aber keinen Speicherstatus', async () => {
+      const { llm } = await finalizeLisbon();
+      const facts = llm.chat.mock.calls[0][0][1].content ?? '';
+      expect(facts).toContain(
+        '"assumptions":["1 Person","Unterkunft: Mittelklasse"]',
+      );
+      expect(facts).toContain('"datesAssumed":true');
+      expect(facts).toContain('"status":"ok"');
+      expect(facts).not.toContain('saved');
+    });
+  });
+
+  it('final-Prompt: Entwurf, Abschnitt "Annahmen", Einladung zum Anpassen, Hinweis auf "Plan speichern"', () => {
+    const prompt = finalPrompt();
+    expect(prompt).toContain('## Annahmen');
+    expect(prompt).toContain('mehr Kulinarik');
+    expect(prompt).toContain('Tag 2 entspannter');
+    expect(prompt).toContain('günstiger übernachten');
+    expect(prompt).toContain('Plan speichern');
+    expect(prompt).not.toMatch(/gespeichert wurde/);
+  });
+
+  it('triage: keine Vorab-Fragen nach Vorlieben, Annahmen im Brief', () => {
+    const prompt = triagePrompt(TODAY);
+    expect(prompt).toContain('Frag nie nach Vorlieben');
+    expect(prompt).toContain('assumptions');
+  });
+
+  it('ergänzt Annahmen in Code, wenn das Modell keine nennt', () => {
+    const raw = JSON.parse(READY) as Record<string, unknown>;
+    const parsed = parseTripBrief(
+      { ...raw, assumptions: undefined, budget: null },
+      TODAY,
+    );
+    expect('brief' in parsed && parsed.brief.assumptions).toEqual([
+      'Keine Vorlieben genannt: gemischtes Programm aus Sehenswürdigkeiten, Kultur und Essen',
+      'Kein Budget genannt: mittleres Preisniveau',
+    ]);
   });
 
   it('übernimmt die Regeln gegen Prompt-Injection in jeden Prompt', () => {

@@ -26,6 +26,34 @@ export type TaskType =
   | 'final';
 export type TaskStatus = 'pending' | 'running' | 'done' | 'skipped' | 'error';
 
+// Entwurf eines Reiseplans aus dem Multi-Agenten-Modus, genau im Format von
+// POST /itineraries (CreateItineraryDto). Gespeichert wird er erst, wenn der
+// Nutzer im Frontend auf "Plan speichern" klickt.
+export interface ItineraryDraft {
+  destination: string;
+  startDate: string;
+  endDate: string;
+  budgetCents: number;
+  currency: string;
+  preferences: string[];
+  stops: {
+    dayNumber: number;
+    order: number;
+    title: string;
+    description?: string;
+    category?:
+      | 'FOOD'
+      | 'CULTURE'
+      | 'SIGHTSEEING'
+      | 'ACCOMMODATION'
+      | 'TRANSPORT'
+      | 'OTHER';
+    costCents?: number;
+    lat?: number;
+    lng?: number;
+  }[];
+}
+
 export interface BudgetItem {
   category: 'transport' | 'lodging' | 'activities' | 'food';
   cents: number;
@@ -34,7 +62,8 @@ export interface BudgetItem {
 // Ereignisse, die ein Agentenlauf live an das Frontend schickt (POST
 // /agent/runs, Server-Sent Events). Jedes Ereignis beschreibt nur die FORM
 // des Laufs (welches Tool, wie lange, wie viele Tokens) - Nutzertext steckt
-// ausschließlich in message.completed, das ohnehin nur der Nutzer selbst sieht.
+// ausschließlich in message.completed und itinerary.draft, die ohnehin nur
+// der Nutzer selbst sieht.
 // apps/web/src/lib/run-events.ts spiegelt diese Typen für das Frontend.
 export interface RunEventPayloads {
   // runId = Schlüssel des gespeicherten Laufs, für /replay?run=<runId>
@@ -73,6 +102,12 @@ export interface RunEventPayloads {
     status: 'ok' | 'tight' | 'over';
     items: BudgetItem[];
   };
+  // Fertiger, geprüfter Plan als Entwurf (nur Multi-Agenten-Modus), kurz
+  // vor dem Ende des Laufs. assumptions: was der Planer angenommen hat, weil
+  // der Nutzer es nicht genannt hat. Enthält wie message.completed Angaben
+  // des Nutzers (Ziel, Vorlieben) und geht nur an ihn selbst bzw. in sein
+  // eigenes Replay.
+  'itinerary.draft': { itinerary: ItineraryDraft; assumptions: string[] };
   // LLM-Aufruf beginnt: das Frontend zeigt sofort eine laufende Zeile.
   // agent und parentStepId (Schritt aus agent.started) nur im Multi-Modus.
   'llm.started': { stepId: string; agent?: AgentName; parentStepId?: string };
