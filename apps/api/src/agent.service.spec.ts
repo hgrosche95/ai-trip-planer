@@ -649,4 +649,15 @@ describe('systemPrompt', () => {
     expect(prompt).toContain('Heute ist 2026-09-29');
     expect(prompt).toContain('nie die Namen der Werkzeuge');
   });
+
+  it('plant sofort und verbietet erfundene Anbieter, Zeiten und Preise', () => {
+    const prompt = systemPrompt('2026-09-29');
+    expect(prompt).toContain(
+      'Sobald Ziel und Reisezeitraum bekannt sind, planst du sofort',
+    );
+    expect(prompt).toContain(
+      'Erfundene Anbieter, Namen, Zeiten oder Preise sind nicht erlaubt',
+    );
+    expect(prompt).not.toContain('bevor du ein Werkzeug aufrufst');
+  });
 });
