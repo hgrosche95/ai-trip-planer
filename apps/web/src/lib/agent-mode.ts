@@ -9,7 +9,7 @@ export const DEFAULT_AGENT_MODE: AgentMode = 'multi';
 
 export const AGENT_MODE_OPTIONS: { mode: AgentMode; label: string; detail: string }[] = [
   { mode: 'classic', label: 'Klassisch', detail: 'ein Agent' },
-  { mode: 'multi', label: 'Multi-Agent', detail: 'Planer, Recherche, Budget' },
+  { mode: 'multi', label: 'Multi-Agent', detail: 'Planer, Recherche, Budget, Kritiker' },
 ];
 
 // Kurzname für die Ablauf-Zeile unter einer Antwort

@@ -1,3 +1,5 @@
+// Mit Endung, damit node --test (replay.test.ts) das Modul findet
+import { issueMarkers, type IssueMarker } from './critique.ts';
 import type { GlobePoint, RunEvent } from './run-events';
 import type { RunState } from './run-state';
 
@@ -45,6 +47,8 @@ export interface GlobeView {
   route: GlobePoint[] | null;
   // Unterkünfte als kleine Punkte ohne Beschriftung
   pois: GlobePoint[];
+  // Befunde des Kritikers (rote bzw. grüne Ringe)
+  issues: IssueMarker[];
 }
 
 // Was der Globus für einen Laufzustand zeigt, wie im Chat: alle gemeldeten
@@ -62,6 +66,7 @@ export function globeView(state: RunState): GlobeView {
     })),
     route: state.stops.length > 0 ? state.stops : null,
     pois: lodgingPoints(state),
+    issues: issueMarkers(state.critiques),
   };
 }
 

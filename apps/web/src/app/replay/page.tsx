@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { authFetch } from '@/lib/auth';
 import BudgetBar from '@/components/budget-bar';
+import CritiquePanel from '@/components/critique-panel';
 import LodgingList from '@/components/lodging-list';
 import ReplyMarkdown from '@/components/reply-markdown';
 import TracePanel from '@/components/trace-panel';
@@ -171,6 +172,7 @@ function Replay() {
           arcs={globe.arcs}
           route={globe.route}
           pois={globe.pois}
+          issues={globe.issues}
         />
       </div>
 
@@ -185,6 +187,7 @@ function Replay() {
               <LodgingList key={report.place.name} report={report} />
             ))}
             {run.budget && <BudgetBar report={run.budget} />}
+            <CritiquePanel critiques={run.critiques} />
           </>
         ) : (
           <div>
@@ -206,6 +209,7 @@ function Replay() {
                 <LodgingList key={report.place.name} report={report} />
               ))}
               {run.budget && <BudgetBar report={run.budget} />}
+            <CritiquePanel critiques={run.critiques} />
               <TracePanel run={run} replayLink={false} />
             </div>
             {/* Kein Speichern im Replay: Es zeigt nur, was im Lauf passiert ist */}

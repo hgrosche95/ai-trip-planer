@@ -212,6 +212,7 @@ describe('PlannerAgent', () => {
       'research:knowledge',
       'compose',
       'budget',
+      'critique',
       'final',
     ]);
     expect(plan.tasks.find((t) => t.id === 'compose')?.dependsOn).toHaveLength(
@@ -624,7 +625,8 @@ describe('PlannerAgent: Überarbeitung eines Entwurfs', () => {
       expect(revision({ days: [2] })).toEqual([
         'revise<>',
         'budget<revise>',
-        'final<budget>',
+        'critique<budget>',
+        'final<critique>',
       ]);
     });
 
@@ -632,7 +634,8 @@ describe('PlannerAgent: Überarbeitung eines Entwurfs', () => {
       expect(revision({ research: ['research:lodging'] })).toEqual([
         'research:lodging<>',
         'budget<research:lodging>',
-        'final<budget>',
+        'critique<budget>',
+        'final<critique>',
       ]);
     });
 
@@ -647,7 +650,8 @@ describe('PlannerAgent: Überarbeitung eines Entwurfs', () => {
         'research:lodging<>',
         'compose<research:weather,research:lodging>',
         'budget<compose>',
-        'final<budget>',
+        'critique<budget>',
+        'final<critique>',
       ]);
     });
   });

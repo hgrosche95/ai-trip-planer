@@ -3,7 +3,7 @@ import type {
   LlmMessage,
 } from '../../llm/llm-provider.interface';
 import { itineraryValidationErrors } from '../../itinerary.dto';
-import type { ItineraryDraft } from '../../runs/run-events';
+import type { ItineraryDraft, Violation } from '../../runs/run-events';
 import { observedLlmCall } from '../../runs/step-events';
 import type { GlobeFocus } from '../../tools';
 import { routeFromStops } from '../../tools/save-itinerary.tool';
@@ -32,6 +32,7 @@ import {
   composePrompt,
   finalPrompt,
   finalRevisionPrompt,
+  repairPrompt,
   revisePrompt,
   triagePrompt,
   triageRevisePrompt,
@@ -85,6 +86,16 @@ export interface ReviseInput {
   request: string;
 }
 
+// Nachbesserung nach dem Kritiker: die Tage mit Fehlern und die Befunde
+// dazu, ohne Folgenachricht
+export interface RepairInput {
+  brief: TripBrief;
+  draft: TripDraft;
+  findings: ResearchFindings;
+  days: number[];
+  violations: Violation[];
+}
+
 export interface FinalizeInput {
   brief: TripBrief;
   draft: TripDraft;
@@ -94,6 +105,9 @@ export interface FinalizeInput {
   version?: number;
   // Nur bei einer Überarbeitung
   revision?: DraftRevision;
+  // Offene Befunde des Kritikers (Warnungen, nach der letzten Nachbesserung
+  // auch Fehler): Die Antwort nennt sie, statt sie zu verschweigen
+  issues?: Violation[];
 }
 
 export interface FinalizeResult {
@@ -104,11 +118,13 @@ export interface FinalizeResult {
   route?: GlobeFocus[];
 }
 
-// Der Planer ist der einzige Agent mit LLM in Phase 3a, und er hat fünf
-// Einstiege statt eines run(): triage und plan vor der Recherche, compose
-// bzw. revise danach, finalize am Ende. Pro Lauf höchstens 4 LLM-Aufrufe:
-// triage, compose oder revise (+ 1 Reparaturversuch), final. Die Rückfrage
-// endet nach 1 Aufruf, eine Überarbeitung ohne Programmänderung nach 2.
+// Der Planer ist der einzige Agent mit LLM, und er hat sechs Einstiege
+// statt eines run(): triage und plan vor der Recherche, compose bzw. revise
+// danach, repair nach der Kritik, finalize am Ende. Ohne Befunde des
+// Kritikers höchstens 4 LLM-Aufrufe: triage, compose oder revise (+ 1
+// Reparaturversuch bei ungültigem JSON), final; jede Nachbesserung kostet
+// 1 Aufruf mehr (höchstens 2). Die Rückfrage endet nach 1 Aufruf, eine
+// Überarbeitung ohne Programmänderung nach 2.
 export class PlannerAgent {
   readonly name = 'planner' as const;
 
@@ -269,14 +285,51 @@ export class PlannerAgent {
   // Schreibt nur die Tage aus revision.days neu; alle anderen Programmpunkte
   // bleiben unverändert. Dieselbe Prüfung wie compose, ein Reparaturversuch.
   revise(input: ReviseInput, ctx: AgentContext): Promise<TripDraft> {
-    return agentStep(ctx, this.name, 'revise', async (stepId) => {
-      const { brief, revision } = input;
+    return this.rewriteDays(
+      input,
+      revisePrompt(input.revision.days, tripDays(input.brief)),
+      reviseFacts(input),
+      'revise',
+      ctx,
+    );
+  }
+
+  // Bessert die Tage nach, an denen der Kritiker Fehler gefunden hat. Wie
+  // revise, nur mit den Befunden statt einer Nachricht des Nutzers.
+  repair(input: RepairInput, ctx: AgentContext): Promise<TripDraft> {
+    const revise: ReviseInput = {
+      brief: input.brief,
+      draft: input.draft,
+      findings: input.findings,
+      revision: {
+        days: input.days,
+        research: [],
+        recompose: false,
+        summary: 'nach Kritik nachgebessert',
+      },
+      request: '',
+    };
+    return this.rewriteDays(
+      revise,
+      repairPrompt(input.days, tripDays(input.brief)),
+      reviseFacts(revise, input.violations),
+      'repair',
+      ctx,
+    );
+  }
+
+  private rewriteDays(
+    input: ReviseInput,
+    system: string,
+    facts: string,
+    task: 'revise' | 'repair',
+    ctx: AgentContext,
+  ): Promise<TripDraft> {
+    return agentStep(ctx, this.name, task, async (stepId) => {
+      const { revision } = input;
       const messages: LlmMessage[] = [
-        {
-          role: 'system',
-          content: revisePrompt(revision.days, tripDays(brief)),
-        },
-        { role: 'user', content: reviseFacts(input) },
+        { role: 'system', content: system },
+        { role: 'user', content: facts },
       ];
       let result = await this.callLlm(ctx, stepId, messages, REVISE_MAX_TOKENS);
       let checked = checkRevision(result.content, input);
@@ -381,7 +434,8 @@ export class PlannerAgent {
 }
 
 // Der Aufgaben-Graph eines Laufs: Recherche parallel nach dem Plan, dann
-// compose, budget, final. Aufgaben ohne Grundlage (Anreise ohne
+// compose, budget, critique, final. Nachbesserungen (repair) nach der Kritik
+// hängt der Orchestrator bei Bedarf an. Aufgaben ohne Grundlage (Anreise ohne
 // Abreiseort, Unterkunft bei Tagesausflug) entstehen gar nicht erst.
 export function buildTaskPlan(brief: TripBrief): TaskPlan {
   const research: PlanTask['type'][] = [
@@ -403,14 +457,15 @@ export function buildTaskPlan(brief: TripBrief): TaskPlan {
       ...research.map((type) => task(type, 'research', [])),
       task('compose', 'planner', research),
       task('budget', 'budget', ['compose']),
-      task('final', 'planner', ['budget']),
+      task('critique', 'critic', ['budget']),
+      task('final', 'planner', ['critique']),
     ],
   };
 }
 
 // Aufgaben einer Überarbeitung: nur die Recherche, die die Änderung
 // braucht, dann revise (nur betroffene Tage) oder compose (Dauer geändert),
-// budget und final. Ohne betroffene Tage schreibt niemand den Plan neu.
+// budget, critique und final. Ohne betroffene Tage schreibt niemand den Plan neu.
 export function buildRevisionPlan(
   brief: TripBrief,
   revision: DraftRevision,
@@ -431,7 +486,8 @@ export function buildRevisionPlan(
       ...research.map((type) => task(type, 'research', [])),
       ...(writer ? [task(writer, 'planner', research)] : []),
       task('budget', 'budget', writer ? [writer] : research),
-      task('final', 'planner', ['budget']),
+      task('critique', 'critic', ['budget']),
+      task('final', 'planner', ['critique']),
     ],
   };
 }
@@ -580,7 +636,12 @@ export function draftDigest({ brief, draft }: CurrentDraft): string {
 
 // Fakten für revise: die betroffenen Tage vollständig, die anderen nur als
 // Titel, Wetter nur für die betroffenen Tage.
-export function reviseFacts(input: ReviseInput): string {
+// Bei einer Nachbesserung (violations) stehen die Befunde des Kritikers
+// statt des Wunsches darin.
+export function reviseFacts(
+  input: ReviseInput,
+  violations?: Violation[],
+): string {
   const { brief, draft, findings, revision, request } = input;
   const affected = (day: number) => revision.days.includes(day);
   const others: Record<string, string[]> = {};
@@ -593,7 +654,9 @@ export function reviseFacts(input: ReviseInput): string {
     revision.days.map((day) => addDays(brief.startDate, day - 1)),
   );
   return JSON.stringify({
-    Wunsch: request,
+    ...(violations
+      ? { Kritik: violations.map((violation) => violation.message) }
+      : { Wunsch: request }),
     Reise: {
       destination: brief.destination,
       startDate: brief.startDate,
@@ -755,7 +818,13 @@ export function finalFacts(input: FinalizeInput): string {
         source,
       })),
     },
+    Hinweise: issueTexts(input.issues),
   });
+}
+
+// Offene Befunde des Kritikers für die Antwort, nur der Text
+function issueTexts(issues: Violation[] | undefined): string[] {
+  return (issues ?? []).map((issue) => issue.message);
 }
 
 // Fakten für die Antwort auf eine Überarbeitung: die geänderten Tage, die
@@ -809,5 +878,6 @@ export function finalRevisionFacts(input: FinalizeInput): string {
             }
           : null,
     },
+    Hinweise: issueTexts(input.issues),
   });
 }

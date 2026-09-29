@@ -29,6 +29,9 @@ export interface GlobeCanvasProps {
   // Orte in der Nähe (z. B. Unterkünfte): kleine Punkte ohne Ring und ohne
   // Beschriftung, der Name steht im Tooltip. Die Kamera richtet sich nicht nach ihnen.
   pois?: GlobeFocus[];
+  // Befunde des Kritikers an Programmpunkten: roter Ring, solange offen,
+  // grüner, sobald eine Nachbesserung sie behoben hat
+  issues?: (GlobeFocus & { resolved: boolean })[];
 }
 
 type GlobePoint = GlobeFocus & { poi: boolean };
@@ -36,6 +39,16 @@ type GlobePoint = GlobeFocus & { poi: boolean };
 // Unterkünfte in Türkis, damit sie sich von den weißen Reisezielen abheben
 const POI_COLOR = '#7FD1CF';
 const POI_RADIUS = 0.06;
+
+// Ringe als RGB: Ziel orange, Befund des Kritikers rot, behoben grün
+const RING_COLORS = {
+  focus: '242, 165, 65',
+  issue: '200, 65, 43',
+  resolved: '46, 196, 140',
+};
+// Befunde liegen oft dicht beieinander in einer Stadt: kleinere Ringe als
+// der am Ziel, damit sie sich nicht überdecken
+type GlobeRing = GlobeFocus & { color: string; radius: number };
 
 // Texturen stammen aus three-globe (NASA Blue Marble, gemeinfrei) und liegen
 // in public/globe, damit sie mit dem statischen Export ausgeliefert werden.
@@ -131,6 +144,7 @@ export default function GlobeCanvas({
   places = [],
   route = null,
   pois = [],
+  issues = [],
 }: GlobeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
@@ -219,8 +233,20 @@ export default function GlobeCanvas({
     [pois, markers],
   );
   // Der pulsierende Ring nur am Start der Route bzw. am Ziel, sonst flimmert
-  // es überall
-  const rings = hasRoute ? markers.slice(0, 1) : focus ? [focus] : markers.slice(0, 1);
+  // es überall. Dazu je ein Ring pro Befund des Kritikers.
+  const rings = useMemo<GlobeRing[]>(
+    () => [
+      ...(hasRoute ? markers.slice(0, 1) : focus ? [focus] : markers.slice(0, 1)).map(
+        (marker) => ({ ...marker, color: RING_COLORS.focus, radius: 2 }),
+      ),
+      ...issues.map((issue) => ({
+        ...issue,
+        color: issue.resolved ? RING_COLORS.resolved : RING_COLORS.issue,
+        radius: 0.6,
+      })),
+    ],
+    [hasRoute, markers, focus, issues],
+  );
   // Jede Station bekommt einen Punkt. Liegen Stationen zu nah beieinander
   // (z.B. Düsseldorf, Köln, Bonn), stünden ihre Namen übereinander: dann
   // trägt die erste Beschriftung die Namen der Nachbarn mit, statt dass die
@@ -286,8 +312,8 @@ export default function GlobeCanvas({
           ringsData={rings}
           ringLat={(marker) => (marker as GlobeFocus).lat}
           ringLng={(marker) => (marker as GlobeFocus).lng}
-          ringColor={() => (t: number) => `rgba(242, 165, 65, ${1 - t})`}
-          ringMaxRadius={2}
+          ringColor={(ring: object) => (t: number) => `rgba(${(ring as GlobeRing).color}, ${1 - t})`}
+          ringMaxRadius={(ring: object) => (ring as GlobeRing).radius}
           ringPropagationSpeed={2}
           ringRepeatPeriod={1200}
           pointsData={points}
