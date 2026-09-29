@@ -225,3 +225,49 @@ test('übernimmt die Such-Links eines Unterkunftsberichts, auch ohne Einträge',
 
   assert.deepEqual(state.lodging[0].searchLinks, searchLinks);
 });
+
+test('übernimmt den Entwurf aus itinerary.draft, ohne etwas anderes zu ändern', () => {
+  const itinerary = {
+    destination: 'Lissabon',
+    startDate: '2026-10-14',
+    endDate: '2026-10-16',
+    budgetCents: 80_000,
+    currency: 'EUR',
+    preferences: [],
+    stops: [
+      {
+        dayNumber: 1,
+        order: 1,
+        title: 'Ankunft',
+        category: 'TRANSPORT' as const,
+        costCents: 0,
+        lat: 38.77,
+        lng: -9.13,
+      },
+    ],
+  };
+  const before = applyRunEvent(initialRunState(), {
+    type: 'run.started',
+    seq: 1,
+    elapsedMs: 0,
+    data: { runId: 'run-1', mode: 'multi' },
+  });
+  assert.equal(before.draft, undefined);
+
+  const state = applyRunEvent(before, {
+    type: 'itinerary.draft',
+    seq: 2,
+    elapsedMs: 900,
+    data: { itinerary, assumptions: ['1 Person'] },
+  });
+
+  assert.deepEqual(state.draft, { itinerary, assumptions: ['1 Person'] });
+  assert.equal(state.status, 'running');
+  assert.equal(state.lastMs, 900);
+  assert.deepEqual(state.stops, []);
+});
+
+test('ein Lauf ohne itinerary.draft (Classic, Rückfrage) hat keinen Entwurf', () => {
+  const state = EVENTS.reduce(applyRunEvent, initialRunState());
+  assert.equal(state.draft, undefined);
+});

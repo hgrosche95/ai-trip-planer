@@ -6,6 +6,7 @@ import BudgetBar from '@/components/budget-bar';
 import LodgingList from '@/components/lodging-list';
 import ModeToggle from '@/components/mode-toggle';
 import ReplyMarkdown from '@/components/reply-markdown';
+import SaveDraftButton from '@/components/save-draft-button';
 import TracePanel from '@/components/trace-panel';
 import TripGlobe, { type GlobeArc, type GlobeFocus } from '@/components/trip-globe';
 import WeatherStrip from '@/components/weather-strip';
@@ -303,6 +304,10 @@ export default function ChatWindow() {
                   />
                   {message.trace && <TracePanel run={message.trace} />}
                 </div>
+                {/* Multi-Modus: Der Plan ist ein Entwurf, gespeichert wird erst hier */}
+                {message.trace?.status === 'done' && message.trace.draft && (
+                  <SaveDraftButton itinerary={message.trace.draft.itinerary} />
+                )}
               </div>
             ),
           )}

@@ -22,7 +22,7 @@ export const TASK_LABELS: Record<TaskType, string> = {
   'research:currency': 'Währung',
   compose: 'Tagesplan entwerfen',
   budget: 'Budget rechnen',
-  final: 'Speichern und antworten',
+  final: 'Antwort schreiben',
 };
 
 export interface LaneBar {
