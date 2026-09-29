@@ -95,6 +95,16 @@ ohne Deploy geht es mit
 (neue Revision, kein Image-Build); der nächste Deploy setzt dann wieder die
 Werte aus den Parametern, deshalb dort nachziehen.
 
+**Kritiker und Gast-Kontingent (Phase 4):** Der Kritiker prüft jeden Plan
+mit Regeln in Code (0 Tokens). Nur wenn der Nutzer Vorlieben nennt
+("vegetarisch", "mit Kind"), prüft 1 KI-Aufruf sie; abschaltbar mit
+`CRITIC_PREFERENCE_CHECK=off`. Jede Nachbesserung kostet 1 Aufruf mehr,
+höchstens 2 pro Lauf. Gäste haben ein Tageskontingent von 60.000 Tokens in
+24 Stunden (`GUEST_DAILY_TOKEN_BUDGET`, `0` = aus), gezählt aus den
+gespeicherten Läufen. Beides ohne eigenen Bicep-Parameter; bei Bedarf per
+`az containerapp update … --set-env-vars GUEST_DAILY_TOKEN_BUDGET=…`. Details:
+[`phase-4/README.md`](phase-4/README.md).
+
 **Fallback für eine wichtige Demo:** `LLM_PROVIDER=anthropic` in der
 Container-App-Konfiguration umschalten (Secret `ANTHROPIC_API_KEY` ist
 bereits hinterlegt) - kostenpflichtig, aber ohne die Free-Tier-Limits von

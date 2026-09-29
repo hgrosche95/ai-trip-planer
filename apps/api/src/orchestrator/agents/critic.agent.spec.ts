@@ -1,3 +1,4 @@
+import type { LlmChatResult } from '../../llm/llm-provider.interface';
 import type { RunEventPayloads } from '../../runs/run-events';
 import { LISBON_BRIEF, testContext } from '../testing.fixtures';
 import type { DraftStop, ResearchFindings, TripDraft } from '../trip-draft';
@@ -174,5 +175,198 @@ describe('CriticAgent', () => {
         added: ['Museu Nacional do Azulejo'],
       },
     ]);
+  });
+});
+
+describe('CriticAgent: Vorlieben per KI', () => {
+  const VEGGIE_BRIEF = { ...LISBON_BRIEF, preferences: ['vegetarisch'] };
+  const STEAK = draft([
+    { dayNumber: 1, order: 1, title: 'Alfama' },
+    {
+      dayNumber: 2,
+      order: 1,
+      title: 'Churrasqueira do Campo',
+      category: 'FOOD',
+    },
+    { dayNumber: 3, order: 1, title: 'Gulbenkian' },
+  ]);
+  const DRY: ResearchFindings = { ...FINDINGS, weather: undefined };
+  const OK_BUDGET: BudgetReport = {
+    ...BUDGET,
+    totalCents: 50_000,
+    status: 'ok',
+  };
+
+  function llmReplying(content: string) {
+    const chat = jest.fn((): Promise<LlmChatResult> =>
+      Promise.resolve({
+        content,
+        toolCalls: [],
+        finishReason: 'stop',
+        usage: { inputTokens: 400, outputTokens: 80 },
+        model: 'openai/gpt-oss-120b',
+      }),
+    );
+    return { chat, llm: () => ({ chat }) };
+  }
+
+  afterEach(() => {
+    delete process.env.CRITIC_PREFERENCE_CHECK;
+  });
+
+  it('meldet einen Widerspruch zur Vorliebe als Fehler am Programmpunkt, 1 KI-Aufruf', async () => {
+    const { chat, llm } = llmReplying(
+      '{"issues":[{"dayNumber":2,"stopTitle":"Churrasqueira do Campo","message":"Grillhaus mit Fleisch, passt nicht zu vegetarisch"}]}',
+    );
+    const { ctx, events } = testContext(llm);
+
+    const critique = await new CriticAgent().run(
+      {
+        brief: VEGGIE_BRIEF,
+        draft: STEAK,
+        findings: DRY,
+        budget: OK_BUDGET,
+        round: 0,
+      },
+      ctx,
+    );
+
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(critique.repairDays).toEqual([2]);
+    expect(critique.preferenceIssues).toEqual([
+      {
+        ruleId: 'preference',
+        severity: 'error',
+        dayNumber: 2,
+        stopTitle: 'Churrasqueira do Campo',
+        lat: 38.71,
+        lng: -9.13,
+        message:
+          'Churrasqueira do Campo: Grillhaus mit Fleisch, passt nicht zu vegetarisch',
+      },
+    ]);
+    // Der KI-Aufruf gehört in die Lane des Kritikers
+    expect(events.map((e) => e.type)).toEqual([
+      'agent.started',
+      'llm.started',
+      'llm.call',
+      'critique',
+      'agent.finished',
+    ]);
+    expect(events[2].data).toMatchObject({ agent: 'critic' });
+    // Die Fakten: Vorlieben und Programm, ohne An- und Abreise
+    const facts = JSON.parse(
+      (chat.mock.calls[0] as unknown as [{ content: string }[]])[0][1].content,
+    ) as { Vorlieben: string[]; Tage: Record<string, unknown[]> };
+    expect(facts.Vorlieben).toEqual(['vegetarisch']);
+    expect(Object.keys(facts.Tage)).toEqual(['1', '2', '3']);
+  });
+
+  it('verwirft Meldungen zu Punkten, die es an dem Tag nicht gibt, und leere Antworten', async () => {
+    const { llm } = llmReplying(
+      '{"issues":[{"dayNumber":1,"stopTitle":"Churrasqueira do Campo","message":"falscher Tag"},{"dayNumber":2,"stopTitle":"Erfundenes Lokal","message":"gibt es nicht"},{"dayNumber":2,"stopTitle":"churrasqueira do campo","message":""}]}',
+    );
+    const { ctx } = testContext(llm);
+
+    const critique = await new CriticAgent().run(
+      {
+        brief: VEGGIE_BRIEF,
+        draft: STEAK,
+        findings: DRY,
+        budget: OK_BUDGET,
+        round: 0,
+      },
+      ctx,
+    );
+
+    expect(critique.violations).toEqual([]);
+  });
+
+  it('ohne Vorlieben oder mit CRITIC_PREFERENCE_CHECK=off: kein KI-Aufruf', async () => {
+    const { chat, llm } = llmReplying('{"issues":[]}');
+    const { ctx } = testContext(llm);
+    const critic = new CriticAgent();
+
+    await critic.run(
+      {
+        brief: LISBON_BRIEF,
+        draft: STEAK,
+        findings: DRY,
+        budget: OK_BUDGET,
+        round: 0,
+      },
+      ctx,
+    );
+    process.env.CRITIC_PREFERENCE_CHECK = 'off';
+    await critic.run(
+      {
+        brief: VEGGIE_BRIEF,
+        draft: STEAK,
+        findings: DRY,
+        budget: OK_BUDGET,
+        round: 0,
+      },
+      ctx,
+    );
+
+    expect(chat).not.toHaveBeenCalled();
+  });
+
+  it('scheitert der KI-Aufruf, gilt der Plan ohne diese Prüfung', async () => {
+    const chat = jest.fn((): Promise<LlmChatResult> =>
+      Promise.reject(new Error('503')),
+    );
+    const { ctx } = testContext(() => ({ chat }));
+
+    const critique = await new CriticAgent().run(
+      {
+        brief: VEGGIE_BRIEF,
+        draft: STEAK,
+        findings: DRY,
+        budget: OK_BUDGET,
+        round: 0,
+      },
+      ctx,
+    );
+
+    expect(critique.violations).toEqual([]);
+  });
+
+  it('nach einer Nachbesserung prüft Code statt KI: offen, solange der Punkt noch da ist', async () => {
+    const { chat, llm } = llmReplying('{"issues":[]}');
+    const { ctx } = testContext(llm);
+    const issue = {
+      ruleId: 'preference',
+      severity: 'error' as const,
+      dayNumber: 2,
+      stopTitle: 'Churrasqueira do Campo',
+      message: 'Churrasqueira do Campo: passt nicht zu vegetarisch',
+    };
+    const critic = new CriticAgent();
+    const base = {
+      brief: VEGGIE_BRIEF,
+      findings: DRY,
+      budget: OK_BUDGET,
+      preferenceIssues: [issue],
+    };
+
+    const stubborn = await critic.run({ ...base, draft: STEAK, round: 1 }, ctx);
+    const fixed = await critic.run(
+      {
+        ...base,
+        draft: draft([
+          { dayNumber: 1, order: 1, title: 'Alfama' },
+          { dayNumber: 2, order: 1, title: 'Ai Mouraria', category: 'FOOD' },
+          { dayNumber: 3, order: 1, title: 'Gulbenkian' },
+        ]),
+        round: 1,
+      },
+      ctx,
+    );
+
+    expect(chat).not.toHaveBeenCalled();
+    expect(stubborn.violations).toEqual([issue]);
+    expect(stubborn.repairDays).toEqual([2]);
+    expect(fixed.violations).toEqual([]);
   });
 });

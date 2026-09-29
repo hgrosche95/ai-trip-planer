@@ -22,6 +22,7 @@ export type TaskType =
   | 'research:transport'
   | 'research:knowledge'
   | 'research:currency'
+  | 'research:holidays'
   | 'compose'
   // Überarbeitung einzelner Tage eines bestehenden Entwurfs
   | 'revise'

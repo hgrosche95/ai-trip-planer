@@ -68,6 +68,7 @@ const RESEARCH_ORDER: TaskType[] = [
   'research:lodging',
   'research:transport',
   'research:knowledge',
+  'research:holidays',
   'research:currency',
 ];
 
@@ -128,7 +129,7 @@ export function parseRevision(
 // Welche Recherche eine Änderung auslöst. Alles andere (Programm, Tempo,
 // Vorlieben, Gesamtbudget in Euro) braucht keine neue Recherche.
 //
-//   Daten           → Wetter + Unterkünfte (Zeitraum der Suche)
+//   Daten           → Wetter + Feiertage + Unterkünfte (Zeitraum der Suche)
 //   Personen        → Unterkünfte (Zimmer, Such-Links)
 //   Unterkunftsniveau → Unterkünfte (Preisgrenze pro Nacht)
 //   Abreiseort      → Anreise
@@ -144,6 +145,7 @@ export function revisionResearch(
     current.endDate !== next.endDate
   ) {
     tasks.add('research:weather');
+    tasks.add('research:holidays');
     if (hasNights) tasks.add('research:lodging');
   }
   if (
@@ -197,6 +199,9 @@ export function mergeFindings(
         break;
       case 'research:currency':
         merged.budgetEurCents = fresh.budgetEurCents;
+        break;
+      case 'research:holidays':
+        merged.holidays = fresh.holidays;
         break;
     }
   }

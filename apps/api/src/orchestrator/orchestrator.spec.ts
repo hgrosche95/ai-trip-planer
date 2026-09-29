@@ -205,10 +205,12 @@ describe('Orchestrator', () => {
       'agent.started research/research:lodging',
       'agent.started research/research:transport',
       'agent.started research/research:knowledge',
+      'agent.started research/research:holidays',
     ]);
     expect(
       research.filter((l) => l.startsWith('agent.finished')).sort(),
     ).toEqual([
+      'agent.finished research/research:holidays',
       'agent.finished research/research:knowledge',
       'agent.finished research/research:lodging',
       'agent.finished research/research:transport',
@@ -701,6 +703,7 @@ describe('Orchestrator: Entwurf per Folgenachricht anpassen', () => {
       'agent.started research/research:lodging',
       'agent.started research/research:transport',
       'agent.started research/research:knowledge',
+      'agent.started research/research:holidays',
     ]);
     expect(labels).toContain('agent.started planner/compose');
     expect(labels).not.toContain('agent.started planner/revise');
@@ -953,5 +956,139 @@ describe('Orchestrator: Kritiker und Nachbesserung', () => {
     expect(facts.Hinweise[0]).toMatch(
       /Miradouro da Senhora do Monte liegt draußen/,
     );
+  });
+});
+
+describe('Orchestrator: Vorlieben und Feiertage', () => {
+  it('"vegetarisch": die KI des Kritikers findet das Grillhaus, der Planer ersetzt es, die zweite Runde prüft ohne KI', async () => {
+    const { run, llm, events } = setup();
+    const brief = {
+      ...(JSON.parse(TRIAGE) as object),
+      preferences: ['vegetarisch'],
+    };
+    const steak = JSON.stringify({
+      stops: (
+        JSON.parse(COMPOSE) as { stops: Record<string, unknown>[] }
+      ).stops.map((stop) =>
+        stop.title === 'Time Out Market'
+          ? { ...stop, title: 'Churrasqueira do Campo', outdoor: false }
+          : stop,
+      ),
+    });
+    llm.chat
+      .mockResolvedValueOnce(reply(JSON.stringify(brief), 900, 250))
+      .mockResolvedValueOnce(reply(steak, 1400, 900))
+      .mockResolvedValueOnce(
+        reply(
+          '{"issues":[{"dayNumber":2,"stopTitle":"Churrasqueira do Campo","message":"Grillhaus, passt nicht zu vegetarisch"}]}',
+          500,
+          120,
+        ),
+      )
+      .mockResolvedValueOnce(
+        reply(
+          JSON.stringify({
+            stops: [
+              {
+                dayNumber: 2,
+                order: 1,
+                title: 'Museu Nacional do Azulejo',
+                category: 'CULTURE',
+                lat: 38.72,
+                lng: -9.11,
+                outdoor: false,
+              },
+              {
+                dayNumber: 2,
+                order: 2,
+                title: 'Ai Mouraria',
+                category: 'FOOD',
+                lat: 38.716,
+                lng: -9.135,
+                outdoor: false,
+              },
+            ],
+          }),
+          900,
+          300,
+        ),
+      )
+      .mockResolvedValueOnce(
+        reply('## 3 Tage Lissabon, vegetarisch', 1300, 700),
+      );
+
+    await run('3 Tage Lissabon im Oktober, vegetarisch, 800 €, ab Berlin');
+
+    // triage, compose, Vorlieben-Prüfung, Nachbesserung, Antwort
+    expect(llm.chat).toHaveBeenCalledTimes(5);
+    const llmCalls = events
+      .filter((e) => e.type === 'llm.call')
+      .map((e) => (e.data as { agent?: string }).agent);
+    expect(llmCalls).toEqual([
+      'planner',
+      'planner',
+      'critic',
+      'planner',
+      'planner',
+    ]);
+    const rounds = events
+      .filter((e) => e.type === 'critique')
+      .map((e) => e.data);
+    expect(
+      rounds[0].violations
+        .filter((v) => v.severity === 'error')
+        .map((v) => [v.ruleId, v.dayNumber]),
+    ).toEqual([['preference', 2]]);
+    expect(rounds[1]).toMatchObject({
+      round: 1,
+      final: true,
+      changes: [
+        {
+          dayNumber: 2,
+          removed: ['Churrasqueira do Campo'],
+          added: ['Ai Mouraria'],
+        },
+      ],
+    });
+    expect(rounds[1].violations.filter((v) => v.severity === 'error')).toEqual(
+      [],
+    );
+  });
+
+  it('ein Feiertag im Zeitraum: Hinweis am Museum, kein zusätzlicher KI-Aufruf', async () => {
+    const { run, llm, events, tools } = setup();
+    tools.nagerDate.holidays.mockResolvedValue({
+      available: true,
+      cached: false,
+      data: [
+        { date: '2026-10-15', localName: 'Testfeiertag', name: 'Test Day' },
+      ],
+    });
+    llm.chat
+      .mockResolvedValueOnce(reply(TRIAGE, 900, 250))
+      .mockResolvedValueOnce(reply(COMPOSE, 1400, 900))
+      .mockResolvedValueOnce(reply('## 3 Tage Lissabon', 1300, 700));
+
+    await run('3 Tage Lissabon im Oktober, 800 €, ab Berlin');
+
+    expect(llm.chat).toHaveBeenCalledTimes(3);
+    const critique = events.find((e) => e.type === 'critique')!.data;
+    expect(critique.violations).toContainEqual(
+      expect.objectContaining({
+        ruleId: 'holiday',
+        severity: 'warning',
+        dayNumber: 2,
+        stopTitle: 'Museu Nacional do Azulejo',
+      }),
+    );
+    // Der Planer kennt den Feiertag schon beim Entwurf
+    const composeFacts = JSON.parse(
+      llm.chat.mock.calls[1][0].at(-1)!.content!,
+    ) as {
+      Recherche: { holidays: unknown };
+    };
+    expect(composeFacts.Recherche.holidays).toEqual([
+      { date: '2026-10-15', name: 'Testfeiertag' },
+    ]);
   });
 });

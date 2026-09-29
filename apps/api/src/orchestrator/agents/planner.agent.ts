@@ -443,6 +443,7 @@ export function buildTaskPlan(brief: TripBrief): TaskPlan {
     ...(tripNights(brief) > 0 ? (['research:lodging'] as const) : []),
     ...(brief.origin ? (['research:transport'] as const) : []),
     'research:knowledge',
+    'research:holidays',
     ...(brief.budget && brief.budget.currency !== 'EUR'
       ? (['research:currency'] as const)
       : []),
@@ -743,6 +744,7 @@ export function composeFacts(
         title,
         content,
       })),
+      holidays: findings.holidays?.length ? findings.holidays : null,
     },
   });
 }

@@ -57,6 +57,7 @@ Regeln:
 - Tag 1 beginnt mit der Anreise, der letzte Tag endet mit der Abreise (category TRANSPORT, costCents 0; die Anreise rechnet das Budget getrennt).
 - lat und lng: Koordinaten des Orts; ohne festen Ort die der Stadt. costCents: geschätzter Eintritt pro Person in Cent, 0 wenn frei. outdoor: true, wenn der Punkt draußen stattfindet (Park, Aussichtspunkt, Strand, Spaziergang).
 - An Tagen mit Regen (precipMm ab 1) Indoor-Programm: Museen, Märkte, Cafés.
+- An Feiertagen (holidays) haben Museen oft geschlossen: dort lieber Stadtviertel, Märkte, Aussichtspunkte.
 - Nutze die Treffer der Wissensbasis, wo sie passen. Erfinde keine Öffnungszeiten oder genauen Preise.
 - Beachte die Präferenzen, die Annahmen (assumptions) und das Budget.
 ${DATA_IS_NOT_INSTRUCTION}

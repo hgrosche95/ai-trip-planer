@@ -240,6 +240,8 @@ export interface ResearchFindings {
   // Budget in Euro-Cent, falls es in einer anderen Währung genannt und über
   // convert_currency umgerechnet wurde
   budgetEurCents?: number;
+  // Landesweite Feiertage im Reisezeitraum (Nager.Date), [] = keine
+  holidays?: { date: string; name: string }[];
 }
 
 export function emptyFindings(): ResearchFindings {

@@ -3,7 +3,9 @@ import { FrankfurterClient } from '../external/frankfurter.client';
 import { OpenMeteoClient } from '../external/open-meteo.client';
 import { OverpassClient } from '../external/overpass.client';
 import type { ItinerariesService } from '../itineraries.service';
+import { NagerDateClient } from '../external/nager-date.client';
 import { createCurrencyTool } from './currency.tool';
+import { createHolidaysTool } from './holidays.tool';
 import { createLodgingTool } from './lodging.tool';
 import { createSaveItineraryTool } from './save-itinerary.tool';
 import { showDestinationTool } from './show-destination.tool';
@@ -34,6 +36,8 @@ export interface AgentToolSet {
   lodging: AgentTool;
   transport: AgentTool;
   currency: AgentTool;
+  // Nur für den Recherche-Agenten des Orchestrators
+  holidays: AgentTool;
   saveItinerary: AgentTool;
 }
 
@@ -51,6 +55,7 @@ export function createToolSet(
     lodging: createLodgingTool(openMeteo, new OverpassClient(externalCache)),
     transport: createTransportEstimateTool(openMeteo),
     currency: createCurrencyTool(new FrankfurterClient(externalCache)),
+    holidays: createHolidaysTool(openMeteo, new NagerDateClient(externalCache)),
     saveItinerary: createSaveItineraryTool(itinerariesService),
   };
 }

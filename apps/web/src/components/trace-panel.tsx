@@ -21,6 +21,7 @@ const TOOL_LABELS: Record<string, string> = {
   search_lodging: 'Unterkünfte suchen',
   estimate_transport: 'Anreise schätzen',
   convert_currency: 'Währung umrechnen',
+  get_public_holidays: 'Feiertage abfragen',
   save_itinerary: 'Reiseplan speichern',
 };
 

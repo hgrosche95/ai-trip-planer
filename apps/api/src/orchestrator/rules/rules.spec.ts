@@ -5,6 +5,7 @@ import { budgetOverRule } from './budget-over.rule';
 import { dayLoadRule } from './day-load.rule';
 import { duplicateStopRule } from './duplicate-stop.rule';
 import { farAwayRule } from './far-away.rule';
+import { holidayRule } from './holiday.rule';
 import { RULES, checkRules } from './index';
 import { isOutdoor, rainOutdoorRule } from './rain-outdoor.rule';
 import type { RuleInput, Violation } from './rule.types';
@@ -292,6 +293,46 @@ describe('Regeln des Kritikers', () => {
         ...[3, 4, 5].map((order) => stop(1, order, `Punkt ${order}`)),
       ].filter((s) => s.title !== 'Alfama und Tram 28');
       expect(dayLoadRule.check(input(four))).toEqual([]);
+    });
+  });
+
+  describe('holiday', () => {
+    const withHoliday = (date: string) => ({
+      findings: { ...FINDINGS, holidays: [{ date, name: 'Testfeiertag' }] },
+    });
+
+    it('Museum an einem Feiertag ist ein Hinweis mit Namen des Feiertags', () => {
+      expect(
+        holidayRule.check(input(CLEAN_STOPS, withHoliday('2026-10-15'))),
+      ).toEqual([
+        {
+          ruleId: 'holiday',
+          severity: 'warning',
+          dayNumber: 2,
+          stopTitle: 'Museu Nacional do Azulejo',
+          lat: 38.71,
+          lng: -9.13,
+          message:
+            'Tag 2 ist Feiertag (Testfeiertag): Öffnungszeiten von Museu Nacional do Azulejo prüfen',
+        },
+      ]);
+    });
+
+    it('erkennt Paläste am Titel, lässt Märkte und Tage ohne Feiertag in Ruhe', () => {
+      const stops = replace(
+        3,
+        1,
+        stop(3, 1, 'Palácio Nacional de Sintra', { category: 'SIGHTSEEING' }),
+      );
+      expect(
+        holidayRule
+          .check(input(stops, withHoliday('2026-10-16')))
+          .map((v) => v.stopTitle),
+      ).toEqual(['Palácio Nacional de Sintra']);
+      expect(
+        holidayRule.check(input(CLEAN_STOPS, withHoliday('2026-10-14'))),
+      ).toEqual([]);
+      expect(holidayRule.check(input())).toEqual([]);
     });
   });
 

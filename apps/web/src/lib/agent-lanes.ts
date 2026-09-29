@@ -20,6 +20,7 @@ export const TASK_LABELS: Record<TaskType, string> = {
   'research:transport': 'Anreise',
   'research:knowledge': 'Wissensbasis',
   'research:currency': 'Währung',
+  'research:holidays': 'Feiertage',
   compose: 'Tagesplan entwerfen',
   revise: 'Entwurf anpassen',
   budget: 'Budget rechnen',
