@@ -54,6 +54,46 @@ export interface LodgingReport {
   items: LodgingItem[];
 }
 
+// Wer einen Schritt ausführt. Classic-Läufe haben kein agent-Feld, im
+// Multi-Agenten-Modus ordnet es LLM-Aufrufe und Tools einer Lane zu.
+export type AgentName = 'orchestrator' | 'planner' | 'research' | 'budget';
+export type AgentMode = 'classic' | 'multi';
+
+export type TaskType =
+  | 'triage'
+  | 'plan'
+  | 'research:weather'
+  | 'research:lodging'
+  | 'research:transport'
+  | 'research:knowledge'
+  | 'research:currency'
+  | 'compose'
+  | 'budget'
+  | 'final';
+export type TaskStatus = 'pending' | 'running' | 'done' | 'skipped' | 'error';
+
+export interface PlanTask {
+  id: string;
+  type: TaskType;
+  agent: AgentName;
+  dependsOn: string[];
+  status: TaskStatus;
+}
+
+export interface BudgetItem {
+  category: 'transport' | 'lodging' | 'activities' | 'food';
+  cents: number;
+}
+
+// Budgetbericht: limitCents null = kein Budget genannt, status dann 'ok'
+export interface BudgetReport {
+  currency: 'EUR';
+  limitCents: number | null;
+  totalCents: number;
+  status: 'ok' | 'tight' | 'over';
+  items: BudgetItem[];
+}
+
 export interface RunTotals {
   llmCalls: number;
   toolCalls: number;
@@ -65,13 +105,33 @@ export interface RunTotals {
 
 export interface RunEventPayloads {
   // runId = Schlüssel des gespeicherten Laufs, für /replay?run=<runId>
-  'run.started': { runId: string };
-  'llm.started': { stepId: string };
+  // mode fehlt in Läufen vor Phase 3 (Replay), dort ist es 'classic'
+  'run.started': { runId: string; mode?: AgentMode };
+  // Ein Agent beginnt bzw. beendet eine Aufgabe (nur Multi-Agenten-Modus)
+  'agent.started': { stepId: string; agent: AgentName; task: TaskType };
+  'agent.finished': {
+    stepId: string;
+    agent: AgentName;
+    task: TaskType;
+    status: 'ok' | 'error' | 'skipped';
+    durationMs: number;
+    summary: string;
+  };
+  // Aufgabenliste des Planers, bei jeder Änderung vollständig
+  'plan.updated': { tasks: PlanTask[] };
+  'budget.updated': BudgetReport;
+  'llm.started': { stepId: string; agent?: AgentName; parentStepId?: string };
   // Der laufende LLM-Aufruf wartet auf das Groq-Limit (Minutenbudget an
   // Tokens bzw. freie Anfragen), bevor er rausgeht
-  'llm.throttled': { stepId: string; waitMs: number; reason: 'tokens' | 'requests' };
+  'llm.throttled': {
+    stepId: string;
+    agent?: AgentName;
+    waitMs: number;
+    reason: 'tokens' | 'requests';
+  };
   'llm.call': {
     stepId: string;
+    agent?: AgentName;
     model: string;
     inputTokens: number;
     outputTokens: number;
@@ -79,7 +139,7 @@ export interface RunEventPayloads {
     costUsd: number | null;
     finishReason: string;
   };
-  'tool.started': { stepId: string; tool: string };
+  'tool.started': { stepId: string; tool: string; agent?: AgentName; parentStepId?: string };
   'tool.finished': {
     stepId: string;
     tool: string;

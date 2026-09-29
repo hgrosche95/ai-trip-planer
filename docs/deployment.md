@@ -76,6 +76,13 @@ Replikas bleibt 429 deshalb möglich. Abschalten mit `LLM_RATE_LIMITER=off`
 (Standard: an, nur bei `LLM_PROVIDER=groq`). Details:
 [`phase-2/README.md`](phase-2/README.md#teil-e-groq-limit-vorab-abwarten-statt-in-429-zu-laufen).
 
+**Multi-Agenten-Modus (Phase 3a):** `AGENT_MODE=multi` lässt `POST /agent/runs`
+über den Orchestrator laufen (Planer, Recherche, Budget). Recherche und Budget
+brauchen kein LLM, ein vollständiger Lauf macht 3 Aufrufe (triage, compose,
+final; höchstens 4 mit Reparaturversuch) mit zusammen etwa 5.000–5.500 Tokens,
+eine Rückfrage 1 Aufruf. Standard ist `classic`. Details und Token-Rechnung:
+[`phase-3/README.md`](phase-3/README.md).
+
 **Fallback für eine wichtige Demo:** `LLM_PROVIDER=anthropic` in der
 Container-App-Konfiguration umschalten (Secret `ANTHROPIC_API_KEY` ist
 bereits hinterlegt) - kostenpflichtig, aber ohne die Free-Tier-Limits von

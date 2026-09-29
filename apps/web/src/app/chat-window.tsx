@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { authFetch } from '@/lib/auth';
+import BudgetBar from '@/components/budget-bar';
 import LodgingList from '@/components/lodging-list';
 import ReplyMarkdown from '@/components/reply-markdown';
 import TracePanel from '@/components/trace-panel';
@@ -281,6 +282,7 @@ export default function ChatWindow() {
                   {message.trace?.lodging.map((report) => (
                     <LodgingList key={report.place.name} report={report} />
                   ))}
+                  {message.trace?.budget && <BudgetBar report={message.trace.budget} />}
                   <SourcesPanel
                     sources={message.sources}
                     searchAttempted={message.searchAttempted}
@@ -301,6 +303,7 @@ export default function ChatWindow() {
               {liveRun.lodging.map((report) => (
                 <LodgingList key={report.place.name} report={report} />
               ))}
+              {liveRun.budget && <BudgetBar report={liveRun.budget} />}
             </div>
           )}
         </div>

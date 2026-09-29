@@ -1,9 +1,14 @@
 import type {
+  AgentMode,
+  AgentName,
+  BudgetReport,
   ChatSource,
   GlobePoint,
   LodgingReport,
+  PlanTask,
   RunEvent,
   RunTotals,
+  TaskType,
   WeatherReport,
 } from './run-events';
 
@@ -25,13 +30,37 @@ export interface TraceStep {
   cached?: boolean;
   // Wartezeit auf das Groq-Limit vor diesem LLM-Aufruf (in latencyMs enthalten)
   throttledMs?: number;
+  // Nur im Multi-Agenten-Modus: welcher Agent, in welchem Agenten-Schritt
+  agent?: AgentName;
+  parentStepId?: string;
+}
+
+// Eine Aufgabe eines Agenten (agent.started/agent.finished), ein Balken in
+// seiner Lane im Trace-Panel
+export interface AgentStep {
+  id: string;
+  agent: AgentName;
+  task: TaskType;
+  status: 'running' | 'done' | 'error' | 'skipped';
+  startedMs: number;
+  durationMs?: number;
+  summary?: string;
 }
 
 export interface RunState {
   status: 'running' | 'done' | 'error';
   // ID des gespeicherten Laufs aus run.started, für den Link nach /replay
   runId?: string;
+  // Fehlt bei Läufen vor Phase 3, die sind classic
+  mode?: AgentMode;
   steps: TraceStep[];
+  // Multi-Agenten-Modus: Schritte der Agenten, Aufgabenliste, Budget
+  agentSteps: AgentStep[];
+  tasks: PlanTask[];
+  budget?: BudgetReport;
+  // Spätester Zeitpunkt aller Ereignisse bisher: Ende laufender Balken im
+  // Wasserfall (live wie im Replay, ohne Uhr im Browser)
+  lastMs: number;
   places: (GlobePoint & { kind: 'destination' | 'origin' })[];
   routes: { from: GlobePoint; to: GlobePoint }[];
   // Stationen eines gespeicherten Plans oder einer Rundreise
@@ -51,6 +80,9 @@ export function initialRunState(): RunState {
   return {
     status: 'running',
     steps: [],
+    agentSteps: [],
+    tasks: [],
+    lastMs: 0,
     places: [],
     routes: [],
     stops: [],
@@ -65,9 +97,43 @@ export function initialRunState(): RunState {
 // Kein fetch, kein React - dadurch ohne Browser testbar (run-state.test.ts)
 // und später auch für das Abspielen gespeicherter Läufe nutzbar.
 export function applyRunEvent(state: RunState, event: RunEvent): RunState {
+  const next = reduce(state, event);
+  return event.elapsedMs > next.lastMs ? { ...next, lastMs: event.elapsedMs } : next;
+}
+
+function reduce(state: RunState, event: RunEvent): RunState {
   switch (event.type) {
     case 'run.started':
-      return { ...state, runId: event.data.runId };
+      return { ...state, runId: event.data.runId, mode: event.data.mode ?? 'classic' };
+    case 'agent.started':
+      return {
+        ...state,
+        agentSteps: [
+          ...state.agentSteps,
+          {
+            id: event.data.stepId,
+            agent: event.data.agent,
+            task: event.data.task,
+            status: 'running',
+            startedMs: event.elapsedMs,
+          },
+        ],
+      };
+    case 'agent.finished': {
+      const { stepId, status, durationMs, summary } = event.data;
+      return {
+        ...state,
+        agentSteps: state.agentSteps.map((step) =>
+          step.id === stepId
+            ? { ...step, status: status === 'ok' ? 'done' : status, durationMs, summary }
+            : step,
+        ),
+      };
+    }
+    case 'plan.updated':
+      return { ...state, tasks: event.data.tasks };
+    case 'budget.updated':
+      return { ...state, budget: event.data };
     case 'llm.started':
       return addStep(state, {
         id: event.data.stepId,
@@ -75,6 +141,7 @@ export function applyRunEvent(state: RunState, event: RunEvent): RunState {
         name: 'KI denkt nach',
         status: 'running',
         startedMs: event.elapsedMs,
+        ...origin(event.data),
       });
     case 'llm.throttled': {
       // Wartet derselbe Schritt mehrmals (z. B. erneut nach einem 429),
@@ -100,6 +167,7 @@ export function applyRunEvent(state: RunState, event: RunEvent): RunState {
         name: event.data.tool,
         status: 'running',
         startedMs: event.elapsedMs,
+        ...origin(event.data),
       });
     case 'tool.finished':
       return updateStep(state, event.data.stepId, {
@@ -139,6 +207,15 @@ export function applyRunEvent(state: RunState, event: RunEvent): RunState {
     default:
       return state;
   }
+}
+
+// agent und parentStepId nur übernehmen, wenn sie da sind: Classic-Schritte
+// bleiben so unverändert
+function origin(data: { agent?: AgentName; parentStepId?: string }) {
+  return {
+    ...(data.agent && { agent: data.agent }),
+    ...(data.parentStepId && { parentStepId: data.parentStepId }),
+  };
 }
 
 function upsertByPlace<T extends { place: GlobePoint }>(reports: T[], report: T): T[] {

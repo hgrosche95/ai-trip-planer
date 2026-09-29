@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { authFetch } from '@/lib/auth';
+import BudgetBar from '@/components/budget-bar';
 import LodgingList from '@/components/lodging-list';
 import ReplyMarkdown from '@/components/reply-markdown';
 import TracePanel from '@/components/trace-panel';
@@ -183,6 +184,7 @@ function Replay() {
             {run.lodging.map((report) => (
               <LodgingList key={report.place.name} report={report} />
             ))}
+            {run.budget && <BudgetBar report={run.budget} />}
           </>
         ) : (
           <div>
@@ -203,6 +205,7 @@ function Replay() {
               {run.lodging.map((report) => (
                 <LodgingList key={report.place.name} report={report} />
               ))}
+              {run.budget && <BudgetBar report={run.budget} />}
               <TracePanel run={run} replayLink={false} />
             </div>
           </div>
