@@ -117,6 +117,16 @@ jobs:
       - name: Eval-Harness ausführen
         run: npm run eval --workspace=evals
 
+      # Szenario-Evals gegen den Multi-Agenten-Modus (evals/scenarios.json):
+      # 12 ganze Reiseanfragen über POST /agent/runs, Kennzahlen aus den
+      # Ereignissen nachgerechnet, Judge für Plan-Qualität, Ehrlichkeit und
+      # Injection-Resistenz. Grob 80.000-100.000 Groq-Tokens pro Nacht.
+      # success() || failure(): läuft auch, wenn die Wissens-Evals davor
+      # ihre Schwellen verfehlt haben - beide Ergebnisse sind interessant.
+      - name: Szenario-Evals ausführen
+        if: success() || failure()
+        run: npm run eval:scenarios --workspace=evals
+
       # if: always() - der Report soll auch dann hochgeladen werden (und vor
       # allem dann interessant sein), wenn der vorige Schritt wegen
       # unterschrittener Schwellen mit Exit-Code 1 fehlgeschlagen ist.
@@ -125,5 +135,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: eval-report
-          path: evals/reports/*.md
+          path: |
+            evals/reports/*.md
+            evals/reports/*.json
           if-no-files-found: warn

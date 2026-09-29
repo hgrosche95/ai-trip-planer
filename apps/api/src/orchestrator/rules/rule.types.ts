@@ -13,6 +13,8 @@ export type { Violation } from '../../runs/run-events';
 // Regeln sind reine Funktionen ohne LLM und ohne Netz: deterministisch
 // testbar, kostenlos, und die Evals können sie auf dem fertigen Plan
 // unabhängig vom Kritiker nachrechnen.
+// Deshalb importieren die Regeln außer Typen nur Dateien ohne weitere
+// Abhängigkeiten (format.ts, haversineKm): evals/ lädt sie direkt.
 export interface RuleInput {
   brief: TripBrief;
   draft: TripDraft;

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "eval": "tsx src/run.ts",
-    "test": "tsx --test src/metrics.spec.ts"
+    "test": "tsx --test src/metrics.spec.ts src/scenario-metrics.spec.ts",
+    "eval:scenarios": "tsx src/run-scenarios.ts"
   },
   "devDependencies": {
     "@types/node": "^24",

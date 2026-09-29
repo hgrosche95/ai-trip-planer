@@ -10,7 +10,7 @@ interface GroqChatCompletion {
   choices: { message: { content: string | null } }[];
 }
 
-async function askJudge(
+export async function askJudge(
   prompt: string,
   label: string,
   maxCompletionTokens = 200,
