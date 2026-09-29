@@ -47,9 +47,8 @@ const MIN_WIDTH_PCT = 0.8;
 // Der Wasserfall als reine Funktion: Jeder Agent eine Lane, jeder Schritt
 // ein Balken relativ zur Laufzeit. Laufende Schritte reichen bis "jetzt".
 // Ohne nowMs ist das der Zeitpunkt des letzten Ereignisses (lastMs); die
-// Live-Anzeige übergibt eine im Browser weiterlaufende Uhr, damit die Balken
-// auch dann wachsen, wenn gerade kein Ereignis kommt (ein KI-Aufruf dauert
-// Sekunden). Ist der Lauf vorbei, zählt nur lastMs.
+// Live-Anzeige übergibt eine im Browser weiterlaufende Uhr (ein KI-Aufruf
+// dauert Sekunden ohne Ereignis). Ist der Lauf vorbei, zählt nur lastMs.
 // Gleichzeitige Recherche-Schritte liegen als eigene Zeilen übereinander
 // und überlappen zeitlich.
 export function agentLanes(

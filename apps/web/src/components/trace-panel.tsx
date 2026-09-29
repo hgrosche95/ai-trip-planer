@@ -101,19 +101,33 @@ const AGENT_BAR_COLORS: Record<AgentName, string> = {
   budget: 'bg-amber-500',
 };
 
-function barDetails(bar: LaneBar) {
+// Live steht die Dauer rechts in der Zeile, im Ablauf hier in den Details
+function barDetails(bar: LaneBar, withDuration = true) {
   const parts: string[] = [];
   if (bar.step.summary) parts.push(bar.step.summary);
   if (bar.tokens > 0) parts.push(`${numberFormat.format(bar.tokens)} Tokens`);
-  if (bar.step.durationMs !== undefined) parts.push(formatMs(bar.step.durationMs));
+  if (withDuration && bar.step.durationMs !== undefined) parts.push(formatMs(bar.step.durationMs));
   return parts.join(' · ');
 }
 
-// Wasserfall im Multi-Agenten-Modus: eine Lane pro Agent, ein Balken pro
-// Aufgabe, relativ zur Laufzeit. Die Recherche-Aufgaben laufen gleichzeitig
-// und stehen deshalb als überlappende Balken untereinander.
-function AgentLanes({ run, nowMs }: { run: RunState; nowMs?: number }) {
+// Multi-Agenten-Modus: eine Lane pro Agent, eine Zeile pro Aufgabe.
+// Live zeigt jede Zeile nur, was wir wirklich wissen: läuft (mit hochzählender
+// Zeit) oder fertig (mit ihrer Dauer). Einen Fortschrittsbalken gibt es live
+// bewusst nicht: Wie weit ein KI-Aufruf ist, kennt niemand, und ein relativ
+// zur wachsenden Laufzeit skalierter Balken würde auch fertige Aufgaben
+// weiter schrumpfen lassen. Nach dem Lauf, wenn sich nichts mehr ändert,
+// zeigt der Ablauf den Wasserfall: gleichzeitige Recherchen überlappen.
+function AgentLanes({
+  run,
+  nowMs,
+  live = false,
+}: {
+  run: RunState;
+  nowMs?: number;
+  live?: boolean;
+}) {
   const { lanes } = agentLanes(run, nowMs);
+  const now = Math.max(run.lastMs, nowMs ?? 0);
   if (lanes.length === 0) return null;
   return (
     <div className="space-y-2 py-1" aria-label="Agenten">
@@ -136,14 +150,26 @@ function AgentLanes({ run, nowMs }: { run: RunState; nowMs?: number }) {
                   <span className={`w-36 shrink-0 truncate ${bar.step.status === 'error' ? 'text-stamp' : ''}`}>
                     {TASK_LABELS[bar.step.task] ?? bar.step.task}
                   </span>
-                  <span className="relative h-2 flex-1 rounded-full bg-rule/40">
-                    <span
-                      className={`absolute top-0 h-2 rounded-full transition-[left,width] duration-150 ease-linear motion-reduce:transition-none ${bar.step.status === 'error' ? 'bg-stamp' : AGENT_BAR_COLORS[lane.agent]} ${bar.step.status === 'running' ? 'animate-pulse' : ''}`}
-                      style={{ left: `${bar.leftPct}%`, width: `${bar.widthPct}%` }}
-                    />
-                  </span>
+                  {live ? (
+                    <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-dim">
+                      {bar.step.status === 'running'
+                        ? `läuft · ${formatMs(Math.max(0, Math.round(now - bar.step.startedMs)))}`
+                        : bar.step.durationMs !== undefined
+                          ? formatMs(bar.step.durationMs)
+                          : ''}
+                    </span>
+                  ) : (
+                    <span className="relative h-2 flex-1 rounded-full bg-rule/40">
+                      <span
+                        className={`absolute top-0 h-2 rounded-full ${bar.step.status === 'error' ? 'bg-stamp' : AGENT_BAR_COLORS[lane.agent]}`}
+                        style={{ left: `${bar.leftPct}%`, width: `${bar.widthPct}%` }}
+                      />
+                    </span>
+                  )}
                 </div>
-                <p className="truncate pl-6 font-mono text-[11px] text-dim">{barDetails(bar)}</p>
+                <p className="truncate pl-6 font-mono text-[11px] text-dim">
+                  {barDetails(bar, !live)}
+                </p>
               </li>
             ))}
           </ol>
@@ -178,15 +204,14 @@ function TaskChecklist({ tasks }: { tasks: PlanTask[] }) {
   );
 }
 
-// Zeittakt der Live-Anzeige: oft genug für flüssige Balken (zusammen mit der
-// CSS-Transition gleicher Länge), selten genug, um nicht jeden Frame neu zu
-// rendern.
+// Zeittakt der Live-Anzeige: oft genug, dass die Laufzeit laufender Aufgaben
+// sichtbar hochzählt, selten genug, um nicht jeden Frame neu zu rendern.
 const CLOCK_TICK_MS = 150;
 
 // Zwischen zwei Ereignissen schickt der Server nichts, ein KI-Aufruf dauert
-// aber Sekunden. Ohne eigene Uhr stünden die Balken so lange still und
-// sprängen beim nächsten Ereignis nach vorn. Die Uhr rechnet deshalb ab dem
-// Moment, in dem das letzte Ereignis im Browser ankam, selbst weiter.
+// aber Sekunden. Damit die Laufzeit laufender Aufgaben trotzdem hochzählt,
+// rechnet diese Uhr ab dem Moment, in dem das letzte Ereignis im Browser
+// ankam, selbst weiter.
 function useRunClock(run: RunState, active: boolean): number {
   const anchor = useRef({ lastMs: run.lastMs, receivedAt: 0 });
   const [nowMs, setNowMs] = useState(run.lastMs);
@@ -208,12 +233,20 @@ function useRunClock(run: RunState, active: boolean): number {
 }
 
 // Classic: eine Zeile pro LLM-Aufruf oder Tool. Multi: Aufgaben und Lanes.
-function StepsView({ run, nowMs }: { run: RunState; nowMs?: number }) {
+function StepsView({
+  run,
+  nowMs,
+  live = false,
+}: {
+  run: RunState;
+  nowMs?: number;
+  live?: boolean;
+}) {
   if (run.agentSteps.length > 0) {
     return (
       <>
         <TaskChecklist tasks={run.tasks} />
-        <AgentLanes run={run} nowMs={nowMs} />
+        <AgentLanes run={run} nowMs={nowMs} live={live} />
       </>
     );
   }
@@ -299,7 +332,7 @@ export default function TracePanel({
         {run.steps.length === 0 && run.agentSteps.length === 0 ? (
           <StartingHint />
         ) : (
-          <StepsView run={run} nowMs={nowMs} />
+          <StepsView run={run} nowMs={nowMs} live />
         )}
       </div>
     );
