@@ -14,6 +14,10 @@ import { TokenBudgetLimiter } from './llm/token-budget-limiter';
 import { EXTERNAL_CACHE, PrismaExternalCache } from './external/external-cache';
 import { AGENT_RUN_STORE, PrismaAgentRunStore } from './runs/agent-run-store';
 import {
+  PrismaTripDraftStore,
+  TRIP_DRAFT_STORE,
+} from './orchestrator/trip-draft-store';
+import {
   CONVERSATION_STORE,
   PrismaConversationStore,
 } from './llm/conversation-store';
@@ -26,6 +30,7 @@ import {
     { provide: CONVERSATION_STORE, useClass: PrismaConversationStore },
     { provide: EXTERNAL_CACHE, useClass: PrismaExternalCache },
     { provide: AGENT_RUN_STORE, useClass: PrismaAgentRunStore },
+    { provide: TRIP_DRAFT_STORE, useClass: PrismaTripDraftStore },
     // Multi-Agenten-Modus (AGENT_MODE=multi): dieselben Abhängigkeiten wie
     // AgentService, die Agenten bekommen je eine eigene ToolRegistry
     {
@@ -36,6 +41,7 @@ import {
         LLM_PROVIDER,
         CONVERSATION_STORE,
         EXTERNAL_CACHE,
+        TRIP_DRAFT_STORE,
       ],
     },
     {

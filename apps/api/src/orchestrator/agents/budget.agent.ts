@@ -1,6 +1,7 @@
 import type { BudgetItem, RunEventPayloads } from '../../runs/run-events';
 import { priceLevelFor } from '../../tools/lodging.tool';
 import { agentStep } from '../agent.types';
+import { lodgingNightCapEur } from '../draft-revision';
 import type { Agent, AgentContext } from '../agent.types';
 import { tripDays, tripNights } from '../trip-draft';
 import type { ResearchFindings, TripBrief, TripDraft } from '../trip-draft';
@@ -20,7 +21,8 @@ export interface BudgetInput {
 // Alle Beträge sind Mittelwerte der geschätzten Spannen aus der Recherche,
 // also selbst Schätzungen. Die Posten:
 //   Anreise    = Mitte der empfohlenen Option × 2 (hin und zurück) × Personen
-//   Unterkunft = Nächte × Mitte pro Nacht × Zimmer (2 Personen pro Zimmer)
+//   Unterkunft = Nächte × Preis pro Nacht × Zimmer (2 Personen pro Zimmer),
+//                Preis nach Unterkunftsniveau (siehe nightlyEur)
 //   Programm   = Summe costCents der Programmpunkte × Personen (ohne
 //                Anreise- und Unterkunftspunkte, die stecken schon oben)
 //   Essen      = Tage × Personen × Tagespauschale nach Preisniveau der Stadt
@@ -80,7 +82,9 @@ export function computeBudget({
     const rooms = Math.ceil(travelers / PERSONS_PER_ROOM);
     items.push({
       category: 'lodging',
-      cents: euroCents(nights * nightlyEur(findings, hotelNightEur) * rooms),
+      cents: euroCents(
+        nights * nightlyEur(findings, hotelNightEur, brief) * rooms,
+      ),
     });
   }
 
@@ -129,21 +133,40 @@ function budgetLimitCents(
   return findings.budgetEurCents ?? null;
 }
 
-// Mitte pro Nacht und Zimmer: Median der gefundenen Unterkünfte ohne
-// Hostels (die sind pro Bett), sonst das Preisniveau der Stadt.
+// Preis pro Nacht und Zimmer. Ohne Angabe oder Mittelklasse: Median der
+// Mitten der gefundenen Unterkünfte ohne Hostels (die sind pro Bett), sonst
+// das Preisniveau der Stadt. "günstig": Median der unteren Enden der
+// Unterkünfte unter der Preisgrenze. "gehoben": Median der oberen Enden.
 function nightlyEur(
   findings: ResearchFindings,
   cityRange: [number, number],
+  brief: Pick<TripBrief, 'destination' | 'lodging'>,
 ): number {
-  const prices = (findings.lodging?.items ?? [])
-    .filter((item) => item.kind !== 'hostel')
-    .map((item) => mid(item.priceMinEur, item.priceMaxEur))
-    .sort((a, b) => a - b);
-  if (prices.length === 0) return mid(cityRange[0], cityRange[1]);
-  const middle = Math.floor(prices.length / 2);
-  return prices.length % 2 === 1
-    ? prices[middle]
-    : mid(prices[middle - 1], prices[middle]);
+  const rooms = (findings.lodging?.items ?? []).filter(
+    (item) => item.kind !== 'hostel',
+  );
+  if (brief.lodging === 'budget') {
+    const cap = lodgingNightCapEur(brief) ?? cityRange[0];
+    const cheap = rooms
+      .filter((item) => item.priceMinEur <= cap)
+      .map((item) => item.priceMinEur);
+    return cheap.length > 0 ? median(cheap) : cap;
+  }
+  if (brief.lodging === 'upscale') {
+    return rooms.length > 0
+      ? median(rooms.map((item) => item.priceMaxEur))
+      : cityRange[1];
+  }
+  if (rooms.length === 0) return mid(cityRange[0], cityRange[1]);
+  return median(rooms.map((item) => mid(item.priceMinEur, item.priceMaxEur)));
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[middle]
+    : mid(sorted[middle - 1], sorted[middle]);
 }
 
 function budgetSummary(report: BudgetReport): string {

@@ -22,6 +22,8 @@ export type TaskType =
   | 'research:knowledge'
   | 'research:currency'
   | 'compose'
+  // Überarbeitung einzelner Tage eines bestehenden Entwurfs
+  | 'revise'
   | 'budget'
   | 'final';
 export type TaskStatus = 'pending' | 'running' | 'done' | 'skipped' | 'error';
@@ -106,8 +108,16 @@ export interface RunEventPayloads {
   // vor dem Ende des Laufs. assumptions: was der Planer angenommen hat, weil
   // der Nutzer es nicht genannt hat. Enthält wie message.completed Angaben
   // des Nutzers (Ziel, Vorlieben) und geht nur an ihn selbst bzw. in sein
-  // eigenes Replay.
-  'itinerary.draft': { itinerary: ItineraryDraft; assumptions: string[] };
+  // eigenes Replay. revision: Fassung in der Session (1 = erster Plan, jede
+  // Überarbeitung per Folgenachricht +1, fehlt in älteren Läufen); change:
+  // kurze Beschreibung der Änderung, nur bei einer Überarbeitung. Das
+  // Frontend bietet "Plan speichern" nur für den neuesten Entwurf an.
+  'itinerary.draft': {
+    itinerary: ItineraryDraft;
+    assumptions: string[];
+    revision?: number;
+    change?: string;
+  };
   // LLM-Aufruf beginnt: das Frontend zeigt sofort eine laufende Zeile.
   // agent und parentStepId (Schritt aus agent.started) nur im Multi-Modus.
   'llm.started': { stepId: string; agent?: AgentName; parentStepId?: string };

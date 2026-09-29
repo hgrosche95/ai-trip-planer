@@ -9,6 +9,7 @@ import type {
   TransportOption,
 } from '../../tools/transport-estimate.tool';
 import { agentStep } from '../agent.types';
+import { lodgingNightCapEur } from '../draft-revision';
 import type { Agent, AgentContext, StepOutcome } from '../agent.types';
 import { emptyFindings } from '../trip-draft';
 import type { PlanTask, ResearchFindings, TripBrief } from '../trip-draft';
@@ -42,6 +43,10 @@ const TASK_TOOLS: Partial<
       checkIn: brief.startDate,
       checkOut: brief.endDate,
       guests: brief.travelers,
+      // "günstig übernachten": passende Unterkünfte zuerst
+      ...(lodgingNightCapEur(brief) !== undefined && {
+        budgetPerNightEur: lodgingNightCapEur(brief),
+      }),
     },
   }),
   'research:transport': (brief) => ({

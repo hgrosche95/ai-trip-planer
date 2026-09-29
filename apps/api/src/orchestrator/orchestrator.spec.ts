@@ -9,6 +9,8 @@ import { PlannerAgent } from './agents/planner.agent';
 import { ResearchAgent } from './agents/research.agent';
 import { Orchestrator } from './orchestrator';
 import { TODAY, researchTools } from './testing.fixtures';
+import { InMemoryTripDraftStore } from './trip-draft-store';
+import { searchTravelKnowledge } from '../rag-client';
 
 jest.mock('../rag-client', () => ({ searchTravelKnowledge: jest.fn() }));
 
@@ -106,8 +108,10 @@ function setup() {
     chat: jest.fn<Promise<LlmChatResult>, [LlmMessage[], unknown[]]>(),
   };
   const tools = researchTools();
+  const drafts = new InMemoryTripDraftStore();
   const orchestrator = new Orchestrator({
     conversationStore: store,
+    tripDraftStore: drafts,
     llm,
     planner: new PlannerAgent(),
     research: new ResearchAgent(tools.registry),
@@ -121,7 +125,7 @@ function setup() {
       { runId: 'run-1', userId: 'user-a', sessionId: 's1', message },
       (type, data) => emitter.emit(type, data),
     );
-  return { run, llm, events, emitter, stored, tools };
+  return { run, llm, events, emitter, stored, tools, drafts };
 }
 
 // Kurzform eines Ereignisses für die erwartete Reihenfolge
@@ -350,6 +354,7 @@ describe('Orchestrator', () => {
         load: () => Promise.resolve([]),
         save: () => Promise.resolve(),
       },
+      tripDraftStore: new InMemoryTripDraftStore(),
       llm,
       planner: {} as PlannerAgent,
       research: {} as ResearchAgent,
@@ -364,5 +369,363 @@ describe('Orchestrator', () => {
       ),
     ).rejects.toThrow();
     expect(llm.chat).not.toHaveBeenCalled();
+  });
+});
+
+// Zeichen aller Nachrichten an das LLM ab Aufruf `from`: Maß für die
+// Input-Tokens (~3,5 Zeichen pro Token), unabhängig von den gemockten
+// usage-Werten
+function promptChars(llm: ReturnType<typeof setup>['llm'], from = 0): number {
+  return llm.chat.mock.calls
+    .slice(from)
+    .flatMap(([messages]) => messages)
+    .reduce((sum, message) => sum + (message.content ?? '').length, 0);
+}
+
+describe('Orchestrator: Entwurf per Folgenachricht anpassen', () => {
+  // So lang wie eine echte Plan-Antwort (~2.500 Zeichen)
+  const FIRST_REPLY =
+    '## 3 Tage Lissabon\n' +
+    'Tag für Tag mit Wetter und Unterkünften. '.repeat(60);
+
+  // Erstplan wie im Szenario oben; liefert den Entwurf und den Stand danach
+  async function firstPlan(ctx: ReturnType<typeof setup>) {
+    // Drei Treffer in voller Länge wie im Betrieb (research.agent kürzt auf
+    // 3 × 500 Zeichen), damit der Vergleich der Prompt-Größen realistisch ist
+    (searchTravelKnowledge as jest.Mock).mockResolvedValue({
+      available: true,
+      results: ['Alfama', 'Belém', 'Essen'].map((title, i) => ({
+        content: `${title}: ${'Viertel, Aussichtspunkte und Cafés. '.repeat(20)}`,
+        title: `Lissabon – ${title}`,
+        source: 'Eigene Recherche',
+        license: 'Eigene Inhalte',
+        url: null,
+        score: 0.9 - i / 10,
+      })),
+    });
+    ctx.llm.chat
+      .mockResolvedValueOnce(reply(TRIAGE, 900, 250))
+      .mockResolvedValueOnce(reply(COMPOSE, 1400, 900))
+      .mockResolvedValueOnce(reply(FIRST_REPLY, 1300, 700));
+    await ctx.run('3 Tage Lissabon im Oktober, 800 €, ab Berlin');
+    const draft = draftOf(ctx.events);
+    const stored = (await ctx.drafts.load('user-a', 's1'))!;
+    const counts = {
+      geocode: ctx.tools.openMeteo.geocode.mock.calls.length,
+      weather: ctx.tools.openMeteo.dailyWeather.mock.calls.length,
+      lodgings: ctx.tools.overpass.lodgings.mock.calls.length,
+      knowledge: (searchTravelKnowledge as jest.Mock).mock.calls.length,
+    };
+    const calls = ctx.llm.chat.mock.calls.length;
+    const chars = promptChars(ctx.llm);
+    const totals = ctx.emitter.totals();
+    ctx.events.length = 0;
+    return { draft, stored, counts, calls, chars, totals };
+  }
+
+  function stopsOfDay(draft: RunEventPayloads['itinerary.draft'], day: number) {
+    return draft.itinerary.stops.filter((stop) => stop.dayNumber === day);
+  }
+
+  function lastPlanOf(events: RunEvent[]) {
+    return events.filter((e) => e.type === 'plan.updated').at(-1)
+      ?.data as RunEventPayloads['plan.updated'];
+  }
+
+  it('"Tag 2 entspannter": nur Tag 2 neu, Tag 1 und 3 identisch, keine Recherche, höchstens 3 LLM-Aufrufe', async () => {
+    const ctx = setup();
+    const first = await firstPlan(ctx);
+    expect(first.stored.revision).toBe(1);
+    ctx.llm.chat
+      .mockResolvedValueOnce(
+        reply(
+          JSON.stringify({
+            status: 'ready',
+            intent: 'revise',
+            days: [2],
+            changes: {},
+            summary: 'Tag 2 ruhiger',
+          }),
+          1000,
+          60,
+        ),
+      )
+      .mockResolvedValueOnce(
+        reply(
+          JSON.stringify({
+            stops: [
+              {
+                dayNumber: 2,
+                order: 1,
+                title: 'Ausschlafen und Pastéis de Nata',
+                category: 'FOOD',
+                costCents: 500,
+                lat: 38.7,
+                lng: -9.2,
+              },
+              {
+                dayNumber: 2,
+                order: 2,
+                title: 'Museu Nacional do Azulejo',
+                category: 'CULTURE',
+                costCents: 800,
+                lat: 38.72,
+                lng: -9.11,
+              },
+            ],
+          }),
+          700,
+          250,
+        ),
+      )
+      .mockResolvedValueOnce(
+        reply('### Tag 2\n- Ausschlafen\n\nUnverändert: Tag 1 und 3', 900, 300),
+      );
+
+    const result = await ctx.run('Mach Tag 2 entspannter');
+
+    // Höchstens 3 LLM-Aufrufe: triage, revise, final
+    expect(ctx.llm.chat).toHaveBeenCalledTimes(first.calls + 3);
+    expect(ctx.emitter.totals().llmCalls - first.totals.llmCalls).toBe(3);
+    // Deutlich weniger Tokens als der Erstplan: Die Prompts (gemessen in
+    // Zeichen) sind unter 70 %, mit den kürzeren Ausgaben (usage wie in der
+    // Token-Rechnung der Doku) liegt der ganze Lauf unter 60 %
+    expect(promptChars(ctx.llm, first.calls)).toBeLessThan(first.chars * 0.7);
+    const totals = ctx.emitter.totals();
+    const firstTokens = first.totals.inputTokens + first.totals.outputTokens;
+    const revisionTokens =
+      totals.inputTokens + totals.outputTokens - firstTokens;
+    expect(revisionTokens).toBeLessThan(firstTokens * 0.6);
+
+    // Keine Recherche: kein Tool, keine API
+    const labels = ctx.events.map(label);
+    expect(labels.filter((l) => l.startsWith('tool.'))).toEqual([]);
+    expect(ctx.tools.openMeteo.geocode).toHaveBeenCalledTimes(
+      first.counts.geocode,
+    );
+    expect(ctx.tools.overpass.lodgings).toHaveBeenCalledTimes(
+      first.counts.lodgings,
+    );
+    expect(searchTravelKnowledge as jest.Mock).toHaveBeenCalledTimes(
+      first.counts.knowledge,
+    );
+    expect(labels.filter((l) => l !== 'plan.updated')).toEqual([
+      'agent.started planner/triage',
+      'llm.started planner',
+      'llm.call planner',
+      'agent.finished planner/triage',
+      'agent.started planner/plan',
+      'agent.finished planner/plan',
+      'agent.started planner/revise',
+      'llm.started planner',
+      'llm.call planner',
+      'agent.finished planner/revise',
+      'agent.started budget/budget',
+      'budget.updated',
+      'agent.finished budget/budget',
+      'agent.started planner/final',
+      'llm.started planner',
+      'llm.call planner',
+      'itinerary.draft',
+      'agent.finished planner/final',
+    ]);
+    expect(lastPlanOf(ctx.events).tasks.map((t) => [t.id, t.status])).toEqual([
+      ['revise', 'done'],
+      ['budget', 'done'],
+      ['final', 'done'],
+    ]);
+
+    // Nur Tag 2 ist neu, Tag 1 und 3 exakt wie vorher
+    const revised = draftOf(ctx.events);
+    expect(stopsOfDay(revised, 1)).toEqual(stopsOfDay(first.draft, 1));
+    expect(stopsOfDay(revised, 3)).toEqual(stopsOfDay(first.draft, 3));
+    expect(stopsOfDay(revised, 2).map((s) => s.title)).toEqual([
+      'Ausschlafen und Pastéis de Nata',
+      'Museu Nacional do Azulejo',
+    ]);
+    expect(revised).toMatchObject({ revision: 2, change: 'Tag 2 ruhiger' });
+    expect(first.draft.revision).toBe(1);
+    expect(first.draft.change).toBeUndefined();
+
+    // Die Antwort beginnt mit der Änderung
+    expect(result.reply).toMatch(
+      /^\*\*Geändert:\*\* Tag 2 ruhiger\n\n### Tag 2/,
+    );
+    // Die Recherche des Erstplans gilt weiter
+    expect(result.focus?.name).toBe('Lissabon');
+    expect(result.route).toHaveLength(6);
+
+    // triage kennt den Entwurf als Kurzfassung, die lange Antwort nur gekürzt
+    const [triageMessages] = ctx.llm.chat.mock.calls[first.calls];
+    expect(triageMessages[0].content).toContain('Museu Nacional do Azulejo');
+    const previous = triageMessages.find((m) => m.role === 'assistant');
+    expect(previous?.content?.length).toBeLessThanOrEqual(300);
+    // revise sieht Tag 2 vollständig, die anderen nur als Titel
+    const [reviseMessages] = ctx.llm.chat.mock.calls[first.calls + 1];
+    const facts = JSON.parse(reviseMessages[1].content!) as {
+      Wunsch: string;
+      Reise: { Tage: { dayNumber: number }[]; AndereTage: object };
+    };
+    expect(facts.Wunsch).toBe('Mach Tag 2 entspannter');
+    expect(facts.Reise.Tage.map((s) => s.dayNumber)).toEqual([2, 2]);
+    expect(facts.Reise.AndereTage).toEqual({
+      1: ['Ankunft', 'Alfama und Tram 28'],
+      3: ['Belém', 'Abreise'],
+    });
+
+    // Gespeichert ist die neue Fassung mit der alten Recherche
+    const stored = await ctx.drafts.load('user-a', 's1');
+    expect(stored?.revision).toBe(2);
+    expect(stored?.draft.stops).toEqual(revised.itinerary.stops);
+    expect(stored?.findings).toEqual(first.stored.findings);
+  });
+
+  it('"günstiger übernachten": nur research:lodging läuft neu, Programm bleibt, Unterkunft wird billiger', async () => {
+    const ctx = setup();
+    const first = await firstPlan(ctx);
+    ctx.llm.chat
+      .mockResolvedValueOnce(
+        reply(
+          JSON.stringify({
+            status: 'ready',
+            intent: 'revise',
+            days: [],
+            changes: { lodging: 'budget' },
+            summary: 'Unterkunft günstiger',
+          }),
+          1000,
+          60,
+        ),
+      )
+      .mockResolvedValueOnce(reply('Günstiger: **Casa Baixa**', 800, 250));
+
+    const result = await ctx.run('Lieber günstiger übernachten');
+
+    // triage und final, kein revise
+    expect(ctx.llm.chat).toHaveBeenCalledTimes(first.calls + 2);
+    const labels = ctx.events.map(label);
+    expect(
+      labels.filter((l) => l.startsWith('agent.started research')),
+    ).toEqual(['agent.started research/research:lodging']);
+    expect(labels.filter((l) => l.startsWith('tool.started'))).toEqual([
+      'tool.started search_lodging',
+    ]);
+    expect(labels).not.toContain('agent.started planner/revise');
+    expect(labels).not.toContain('agent.started planner/compose');
+    expect(ctx.tools.overpass.lodgings).toHaveBeenCalledTimes(
+      first.counts.lodgings + 1,
+    );
+    expect(ctx.tools.openMeteo.dailyWeather).toHaveBeenCalledTimes(
+      first.counts.weather,
+    );
+    expect(searchTravelKnowledge as jest.Mock).toHaveBeenCalledTimes(
+      first.counts.knowledge,
+    );
+    expect(lastPlanOf(ctx.events).tasks.map((t) => [t.id, t.status])).toEqual([
+      ['research:lodging', 'done'],
+      ['budget', 'done'],
+      ['final', 'done'],
+    ]);
+
+    // Programm unverändert, die Annahme zur Unterkunft ist überholt
+    const revised = draftOf(ctx.events);
+    expect(revised.itinerary.stops).toEqual(first.draft.itinerary.stops);
+    expect(revised.revision).toBe(2);
+    expect(revised.assumptions).toEqual(['1 Person']);
+    // Unterkunft billiger (nur die Pension passt unter die Grenze), Anreise
+    // und Programm gleich
+    const budget = ctx.events.find((e) => e.type === 'budget.updated')
+      ?.data as RunEventPayloads['budget.updated'];
+    const cents = (report: typeof budget, category: string) =>
+      report.items.find((item) => item.category === category)?.cents;
+    const before = first.stored.budget!;
+    expect(cents(budget, 'lodging')).toBeLessThan(cents(before, 'lodging')!);
+    expect(cents(budget, 'transport')).toBe(cents(before, 'transport'));
+    expect(cents(budget, 'activities')).toBe(cents(before, 'activities'));
+    expect(result.reply).toMatch(/^\*\*Geändert:\*\* Unterkunft günstiger/);
+
+    // Gespeichert: neue Unterkünfte, altes Wetter und alte Treffer
+    const stored = await ctx.drafts.load('user-a', 's1');
+    expect(stored?.brief.lodging).toBe('budget');
+    expect(stored?.findings.weather).toEqual(first.stored.findings.weather);
+    expect(stored?.findings.knowledge).toEqual(first.stored.findings.knowledge);
+    expect(stored?.findings.lodging?.items[0].name).toBe('Casa Baixa');
+  });
+
+  it('"Lieber nach Porto": neue Reise mit voller Recherche, der alte Entwurf wird ersetzt', async () => {
+    const ctx = setup();
+    const first = await firstPlan(ctx);
+    const brief = JSON.parse(TRIAGE) as Record<string, unknown>;
+    ctx.llm.chat
+      .mockResolvedValueOnce(
+        reply(
+          JSON.stringify({ ...brief, intent: 'new', destination: 'Porto' }),
+          1000,
+          250,
+        ),
+      )
+      .mockResolvedValueOnce(reply(COMPOSE, 1400, 900))
+      .mockResolvedValueOnce(reply('## 3 Tage Porto', 1300, 700));
+
+    const result = await ctx.run('Lieber nach Porto');
+
+    expect(ctx.llm.chat).toHaveBeenCalledTimes(first.calls + 3);
+    const labels = ctx.events.map(label);
+    expect(
+      labels.filter((l) => l.startsWith('agent.started research')),
+    ).toEqual([
+      'agent.started research/research:weather',
+      'agent.started research/research:lodging',
+      'agent.started research/research:transport',
+      'agent.started research/research:knowledge',
+    ]);
+    expect(labels).toContain('agent.started planner/compose');
+    expect(labels).not.toContain('agent.started planner/revise');
+    const draft = draftOf(ctx.events);
+    expect(draft.itinerary.destination).toBe('Porto');
+    expect(draft.revision).toBe(1);
+    expect(draft.change).toBeUndefined();
+    expect(result.reply).toBe('## 3 Tage Porto');
+    expect(result.focus?.name).toBe('Porto');
+    const stored = await ctx.drafts.load('user-a', 's1');
+    expect(stored?.revision).toBe(1);
+    expect(stored?.brief.destination).toBe('Porto');
+    expect(stored?.findings.destination?.name).toBe('Porto');
+  });
+
+  it('eine Rückfrage lässt den gespeicherten Entwurf stehen', async () => {
+    const ctx = setup();
+    await firstPlan(ctx);
+    ctx.llm.chat.mockResolvedValueOnce(
+      reply('{"status":"ask","question":"Welcher Tag?"}', 900, 30),
+    );
+
+    const result = await ctx.run('Mach es anders');
+
+    expect(result.reply).toBe('Welcher Tag?');
+    expect((await ctx.drafts.load('user-a', 's1'))?.revision).toBe(1);
+  });
+
+  it('ein gescheiterter Lauf überschreibt den Entwurf nicht', async () => {
+    const ctx = setup();
+    await firstPlan(ctx);
+    ctx.llm.chat
+      .mockResolvedValueOnce(
+        reply(
+          '{"status":"ready","intent":"revise","days":[2],"changes":{},"summary":"Tag 2 ruhiger"}',
+          1,
+          1,
+        ),
+      )
+      .mockResolvedValueOnce(reply('kaputt', 1, 1))
+      .mockResolvedValueOnce(reply('immer noch kaputt', 1, 1));
+
+    await expect(ctx.run('Tag 2 entspannter')).rejects.toThrow(
+      /Reparaturversuch/,
+    );
+    expect((await ctx.drafts.load('user-a', 's1'))?.revision).toBe(1);
+    expect(
+      lastPlanOf(ctx.events).tasks.find((t) => t.id === 'revise')?.status,
+    ).toBe('error');
   });
 });

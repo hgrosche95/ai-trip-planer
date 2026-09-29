@@ -202,4 +202,23 @@ describe('ResearchAgent', () => {
       'Lissabon Sehenswürdigkeiten Essen Transport Fado',
     );
   });
+
+  it('"günstig übernachten": Unterkünfte unter der Preisgrenze zuerst', async () => {
+    const { registry } = researchTools();
+    const { ctx } = testContext();
+
+    const findings = await new ResearchAgent(registry).run(
+      {
+        brief: { ...brief, lodging: 'budget' },
+        tasks: [task('research:lodging')],
+      },
+      ctx,
+    );
+
+    // Grenze 60 € (80 % von 75 €): die Pension (ab 55 €) vor dem Hotel
+    expect(findings.lodging?.items.map((item) => item.name)).toEqual([
+      'Casa Baixa',
+      'Hotel Alfama',
+    ]);
+  });
 });

@@ -201,6 +201,11 @@ function TotalsLine({ run }: { run: RunState }) {
   // Modus vorn, damit sich Antworten aus beiden Modi direkt vergleichen lassen.
   // Auch ohne Summen (abgebrochener Lauf) sieht man, welcher Modus lief.
   const parts = run.mode ? [AGENT_MODE_LABELS[run.mode]] : [];
+  // Folgenachricht, die einen Entwurf geändert hat: Die Zahlen gehören zur
+  // Überarbeitung, nicht zu einem ganzen Plan
+  if (run.draft?.change !== undefined) {
+    parts.push(`Überarbeitung (Fassung ${run.draft.revision})`);
+  }
   const totals = run.totals;
   if (totals) {
     parts.push(

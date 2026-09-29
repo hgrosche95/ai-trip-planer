@@ -68,6 +68,8 @@ export type TaskType =
   | 'research:knowledge'
   | 'research:currency'
   | 'compose'
+  // Überarbeitung einzelner Tage eines bestehenden Entwurfs
+  | 'revise'
   | 'budget'
   | 'final';
 export type TaskStatus = 'pending' | 'running' | 'done' | 'skipped' | 'error';
@@ -149,8 +151,16 @@ export interface RunEventPayloads {
   // Aufgabenliste des Planers, bei jeder Änderung vollständig
   'plan.updated': { tasks: PlanTask[] };
   'budget.updated': BudgetReport;
-  // Fertiger, geprüfter Plan als Entwurf, dazu die Annahmen des Planers
-  'itinerary.draft': { itinerary: ItineraryDraft; assumptions: string[] };
+  // Fertiger, geprüfter Plan als Entwurf, dazu die Annahmen des Planers.
+  // revision: Fassung in der Session (1 = erster Plan, jede Überarbeitung
+  // per Folgenachricht +1; fehlt in älteren Läufen), change: kurze
+  // Beschreibung der Änderung, nur bei einer Überarbeitung
+  'itinerary.draft': {
+    itinerary: ItineraryDraft;
+    assumptions: string[];
+    revision?: number;
+    change?: string;
+  };
   'llm.started': { stepId: string; agent?: AgentName; parentStepId?: string };
   // Der laufende LLM-Aufruf wartet auf das Groq-Limit (Minutenbudget an
   // Tokens bzw. freie Anfragen), bevor er rausgeht

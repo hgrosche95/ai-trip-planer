@@ -90,6 +90,135 @@ als **Entwurf**, nennt seine Annahmen offen und speichert erst, wenn der Nutzer 
 Der Classic-Modus bleibt, wie er ist: Dort speichert der Agent weiterhin nur, wenn der Nutzer es
 im Gespräch will.
 
+## Entwurf per Folgenachricht anpassen
+
+![Erstplan, darunter „Überholt durch neuere Version“; die Überarbeitung „Tag 2 entspannter“ beginnt mit „Geändert: Tag 2 ruhiger“, Ablauf mit „Entwurf anpassen“, darunter „Plan speichern“ für Fassung 2](draft-revise.png)
+
+Screenshot aus dem echten Frontend, das Backend war ein Mock mit Beispieldaten (Tokens und Zeiten
+sind Beispielwerte).
+
+**Warum:** Die Antwort lädt zum Anpassen ein („Tag 2 entspannter“, „günstiger übernachten“). Bisher
+lief so eine Folgenachricht wieder durch den ganzen Ablauf: triage las mit dem Dialog als Kontext
+einen neuen Brief, die Recherche lief komplett neu, compose schrieb alle Tage neu, auch die, an denen
+der Nutzer nichts ändern wollte. Jetzt kennt der Orchestrator den letzten Entwurf der Session und
+ändert gezielt nur, was die Nachricht betrifft.
+
+**Gespeicherter Entwurf:** Prisma-Modell `TripDraft` (Migration `20260929120000_trip_drafts`), ein
+Eintrag pro `(userId, sessionId)` mit `brief` (TripBrief), `draft` (Tage, Stops, Koordinaten),
+`findings` (Wetter, Unterkünfte, Anreise, Treffer der Wissensbasis, damit nicht neu recherchiert
+werden muss), `budget` und `revision` (Fassung in der Session). Der Orchestrator lädt ihn am Anfang
+jedes Laufs zusammen mit dem Dialog und ersetzt ihn nach jedem erfolgreichen Lauf
+([`orchestrator/trip-draft-store.ts`](../../apps/api/src/orchestrator/trip-draft-store.ts), Muster wie
+`ConversationStore`: Schnittstelle, Token `TRIP_DRAFT_STORE`, Prisma-Implementierung, Variante im
+Arbeitsspeicher für Tests). Eine Rückfrage oder ein Fehler lässt den alten Entwurf stehen. Aufgeräumt
+wird wie beim Chat-Verlauf beim Schreiben, höchstens einmal pro Stunde, nach
+`CONVERSATION_RETENTION_DAYS` (30 Tage) ohne Änderung; `User` löscht per `onDelete: Cascade` mit.
+
+```mermaid
+flowchart TD
+    M([Folgenachricht]) --> L[("TripDraft der Session<br/>brief, draft, findings")]
+    L --> T["Planer: triage<br/>kurzer Prompt + Kurzfassung des Entwurfs<br/>1 LLM-Aufruf"]
+    T -- "unklar" --> Q([Rückfrage, Entwurf bleibt])
+    T -- "changes.destination<br/>oder intent new" --> N["neue Reise:<br/>voller Ablauf, Fassung 1"]
+    T -- "intent revise:<br/>days, changes, summary" --> P["Planer: plan<br/>Code: welche Recherche?"]
+    P -- "Daten, Personen,<br/>Unterkunft, Abreiseort" --> R["nur diese Recherche<br/>(Rest aus findings)"]
+    P -- "sonst" --> X{"Was ändert<br/>der Planer?"}
+    R --> X
+    X -- "Reisedauer geändert" --> C["compose: ganzer Plan neu"]
+    X -- "betroffene Tage" --> V["Planer: revise<br/>nur diese Tage, 1 LLM-Aufruf<br/>(+1 Reparaturversuch)"]
+    X -- "keine Tage" --> B
+    C & V --> B["Budget<br/>Code"]
+    B --> F["Planer: final<br/>kurze Antwort nur zu den Änderungen"]
+    F --> E(["Geändert: …<br/>itinerary.draft revision n+1"])
+    E --> L
+```
+
+**triage mit Entwurf:** Hat die Session einen Entwurf, bekommt triage statt des normalen Prompts
+`triageRevisePrompt`: die Kurzfassung des Entwurfs (Eckdaten und die Titel pro Tag, ~150 Tokens,
+`draftDigest`) und nur die Frage, was sich ändert. Antwort z. B.
+`{"status":"ready","intent":"revise","days":[2],"changes":{"lodging":"budget"},"summary":"Tag 2 ruhiger, Unterkunft günstiger"}`
+oder eine Rückfrage. Frühere Antworten gehen nur mit den ersten 300 Zeichen in den Verlauf; den Plan
+kennt triage aus der Kurzfassung. `parseRevision` ([`orchestrator/draft-revision.ts`](../../apps/api/src/orchestrator/draft-revision.ts))
+übernimmt nur erlaubte Felder (`destination`, `origin`, Daten, `travelers`, `budget`, `preferences`,
+`lodging`), prüft den neuen Brief mit `parseTripBrief` (ungültig → Rückfrage), nimmt nur gültige
+Tage und entfernt Annahmen, die eine ausdrückliche Angabe überholt hat („Unterkunft: Mittelklasse“
+nach „günstiger übernachten“). Ein anderes Ziel ist eine **neue Reise** (voller Ablauf, der alte
+Entwurf wird ersetzt, Fassung wieder 1), ebenso `intent: "new"` („plan alles neu“) und ein
+vollständiger Brief ohne `changes`.
+
+**Welche Änderung welche Recherche auslöst** (`revisionResearch`, in Code, getestet):
+
+| Änderung | Recherche neu | Planer |
+| --- | --- | --- |
+| Programm, Tempo („Tag 2 entspannter“, „mehr Kulinarik an Tag 3“) | keine | `revise` für die genannten Tage |
+| Vorlieben, Gesamtbudget in Euro | keine | `revise` nur, wenn Tage genannt sind |
+| Unterkunftsniveau („günstiger übernachten“, „gutes Hotel“) | Unterkünfte | keiner, nur Budget und final |
+| Personen | Unterkünfte (Zimmer, Such-Links) | `revise` nur, wenn Tage genannt sind |
+| Daten bei gleicher Dauer | Wetter + Unterkünfte | `revise` nur, wenn Tage genannt sind |
+| Reisedauer | Wetter + Unterkünfte | `compose` für den ganzen Plan |
+| Abreiseort | Anreise | – |
+| Budget in fremder Währung | Umrechnung | – |
+| anderes Ziel | alles (neue Reise) | `compose` |
+
+Bei einem Tagesausflug entfällt die Unterkunft. Was neu recherchiert wird, ersetzt in den
+gespeicherten `findings` genau seinen Teil (`mergeFindings`); fällt eine Recherche aus, fehlt der
+Teil danach, statt veraltet stehen zu bleiben.
+
+**Unterkunftsniveau:** Neu im `TripBrief` ist `lodging` (`budget` | `mid` | `upscale`), die triage
+setzt es nur, wenn der Nutzer eins nennt. Bei „günstig“ sucht die Recherche mit
+`budgetPerNightEur` = 80 % des unteren Hotelpreises der Stadt (Lissabon: 60 €), passende Unterkünfte
+kommen zuerst; das Budget rechnet dann mit dem Median der unteren Preisenden unter dieser Grenze
+statt mit dem Median der Mitten, bei „gehoben“ mit dem Median der oberen Enden.
+
+**revise:** Das Modell sieht die betroffenen Tage vollständig, die übrigen nur als Titel (gegen
+Dopplungen), das Wetter nur für die betroffenen Tage und den Wunsch des Nutzers (`revisePrompt`,
+Ausgabe wie compose). Der Code prüft: nur Punkte der freigegebenen Tage, dann mit den unveränderten
+Tagen zusammen dieselbe Prüfung wie compose (`tripDraftErrors`), fehlende Koordinaten ergänzt er.
+Fehler gehen genau einmal zurück ans Modell, danach `PlannerOutputError`. Die Stops der anderen Tage
+bleiben dieselben Objekte (`replaceDays`), also Stop für Stop identisch.
+
+**Antwort und Ereignisse:** final bekommt bei einer Überarbeitung `finalRevisionPrompt` und nur die
+geänderten Tage, die Nummern der unveränderten, das neue Budget und Unterkünfte nur, wenn sie neu
+gesucht wurden. Der Code stellt „**Geändert:** Tag 2 ruhiger“ (Beschreibung aus der triage, sonst aus
+Code, z. B. „Tag 2 angepasst, Unterkunft günstig“) vor die Antwort. `itinerary.draft` trägt
+`revision` (Fassung) und `change`, `plan.updated` die Aufgabe `revise` („Entwurf anpassen“ in
+Checkliste und Lanes). Im Chat bietet nur die neueste Antwort mit Entwurf „Plan speichern“, ältere
+zeigen „Überholt durch neuere Version“ (war eine ältere Fassung schon gespeichert, bleibt ihr Link
+stehen; `lib/draft-versions.ts`). Die Ablauf-Zeile beginnt mit „Überarbeitung (Fassung 2)“.
+
+**Tokens:** Eine Überarbeitung ohne Recherche braucht 3 LLM-Aufrufe (triage, revise, final), ohne
+betroffene Tage 2. Gemessen an den Prompts im Orchestrator-Test (Zeichen, mit drei Treffern der
+Wissensbasis in voller Länge): Erstplan 9.629 Zeichen Input (triage 2.181, compose 3.939, final
+3.509), „Tag 2 entspannter“ 6.113 (triage 2.265, revise 2.084, final 1.764), also ~63 %. Dazu kommt
+die viel kürzere Ausgabe (ein Tag statt drei, Antwort nur zu den Änderungen), siehe
+[Token-Rechnung](#token-rechnung-pro-lauf).
+
+**Tests:**
+
+| Test | Prüft |
+| --- | --- |
+| `orchestrator/orchestrator.spec.ts` | Erstplan → „Tag 2 entspannter“: genau 3 LLM-Aufrufe, kein Tool und keine API, Ereignisfolge triage/plan/revise/budget/final, nur Tag 2 neu, Tag 1 und 3 identisch, `revision: 2`, `change`, Antwort beginnt mit „Geändert:“, Prompts unter 70 % und Tokens unter 60 % des Erstplans, revise sieht nur Tag 2 vollständig, gespeicherte Fassung 2 mit alter Recherche; „günstiger übernachten“: nur `research:lodging`/`search_lodging`, kein revise, Programm gleich, Annahme zur Unterkunft entfernt, Unterkunft im Budget billiger, Anreise gleich; „Lieber nach Porto“: 4 Recherchen, compose, Fassung 1, Porto gespeichert; Rückfrage und gescheiterter Lauf lassen den Entwurf stehen |
+| `orchestrator/draft-revision.spec.ts` | `parseRevision` (Tage filtern, Unterkunft, anderes Ziel → neu, Schreibweise, Dauer → recompose, ungültige Daten, `null`, verbotene Felder, Beschreibung säubern, Beschreibung aus Code); Tabelle `revisionResearch` inkl. Tagesausflug und Reihenfolge; `mergeFindings`; `replaceDays` (dieselben Objekte); Preisgrenze; `changeSummary` |
+| `orchestrator/agents/planner.agent.spec.ts` | triage mit Entwurf (kurzer Prompt mit Kurzfassung, anderes Ziel, „alles neu“, voller Brief, ungültig, ohne Entwurf, Verlauf gekürzt); `buildRevisionPlan`; revise (nur Tag 2, Reparatur bei falschem Tag, leerer Tag → Abbruch nach 2 Aufrufen); final einer Überarbeitung (kurzer Prompt, Fakten, „Geändert:“, `revision`/`change`), Erstplan Fassung 1; Injection-Regeln in den neuen Prompts |
+| `orchestrator/agents/budget.agent.spec.ts`, `research.agent.spec.ts` | Unterkunft je Niveau (ohne Angabe, günstig, günstig ohne Treffer, gehoben); Recherche mit Preisgrenze sortiert die Pension vor das Hotel |
+| `orchestrator/trip-draft-store.spec.ts` | Arbeitsspeicher: pro Nutzer und Session, ersetzen, Kopien; Prisma (gemockt): upsert auf `(userId, sessionId)`, Budget entfernen, Lesen, Aufräumen nach 30 Tagen höchstens einmal pro Stunde, Speichern trotz Fehler beim Aufräumen. Zusätzlich einmal von Hand gegen eine Wegwerf-Datenbank geprüft (Migration, Rundlauf, Aufräumen, Cascade) |
+| `apps/web/src/lib/draft-versions.test.ts`, `run-state.test.ts` | nur der neueste Entwurf ist `latest`, Rückfragen und abgebrochene Läufe lösen ihn nicht ab; `revision`/`change` im Reducer, ältere Läufe Fassung 1; Label „Entwurf anpassen“ |
+
+**Bewusst offen:**
+
+- **Vorlieben ohne neue Recherche:** „mehr Kulinarik“ fragt die Wissensbasis nicht neu ab, revise
+  arbeitet mit den gespeicherten Treffern und Weltwissen. Neue Treffer kosten keine Tokens, aber
+  Zeit; bei Bedarf `research:knowledge` in `revisionResearch` ergänzen.
+- **Neue Daten ohne genannte Tage:** Verschiebt der Nutzer die Reise, laufen Wetter und Unterkünfte
+  neu, das Programm bleibt aber, solange die triage keine Tage nennt; ein neuer Regentag bekommt dann
+  kein Indoor-Programm. Denkbar: Tage mit neuem Regen in Code zu `days` hinzufügen.
+- **Mehrere Änderungen nacheinander:** Jede Überarbeitung setzt auf der letzten Fassung auf; ein
+  „Rückgängig“ auf eine ältere Fassung gibt es nicht (die Karten im Chat bleiben aber sichtbar).
+- **Entwurf nach dem Neuladen:** Der Server kennt den Entwurf, das Frontend erzeugt aber bei jedem
+  Laden eine neue `sessionId`; nach einem Neuladen beginnt deshalb eine neue Session ohne Entwurf.
+- **Nicht live geprüft:** triage mit Entwurf (Erkennen von Tagen, `intent`) und revise nur mit Mocks;
+  vor allem, ob das Modell „günstiger“ als `lodging` und nicht als Tagesänderung liest.
+
 ## Die Idee in einem Satz
 
 Nur wo Sprache verstanden oder geschrieben werden muss, fragt der Orchestrator ein LLM; alles
@@ -123,9 +252,9 @@ In [`apps/api/src/runs/run-events.ts`](../../apps/api/src/runs/run-events.ts) un
 | `run.started` | wie bisher, jetzt mit `mode: 'classic' \| 'multi'` | Lanes statt Liste bei `multi`; ältere Läufe ohne `mode` gelten als `classic` |
 | `agent.started` | ein Agent beginnt eine Aufgabe: `{ stepId, agent, task }` | neuer Balken in der Lane des Agenten |
 | `agent.finished` | `{ stepId, agent, task, status, durationMs, summary }` | Balken abschließen, Zusammenfassung darunter |
-| `plan.updated` | bei jedem Statuswechsel einer Aufgabe, immer die ganze Liste | Checkliste ○ ◐ ✓ ✗ |
+| `plan.updated` | bei jedem Statuswechsel einer Aufgabe, immer die ganze Liste; bei einer Überarbeitung nur die nötigen Aufgaben, darunter `revise` | Checkliste ○ ◐ ✓ ✗, `revise` als „Entwurf anpassen“ |
 | `budget.updated` | nach dem Budget-Agenten: `{ currency, limitCents, totalCents, status, items }` | Budget-Balken grün/gelb/rot mit Posten |
-| `itinerary.draft` | am Ende von final: `{ itinerary, assumptions }`, `itinerary` im Format von `POST /itineraries` | Button „Plan speichern“ unter der Antwort (nicht im Replay) |
+| `itinerary.draft` | am Ende von final: `{ itinerary, assumptions, revision, change? }`, `itinerary` im Format von `POST /itineraries`, `revision` = Fassung in der Session, `change` nur bei einer Überarbeitung | Button „Plan speichern“ unter der neuesten Antwort, ältere „Überholt durch neuere Version“ (nicht im Replay) |
 | `llm.*`, `tool.started` | wie bisher, im Multi-Modus zusätzlich `agent` (und `parentStepId` bei `*.started`) | Tokens pro Agenten-Schritt |
 
 `summary` enthält nur strukturierte Angaben („3 Tage, Vorjahreswerte“, „8 Unterkünfte“,
@@ -161,15 +290,18 @@ Replay ohne Änderung.
      Treffer), damit der Prompt des Planers klein bleibt.
 4. **Planer:** [`agents/planner.agent.ts`](../../apps/api/src/orchestrator/agents/planner.agent.ts) mit
    [`planner.prompts.ts`](../../apps/api/src/orchestrator/agents/planner.prompts.ts) und
-   [`planner.schema.ts`](../../apps/api/src/orchestrator/agents/planner.schema.ts). Vier Einstiege:
+   [`planner.schema.ts`](../../apps/api/src/orchestrator/agents/planner.schema.ts). Fünf Einstiege:
    - `triage`: die letzten 6 Dialog-Nachrichten (ohne Tool-Runden) plus die neue Nachricht, Antwort als
      JSON `ready` oder `ask`. Kaputtes JSON oder ein `ready` ohne Zeitraum wird ebenfalls eine Rückfrage:
-     lieber nachfragen als raten, und es bleibt bei einem Aufruf.
-   - `plan`: der Aufgaben-Graph in Code.
+     lieber nachfragen als raten, und es bleibt bei einem Aufruf. Mit Entwurf in der Session ein
+     eigener, kürzerer Prompt, der nur die Änderung liest (siehe unten).
+   - `plan`: der Aufgaben-Graph in Code (bei einer Überarbeitung `buildRevisionPlan`).
    - `compose`: Programmpunkte als JSON. Fehlende Koordinaten ergänzt der Code mit denen des Ziels
      (kostet keinen Reparaturversuch), alle anderen Fehler gehen mit der eigenen Antwort zurück ans
      Modell, **genau einmal**. Danach `PlannerOutputError`, der Lauf endet mit `run.error`, nichts wird
      gespeichert.
+   - `revise`: nur die betroffenen Tage eines bestehenden Entwurfs, Prüfung und Reparaturversuch wie
+     compose (siehe [Entwurf per Folgenachricht anpassen](#entwurf-per-folgenachricht-anpassen)).
    - `finalize`: speichert **nicht** (siehe [Entwurf statt Auto-Speichern](#entwurf-statt-auto-speichern)),
      sondern schickt den geprüften Entwurf als `itinerary.draft` (`routeFromStops` liefert die Stationen
      für `stops.updated`) und schreibt die Antwort: Deutsch, Markdown, Preise als geschätzte Spanne,
@@ -186,21 +318,27 @@ Replay ohne Änderung.
    | Posten | Rechnung |
    | --- | --- |
    | Anreise | Mitte der empfohlenen Option × 2 (hin und zurück) × Personen |
-   | Unterkunft | Nächte × Median der gefundenen Unterkünfte ohne Hostels (sonst Preisniveau der Stadt) × Zimmer (2 Personen pro Zimmer) |
+   | Unterkunft | Nächte × Median der gefundenen Unterkünfte ohne Hostels (sonst Preisniveau der Stadt) × Zimmer (2 Personen pro Zimmer); bei Unterkunftsniveau „günstig“ bzw. „gehoben“ die unteren bzw. oberen Preisenden |
    | Programm | Summe `costCents` der Programmpunkte × Personen, ohne Anreise- und Unterkunftspunkte |
    | Essen | Tage × Personen × Tagespauschale nach Preisniveau der Stadt (25 / 35 / 45 / 60 €) |
 
    Status: über dem Budget `over`, über 90 % `tight`, sonst `ok`. Ohne genanntes Budget ist `limitCents`
    `null` und der Status `ok`. Ein Budget in fremder Währung zählt nur mit EZB-Kurs aus
    `convert_currency`, geraten wird kein Kurs.
-7. **State Machine:** [`orchestrator/orchestrator.ts`](../../apps/api/src/orchestrator/orchestrator.ts).
+7. **Überarbeitung:** [`orchestrator/draft-revision.ts`](../../apps/api/src/orchestrator/draft-revision.ts)
+   (`parseRevision`, `revisionResearch`, `mergeFindings`, `replaceDays`) und
+   [`orchestrator/trip-draft-store.ts`](../../apps/api/src/orchestrator/trip-draft-store.ts), siehe
+   [Entwurf per Folgenachricht anpassen](#entwurf-per-folgenachricht-anpassen).
+8. **State Machine:** [`orchestrator/orchestrator.ts`](../../apps/api/src/orchestrator/orchestrator.ts).
    `run()` läuft `while (state !== 'done') state = await step(state, …)`; jeder `case` stößt einen
    Agenten an. `TaskBoard` hält die Aufgaben und sendet `plan.updated`. Der Dialog wird wie im
    Classic-Modus im `ConversationStore` gespeichert (nur Text), das Ergebnis hat die Form von
-   `ChatResult`. Laufzeitlimit 120 s über `AbortSignal`, geprüft zwischen den Zuständen und vor jedem
+   `ChatResult`. Vor triage lädt er den Entwurf der Session (`TripDraftStore`), danach speichert er
+   den neuen; bei einer Überarbeitung führt `research` zu `revise` (nur betroffene Tage), `compose`
+   (andere Dauer) oder direkt zu `budget`. Laufzeitlimit 120 s über `AbortSignal`, geprüft zwischen den Zuständen und vor jedem
    LLM-Aufruf. `createOrchestrator` gibt jedem Agenten eine eigene `ToolRegistry` aus denselben
    Tool-Objekten ([`tools/index.ts`](../../apps/api/src/tools/index.ts), `createToolSet`).
-8. **Modus:** [`agent.controller.ts`](../../apps/api/src/agent.controller.ts) nimmt pro Lauf `mode`
+9. **Modus:** [`agent.controller.ts`](../../apps/api/src/agent.controller.ts) nimmt pro Lauf `mode`
    aus dem Body, sonst `AGENT_MODE`; mit `AGENT_MODE_LOCKED=true` immer `AGENT_MODE`
    (`resolveAgentMode` in `orchestrator.ts`). Bei `multi` ruft `POST /agent/runs` den Orchestrator
    auf, sonst `AgentService` wie bisher. Die
@@ -222,7 +360,9 @@ Replay ohne Änderung.
    steht unter der Antwort, im Live-Lauf und im Replay.
 4. **Entwurf speichern:** Der Reducer übernimmt `itinerary.draft` als `draft`;
    [`components/save-draft-button.tsx`](../../apps/web/src/components/save-draft-button.tsx) steht in
-   [`app/chat-window.tsx`](../../apps/web/src/app/chat-window.tsx) unter der Antwortkarte.
+   [`app/chat-window.tsx`](../../apps/web/src/app/chat-window.tsx) unter der Antwortkarte, nur beim
+   neuesten Entwurf ([`lib/draft-versions.ts`](../../apps/web/src/lib/draft-versions.ts)); ältere
+   Antworten zeigen „Überholt durch neuere Version“.
 
 ## Token-Rechnung pro Lauf
 
@@ -240,6 +380,8 @@ ab Berlin“; bei Reasoning-Modellen wie `gpt-oss` kommt das Nachdenken zur Ausg
 | **Summe** | **3** | | | **~5.250** |
 | mit Reparaturversuch in compose | 4 | +~2.300 | +~1.000 | ~8.300 |
 | Rückfrage („Ich will verreisen“) | 1 | ~600 | ~150 | ~750 |
+| Überarbeitung „Tag 2 entspannter“: triage (~650 + ~100), revise (~600 + ~350), final (~500 + ~400) | 3 | ~1.750 | ~850 | **~2.600** |
+| Überarbeitung „günstiger übernachten“: triage, 1 Recherche, final | 2 | ~1.200 | ~450 | ~1.650 |
 
 Zum Vergleich Classic: Jeder Aufruf trägt ~700 Tokens System-Prompt und ~1.000 Tokens
 Tool-Definitionen, bei 4–6 Aufrufen mit wachsendem Verlauf sind das 10.000 Tokens und mehr.
@@ -259,6 +401,7 @@ Gemessen wird das erst mit echtem Key (siehe unten).
 | `agent.controller.spec.ts` | Default `classic` mit `mode` in `run.started`; `AGENT_MODE=multi` ruft den Orchestrator, seine Ereignisse landen im Stream; `mode` im Body schlägt den Default (in beide Richtungen); ungültiger `mode` → 400 vor dem Stream; `AGENT_MODE_LOCKED=true` ignoriert die Wahl des Clients; `/agent/chat` bleibt classic |
 | `apps/web/src/lib/agent-mode.test.ts` | Default `multi`, Wahl in `localStorage` merken und lesen, unbekannte Werte, werfender Speicher (Wahl bleibt bis zum Neuladen), Benachrichtigung des Umschalters |
 | `apps/web/src/lib/run-state.test.ts` | u. a. `itinerary.draft` landet als `draft` im Zustand, Läufe ohne das Ereignis haben keinen Entwurf |
+| Überarbeitung per Folgenachricht | siehe [Entwurf per Folgenachricht anpassen](#entwurf-per-folgenachricht-anpassen) |
 | `apps/web/src/lib/agent-lanes.test.ts` | Reducer: Modus, Agenten-Schritte, Herkunft der Tool-Schritte, `lastMs`, `plan.updated`, `budget.updated`, alte Läufe ohne `mode`; Lanes: Balken relativ zur Laufzeit, parallele Recherche, Tokens pro Schritt, keine Lanes bei classic |
 
 Kein Test braucht Netz: Groq, Open-Meteo, Overpass, Frankfurter und der RAG-Service sind gemockt.
@@ -269,12 +412,15 @@ Die bestehenden Tests des Classic-Agenten laufen unverändert.
 - **Modelle pro Agent:** `ProviderRegistry` und `AGENT_MODEL_*` (Plan 2.5). Heute liefert
   `ctx.llm(agent)` für alle Agenten den einen `LLM_PROVIDER`; die Schnittstelle ist schon so gebaut,
   dass nur die Factory sich ändert.
-- **Anpassen per Folgenachricht (`TripDraft` pro Session) folgt:** Die Antwort lädt zu „mehr
-  Kulinarik“ oder „Tag 2 entspannter“ ein. Heute läuft so eine Folgenachricht wieder durch triage
-  (mit dem Dialog als Kontext) und plant neu, als neuer Entwurf. Mit einem gespeicherten Entwurf pro
-  Session (Prisma-Migration) ändert der Planer nur den betroffenen Tag.
-- **Entwurf nur im Browser:** Wird der Chat neu geladen, bevor „Plan speichern“ geklickt ist, ist
-  der Entwurf weg (das Replay zeigt ihn, speichert aber bewusst nicht).
+- **Anpassen per Folgenachricht:** erledigt, siehe
+  [Entwurf per Folgenachricht anpassen](#entwurf-per-folgenachricht-anpassen) (dort auch, was dabei
+  bewusst offen ist).
+- **Entwurf nach dem Neuladen:** Der Server speichert den Entwurf pro Session, das Frontend beginnt
+  aber nach jedem Laden eine neue Session. Wird der Chat neu geladen, bevor „Plan speichern“ geklickt
+  ist, ist der Entwurf für den Nutzer weg (das Replay zeigt ihn, speichert aber bewusst nicht).
+  Abhilfe: `sessionId` in `sessionStorage` halten und den letzten Entwurf per API nachladen.
+- **Retention zentral:** `Conversation`, `AgentRun` und `TripDraft` räumen je für sich beim Schreiben
+  auf; Plan 2.4 sieht dafür einen gemeinsamen `RetentionService` vor.
 - **Sparmodus:** automatischer Downgrade auf `classic` (bzw. ein kleinerer Lauf), wenn der Limiter
   weniger als 3.000 freie Tokens für das Planer-Modell meldet, mit Badge in der Timeline.
 - **Sparvorschläge:** Bei `over` 1 LLM-Aufruf „3 konkrete Sparvorschläge“ mit einem kleinen Modell.

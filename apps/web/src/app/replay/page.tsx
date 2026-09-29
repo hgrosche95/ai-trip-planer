@@ -211,7 +211,8 @@ function Replay() {
             {/* Kein Speichern im Replay: Es zeigt nur, was im Lauf passiert ist */}
             {run.draft && (
               <p className="mt-2 text-xs text-dim">
-                Entwurf · gespeichert wird im Chat mit „Plan speichern“
+                Entwurf{run.draft.revision > 1 ? ` (Fassung ${run.draft.revision})` : ''} ·
+                gespeichert wird im Chat mit „Plan speichern“
               </p>
             )}
           </div>
