@@ -8,8 +8,20 @@ import type { RunEventPayloads } from '../../runs/run-events';
 import { LISBON_BRIEF, TODAY, testContext } from '../testing.fixtures';
 import { emptyFindings, parseTripBrief } from '../trip-draft';
 import type { ResearchFindings } from '../trip-draft';
-import { PlannerAgent, buildTaskPlan } from './planner.agent';
-import { composePrompt, finalPrompt, triagePrompt } from './planner.prompts';
+import {
+  PlannerAgent,
+  buildRevisionPlan,
+  buildTaskPlan,
+  draftDigest,
+} from './planner.agent';
+import {
+  composePrompt,
+  finalPrompt,
+  finalRevisionPrompt,
+  revisePrompt,
+  triagePrompt,
+  triageRevisePrompt,
+} from './planner.prompts';
 import { PlannerOutputError } from './planner.schema';
 
 function reply(content: string): LlmChatResult {
@@ -422,6 +434,388 @@ describe('PlannerAgent', () => {
       triagePrompt(TODAY),
       composePrompt(3),
       finalPrompt(),
+    ]) {
+      expect(prompt).toContain(PROMPT_INJECTION_RULES);
+    }
+  });
+});
+
+describe('PlannerAgent: Überarbeitung eines Entwurfs', () => {
+  async function currentDraft() {
+    const draft = await planner().agent.compose(
+      { brief: LISBON_BRIEF, findings },
+      testContext(() => scriptedLlm(VALID_STOPS)).ctx,
+    );
+    return { brief: LISBON_BRIEF, draft };
+  }
+
+  const REVISE_DAY_2 = JSON.stringify({
+    status: 'ready',
+    intent: 'revise',
+    days: [2],
+    changes: {},
+    summary: 'Tag 2 ruhiger',
+  });
+
+  const DAY_2 = JSON.stringify({
+    stops: [
+      {
+        dayNumber: 2,
+        order: 1,
+        title: 'Café und Miradouro',
+        category: 'FOOD',
+        costCents: 500,
+      },
+    ],
+  });
+
+  describe('triage mit bestehendem Entwurf', () => {
+    it('nutzt den kurzen Prompt mit der Kurzfassung des Entwurfs und erkennt die Änderung', async () => {
+      const llm = scriptedLlm(REVISE_DAY_2);
+      const { ctx, events } = testContext(() => llm);
+      const current = await currentDraft();
+
+      const result = await planner().agent.triage(
+        { message: 'Tag 2 entspannter', history: [], current },
+        ctx,
+      );
+
+      expect(result).toEqual({
+        kind: 'revise',
+        brief: LISBON_BRIEF,
+        revision: {
+          days: [2],
+          research: [],
+          recompose: false,
+          summary: 'Tag 2 ruhiger',
+        },
+      });
+      const [messages] = llm.chat.mock.calls[0];
+      expect(messages[0].content).toBe(
+        triageRevisePrompt(TODAY, draftDigest(current)),
+      );
+      expect(messages[0].content).toContain(
+        '"days":{"1":["Ankunft","Alfama"],"2":["Museu Nacional do Azulejo"],"3":["Abreise"]}',
+      );
+      const finished = events.find((e) => e.type === 'agent.finished')
+        ?.data as RunEventPayloads['agent.finished'];
+      // Zusammenfassung ohne Nutzerfreitext
+      expect(finished.summary).toBe(
+        'Überarbeitung: Tag 2, 0 Recherche-Aufgaben',
+      );
+    });
+
+    it('ein anderes Ziel in changes wird eine neue Reise', async () => {
+      const llm = scriptedLlm(
+        '{"status":"ready","intent":"new","days":[],"changes":{"destination":"Porto"},"summary":"Porto statt Lissabon"}',
+      );
+      const { ctx } = testContext(() => llm);
+
+      const result = await planner().agent.triage(
+        {
+          message: 'Lieber nach Porto',
+          history: [],
+          current: await currentDraft(),
+        },
+        ctx,
+      );
+
+      expect(result).toEqual({
+        kind: 'ready',
+        brief: { ...LISBON_BRIEF, destination: 'Porto' },
+      });
+    });
+
+    it('"plan alles neu" (intent new mit changes, gleiches Ziel) plant mit dem Brief neu', async () => {
+      const llm = scriptedLlm(
+        '{"status":"ready","intent":"new","days":[],"changes":{},"summary":"alles neu"}',
+      );
+      const { ctx } = testContext(() => llm);
+
+      const result = await planner().agent.triage(
+        {
+          message: 'Plan alles neu',
+          history: [],
+          current: await currentDraft(),
+        },
+        ctx,
+      );
+
+      expect(result).toEqual({ kind: 'ready', brief: LISBON_BRIEF });
+    });
+
+    it('vollständige Eckdaten ohne changes gelten als neue Reise', async () => {
+      const llm = scriptedLlm(READY);
+      const { ctx } = testContext(() => llm);
+
+      const result = await planner().agent.triage(
+        { message: 'x', history: [], current: await currentDraft() },
+        ctx,
+      );
+
+      expect(result).toEqual({ kind: 'ready', brief: LISBON_BRIEF });
+    });
+
+    it('eine ungültige Änderung wird eine Rückfrage', async () => {
+      const llm = scriptedLlm(
+        '{"status":"ready","intent":"revise","days":[],"changes":{"startDate":"2025-01-01"}}',
+      );
+      const { ctx } = testContext(() => llm);
+
+      const result = await planner().agent.triage(
+        { message: 'x', history: [], current: await currentDraft() },
+        ctx,
+      );
+
+      expect(result).toMatchObject({ kind: 'ask' });
+    });
+
+    it('eine Änderung ohne Entwurf wird eine Rückfrage', async () => {
+      const llm = scriptedLlm(REVISE_DAY_2);
+      const { ctx } = testContext(() => llm);
+
+      const result = await planner().agent.triage(
+        { message: 'Tag 2 entspannter', history: [] },
+        ctx,
+      );
+
+      expect(result).toMatchObject({ kind: 'ask' });
+      // Ohne Entwurf der normale Prompt
+      expect(llm.chat.mock.calls[0][0][0].content).toBe(triagePrompt(TODAY));
+    });
+
+    it('kürzt frühere Antworten im Verlauf auf 300 Zeichen', async () => {
+      const llm = scriptedLlm(REVISE_DAY_2);
+      const { ctx } = testContext(() => llm);
+
+      await planner().agent.triage(
+        {
+          message: 'Tag 2 entspannter',
+          history: [
+            { role: 'user', content: '3 Tage Lissabon' },
+            { role: 'assistant', content: 'x'.repeat(3000) },
+          ],
+          current: await currentDraft(),
+        },
+        ctx,
+      );
+
+      const [messages] = llm.chat.mock.calls[0];
+      expect(messages[2]).toEqual({
+        role: 'assistant',
+        content: 'x'.repeat(300),
+      });
+    });
+  });
+
+  describe('plan', () => {
+    const revision = (
+      change: Partial<Parameters<typeof buildRevisionPlan>[1]>,
+    ) =>
+      buildRevisionPlan(LISBON_BRIEF, {
+        days: [],
+        research: [],
+        recompose: false,
+        summary: '',
+        ...change,
+      }).tasks.map((task) => `${task.id}<${task.dependsOn.join(',')}>`);
+
+    it('nur betroffene Tage: revise, budget, final ohne Recherche', () => {
+      expect(revision({ days: [2] })).toEqual([
+        'revise<>',
+        'budget<revise>',
+        'final<budget>',
+      ]);
+    });
+
+    it('nur Eckdaten: Recherche, dann direkt budget', () => {
+      expect(revision({ research: ['research:lodging'] })).toEqual([
+        'research:lodging<>',
+        'budget<research:lodging>',
+        'final<budget>',
+      ]);
+    });
+
+    it('andere Reisedauer: compose statt revise', () => {
+      expect(
+        revision({
+          recompose: true,
+          research: ['research:weather', 'research:lodging'],
+        }),
+      ).toEqual([
+        'research:weather<>',
+        'research:lodging<>',
+        'compose<research:weather,research:lodging>',
+        'budget<compose>',
+        'final<budget>',
+      ]);
+    });
+  });
+
+  describe('revise', () => {
+    async function reviseDay2(...contents: string[]) {
+      const llm = scriptedLlm(...contents);
+      const { ctx, events } = testContext(() => llm);
+      const { draft } = await currentDraft();
+      const run = planner().agent.revise(
+        {
+          brief: LISBON_BRIEF,
+          draft,
+          findings,
+          revision: {
+            days: [2],
+            research: [],
+            recompose: false,
+            summary: 'Tag 2 ruhiger',
+          },
+          request: 'Mach Tag 2 entspannter',
+        },
+        ctx,
+      );
+      return { llm, events, draft, run };
+    }
+
+    it('ersetzt nur Tag 2, die anderen Stops bleiben dieselben Objekte', async () => {
+      const { llm, events, draft, run } = await reviseDay2(DAY_2);
+
+      const revised = await run;
+
+      expect(llm.chat).toHaveBeenCalledTimes(1);
+      expect(revised.stops.map((s) => s.title)).toEqual([
+        'Ankunft',
+        'Alfama',
+        'Café und Miradouro',
+        'Abreise',
+      ]);
+      for (const stop of draft.stops.filter((s) => s.dayNumber !== 2)) {
+        expect(revised.stops).toContain(stop);
+      }
+      // fehlende Koordinaten mit dem Ziel ergänzt
+      expect(revised.stops[2]).toMatchObject({ lat: 38.72, lng: -9.14 });
+      const [messages] = llm.chat.mock.calls[0];
+      expect(messages[0].content).toBe(revisePrompt([2], 3));
+      const finished = events.find((e) => e.type === 'agent.finished')
+        ?.data as RunEventPayloads['agent.finished'];
+      expect(finished).toMatchObject({
+        task: 'revise',
+        status: 'ok',
+        summary: 'Tag 2 neu, 1 Programmpunkte',
+      });
+    });
+
+    it('Punkte an anderen Tagen gehen in genau einen Reparaturversuch', async () => {
+      const wrongDay = JSON.stringify({
+        stops: [{ dayNumber: 1, order: 1, title: 'X', category: 'FOOD' }],
+      });
+      const { llm, run } = await reviseDay2(wrongDay, DAY_2);
+
+      const revised = await run;
+
+      expect(llm.chat).toHaveBeenCalledTimes(2);
+      const repair = llm.chat.mock.calls[1][0].at(-1)?.content ?? '';
+      expect(repair).toContain('gehört nicht zu den Tagen 2');
+      expect(revised.stops.filter((s) => s.dayNumber === 1)).toHaveLength(2);
+    });
+
+    it('ein leerer Tag ist ein Fehler, nach dem zweiten Versuch bricht revise ab', async () => {
+      const empty = '{"stops":[]}';
+      const { llm, events, run } = await reviseDay2(empty, empty);
+
+      await expect(run).rejects.toBeInstanceOf(PlannerOutputError);
+      expect(llm.chat).toHaveBeenCalledTimes(2);
+      expect(llm.chat.mock.calls[1][0].at(-1)?.content).toContain(
+        'Tag 2 hat keine Programmpunkte',
+      );
+      const finished = events.find((e) => e.type === 'agent.finished')
+        ?.data as RunEventPayloads['agent.finished'];
+      expect(finished).toMatchObject({ task: 'revise', status: 'error' });
+    });
+  });
+
+  describe('finalize einer Überarbeitung', () => {
+    it('kurzer Prompt, "Geändert:" vorn, Fassung und Änderung im Entwurf', async () => {
+      const llm = scriptedLlm('### Tag 2\n- Café');
+      const { ctx, events } = testContext(() => llm);
+      const { draft } = await currentDraft();
+
+      const result = await planner().agent.finalize(
+        {
+          brief: LISBON_BRIEF,
+          draft,
+          findings,
+          budget: {
+            currency: 'EUR',
+            limitCents: 80_000,
+            totalCents: 50_000,
+            status: 'ok',
+            items: [],
+          },
+          version: 3,
+          revision: {
+            days: [2],
+            research: [],
+            recompose: false,
+            summary: 'Tag 2 ruhiger',
+          },
+        },
+        ctx,
+      );
+
+      expect(result.reply).toBe(
+        '**Geändert:** Tag 2 ruhiger\n\n### Tag 2\n- Café',
+      );
+      const [messages] = llm.chat.mock.calls[0];
+      expect(messages[0].content).toBe(finalRevisionPrompt());
+      const facts = JSON.parse(messages[1].content!) as {
+        Reise: {
+          changedDays: { dayNumber: number }[];
+          unchangedDays: number[];
+        };
+        Recherche: { lodging: unknown };
+      };
+      expect(facts.Reise.changedDays.map((s) => s.dayNumber)).toEqual([2]);
+      expect(facts.Reise.unchangedDays).toEqual([1, 3]);
+      expect(facts.Recherche.lodging).toBeNull();
+      const drafted = events.find((e) => e.type === 'itinerary.draft')
+        ?.data as RunEventPayloads['itinerary.draft'];
+      expect(drafted).toMatchObject({ revision: 3, change: 'Tag 2 ruhiger' });
+    });
+
+    it('der erste Plan ist Fassung 1 ohne Änderung', async () => {
+      const llm = scriptedLlm('## Plan');
+      const { ctx, events } = testContext(() => llm);
+      const { draft } = await currentDraft();
+
+      const result = await planner().agent.finalize(
+        {
+          brief: LISBON_BRIEF,
+          draft,
+          findings,
+          budget: {
+            currency: 'EUR',
+            limitCents: null,
+            totalCents: 50_000,
+            status: 'ok',
+            items: [],
+          },
+        },
+        ctx,
+      );
+
+      expect(result.reply).toBe('## Plan');
+      expect(llm.chat.mock.calls[0][0][0].content).toBe(finalPrompt());
+      const drafted = events.find((e) => e.type === 'itinerary.draft')
+        ?.data as RunEventPayloads['itinerary.draft'];
+      expect(drafted.revision).toBe(1);
+      expect(drafted).not.toHaveProperty('change');
+    });
+  });
+
+  it('übernimmt die Regeln gegen Prompt-Injection auch in die Prompts der Überarbeitung', () => {
+    for (const prompt of [
+      triageRevisePrompt(TODAY, '{}'),
+      revisePrompt([2], 3),
+      finalRevisionPrompt(),
     ]) {
       expect(prompt).toContain(PROMPT_INJECTION_RULES);
     }

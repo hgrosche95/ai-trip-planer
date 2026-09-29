@@ -11,15 +11,18 @@ import { ToolRegistry, createToolSet } from '../tools';
 import type { AgentContext } from './agent.types';
 import { BudgetAgent } from './agents/budget.agent';
 import type { BudgetReport } from './agents/budget.agent';
-import { PlannerAgent } from './agents/planner.agent';
+import { PlannerAgent, draftFor } from './agents/planner.agent';
 import type { FinalizeResult } from './agents/planner.agent';
 import { ResearchAgent } from './agents/research.agent';
+import { mergeFindings } from './draft-revision';
+import type { DraftRevision } from './draft-revision';
 import type {
   ResearchFindings,
   TaskPlan,
   TripBrief,
   TripDraft,
 } from './trip-draft';
+import type { StoredTripDraft, TripDraftStore } from './trip-draft-store';
 
 // Server-Default für POST /agent/runs, wenn der Client keinen Modus wählt:
 // AGENT_MODE=multi schaltet auf den Orchestrator, sonst classic.
@@ -47,10 +50,19 @@ export function resolveAgentMode(requested?: AgentMode): AgentMode {
 export const RUN_TIMEOUT_MS = 120_000;
 
 export type OrchestratorState =
-  'triage' | 'plan' | 'research' | 'compose' | 'budget' | 'finalize' | 'done';
+  | 'triage'
+  | 'plan'
+  | 'research'
+  | 'compose'
+  | 'revise'
+  | 'budget'
+  | 'finalize'
+  | 'done';
 
 export interface OrchestratorDeps {
   conversationStore: ConversationStore;
+  // Letzter Entwurf pro Session, Grundlage für Überarbeitungen
+  tripDraftStore: TripDraftStore;
   llm: LlmProvider;
   planner: PlannerAgent;
   research: ResearchAgent;
@@ -69,6 +81,10 @@ export interface RunInput {
 // nächsten Zustand.
 interface RunData {
   input: RunInput;
+  // Gespeicherter Entwurf der Session (vor diesem Lauf), falls vorhanden
+  base?: StoredTripDraft;
+  // Gesetzt, wenn die triage eine Änderung an `base` erkannt hat
+  revision?: DraftRevision;
   reply?: string;
   brief?: TripBrief;
   plan?: TaskPlan;
@@ -80,12 +96,17 @@ interface RunData {
 
 // Der Orchestrator als explizite State Machine (ADR 0001):
 //
-//   triage ─(Rückfrage)────────────────────────────────────────┐
-//     └→ plan → research → compose → budget → finalize → done ◄┘
+//   triage ─(Rückfrage)──────────────────────────────────────────┐
+//     └→ plan → research ─┬→ compose ─┬→ budget → finalize → done ◄┘
+//                         ├→ revise ──┤
+//                         └───────────┘ (nur Eckdaten geändert)
 //
 // Jeder Zustand ist eine Methode, die genau einen Agenten-Schritt anstößt
-// und den Folgezustand zurückgibt. Die Kritik (critique/revise) kommt in
-// Phase 4 zwischen budget und finalize dazu.
+// und den Folgezustand zurückgibt. Bei einer Überarbeitung (Folgenachricht
+// zum Entwurf der Session) läuft nur die Recherche, die die Änderung
+// braucht (oft keine), revise schreibt nur die betroffenen Tage neu; ohne
+// betroffene Tage geht es direkt zu budget. Die Kritik kommt in Phase 4
+// zwischen budget und finalize dazu.
 export class Orchestrator {
   private readonly logger = new Logger(Orchestrator.name);
 
@@ -105,11 +126,11 @@ export class Orchestrator {
       signal,
       today: this.deps.today?.() ?? new Date().toISOString().slice(0, 10),
     };
-    const history = await this.deps.conversationStore.load(
-      input.userId,
-      input.sessionId,
-    );
-    const data: RunData = { input };
+    const [history, base] = await Promise.all([
+      this.deps.conversationStore.load(input.userId, input.sessionId),
+      this.deps.tripDraftStore.load(input.userId, input.sessionId),
+    ]);
+    const data: RunData = { input, ...(base && { base }) };
     const board = new TaskBoard(emit);
 
     let state: OrchestratorState = 'triage';
@@ -131,6 +152,17 @@ export class Orchestrator {
       input.sessionId,
       history,
     );
+    // Der neue Entwurf ersetzt den alten, auch bei einer neuen Reise. Nach
+    // einer Rückfrage bleibt der alte stehen.
+    if (data.final && data.brief && data.draft && data.findings) {
+      await this.deps.tripDraftStore.save(input.userId, input.sessionId, {
+        revision: version(data),
+        brief: data.brief,
+        draft: data.draft,
+        findings: data.findings,
+        ...(data.budget && { budget: data.budget }),
+      });
+    }
 
     const findings = data.findings;
     return {
@@ -158,7 +190,13 @@ export class Orchestrator {
     switch (state) {
       case 'triage': {
         const result = await planner.triage(
-          { message: data.input.message, history },
+          {
+            message: data.input.message,
+            history,
+            ...(data.base && {
+              current: { brief: data.base.brief, draft: data.base.draft },
+            }),
+          },
           ctx,
         );
         if (result.kind === 'ask') {
@@ -166,23 +204,63 @@ export class Orchestrator {
           return 'done';
         }
         data.brief = result.brief;
+        if (result.kind === 'revise') data.revision = result.revision;
         return 'plan';
       }
       case 'plan': {
-        data.plan = await planner.plan(data.brief!, ctx);
+        data.plan = await planner.plan(data.brief!, ctx, data.revision);
         board.load(data.plan);
         return 'research';
       }
       case 'research': {
-        data.findings = await research.run(
-          {
-            brief: data.brief!,
-            tasks: data.plan!.tasks.filter((task) => task.agent === 'research'),
-            onTaskStatus: (id, status) => board.set(id, status),
-          },
-          ctx,
+        const tasks = data.plan!.tasks.filter(
+          (task) => task.agent === 'research',
         );
-        return 'compose';
+        // Überarbeitung ohne neue Recherche: die gespeicherte gilt weiter
+        const fresh =
+          tasks.length > 0
+            ? await research.run(
+                {
+                  brief: data.brief!,
+                  tasks,
+                  onTaskStatus: (id, status) => board.set(id, status),
+                },
+                ctx,
+              )
+            : undefined;
+        const { revision, base } = data;
+        if (!revision || !base) {
+          data.findings = fresh;
+          return 'compose';
+        }
+        data.findings = fresh
+          ? mergeFindings(
+              base.findings,
+              fresh,
+              tasks.map((task) => task.type),
+            )
+          : base.findings;
+        if (revision.recompose) return 'compose';
+        if (revision.days.length > 0) return 'revise';
+        // Nur Eckdaten geändert (Unterkunft, Budget, Personen): Programm
+        // bleibt, Daten und Budget des Entwurfs kommen aus dem neuen Brief
+        data.draft = draftFor(data.brief!, data.findings, base.draft.stops);
+        return 'budget';
+      }
+      case 'revise': {
+        data.draft = await board.track('revise', () =>
+          planner.revise(
+            {
+              brief: data.brief!,
+              draft: data.base!.draft,
+              findings: data.findings!,
+              revision: data.revision!,
+              request: data.input.message,
+            },
+            ctx,
+          ),
+        );
+        return 'budget';
       }
       case 'compose': {
         data.draft = await board.track('compose', () =>
@@ -216,6 +294,8 @@ export class Orchestrator {
               draft: data.draft!,
               findings: data.findings!,
               budget: data.budget!,
+              version: version(data),
+              ...(data.revision && { revision: data.revision }),
             },
             ctx,
           ),
@@ -227,6 +307,12 @@ export class Orchestrator {
         return 'done';
     }
   }
+}
+
+// Fassung des Entwurfs in der Session: Eine Überarbeitung zählt weiter,
+// eine neue Reise beginnt wieder bei 1
+function version(data: RunData): number {
+  return data.revision && data.base ? data.base.revision + 1 : 1;
 }
 
 // Hält den Stand der Aufgaben und meldet jede Änderung als plan.updated
@@ -278,10 +364,12 @@ export function createOrchestrator(
   llm: LlmProvider,
   conversationStore: ConversationStore,
   externalCache: ExternalCache,
+  tripDraftStore: TripDraftStore,
 ): Orchestrator {
   const tools = createToolSet(itinerariesService, externalCache);
   return new Orchestrator({
     conversationStore,
+    tripDraftStore,
     llm,
     planner: new PlannerAgent(),
     research: new ResearchAgent(

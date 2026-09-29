@@ -31,6 +31,11 @@ const MAX_TRAVELERS = 16;
 const MAX_PREFERENCES = 10;
 const MAX_ASSUMPTIONS = 6;
 
+// Unterkunftsniveau, wenn der Nutzer eines nennt ("günstig übernachten",
+// "gutes Hotel"). Ohne Angabe rechnet das Budget mit Mittelklasse.
+export const LODGING_LEVELS = ['budget', 'mid', 'upscale'] as const;
+export type LodgingLevel = (typeof LODGING_LEVELS)[number];
+
 // Eckdaten der Reise aus der triage des Planers
 export interface TripBrief {
   destination: string;
@@ -44,6 +49,7 @@ export interface TripBrief {
   // Gesamtbudget für alle Reisenden, wie genannt
   budget?: { amount: number; currency: string };
   preferences: string[];
+  lodging?: LodgingLevel;
   // Was der Planer ergänzt hat, weil der Nutzer es nicht genannt hat
   // (Personenzahl, Interessen, Unterkunftsniveau), als kurze deutsche
   // Stichpunkte. Die Antwort nennt sie offen, statt vorab nachzufragen.
@@ -131,6 +137,8 @@ export function parseTripBrief(
         .slice(0, MAX_PREFERENCES)
     : [];
 
+  const lodging = LODGING_LEVELS.find((level) => level === input.lodging);
+
   if (errors.length > 0) return { errors };
   const stated = Array.isArray(input.assumptions)
     ? input.assumptions
@@ -148,6 +156,7 @@ export function parseTripBrief(
       travelers,
       ...(budget && { budget }),
       preferences,
+      ...(lodging && { lodging }),
       assumptions:
         stated.length > 0
           ? stated

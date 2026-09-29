@@ -23,6 +23,7 @@ export const PLACES: Record<
 > = {
   lissabon: { name: 'Lissabon', lat: 38.72, lng: -9.14 },
   berlin: { name: 'Berlin', lat: 52.52, lng: 13.4 },
+  porto: { name: 'Porto', lat: 41.15, lng: -8.61 },
 };
 
 // Die echten Tools mit nachgebauten API-Clients: kein Netz, aber dieselben

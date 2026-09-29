@@ -9,6 +9,8 @@ import type { GlobeFocus } from '../../tools';
 import { routeFromStops } from '../../tools/save-itinerary.tool';
 import { agentStep } from '../agent.types';
 import type { AgentContext } from '../agent.types';
+import { LODGING_LABELS, parseRevision, replaceDays } from '../draft-revision';
+import type { DraftRevision } from '../draft-revision';
 import {
   parseTripBrief,
   tripDays,
@@ -29,7 +31,10 @@ import {
   REPAIR_INSTRUCTION,
   composePrompt,
   finalPrompt,
+  finalRevisionPrompt,
+  revisePrompt,
   triagePrompt,
+  triageRevisePrompt,
 } from './planner.prompts';
 import {
   PlannerOutputError,
@@ -43,21 +48,52 @@ import {
 export const TRIAGE_MAX_TOKENS = 1024;
 export const COMPOSE_MAX_TOKENS = 3072;
 export const FINAL_MAX_TOKENS = 2048;
+// Überarbeitung: nur die geänderten Tage, deshalb kleinere Grenzen
+export const REVISE_MAX_TOKENS = 2048;
+export const FINAL_REVISION_MAX_TOKENS = 1536;
 // Nur die letzten Nachrichten des Dialogs gehen in die triage: genug für
 // "Ich will verreisen" → Rückfrage → "Lissabon, 3 Tage im Oktober".
 const TRIAGE_HISTORY_MESSAGES = 6;
+// Frühere Antworten gehen gekürzt in die triage: Für Ziel und Zeitraum
+// reicht der Anfang (Rückfragen sind kurz), und einen fertigen Plan kennt
+// die triage schon als Kurzfassung des Entwurfs. Spart bei einer
+// Folgenachricht ~700 Tokens für die lange Plan-Antwort.
+const TRIAGE_ASSISTANT_CHARS = 300;
 
 const FALLBACK_QUESTION =
   'Gern plane ich deine Reise! Wohin soll es gehen, und wann und wie lange möchtest du reisen? Wenn du magst, nenn mir auch deinen Abreiseort und dein Budget.';
 
 export type TriageResult =
-  { kind: 'ask'; question: string } | { kind: 'ready'; brief: TripBrief };
+  | { kind: 'ask'; question: string }
+  | { kind: 'ready'; brief: TripBrief }
+  // Änderung am bestehenden Entwurf der Session
+  | { kind: 'revise'; brief: TripBrief; revision: DraftRevision };
+
+// Der bestehende Entwurf der Session, auf den sich eine Folgenachricht
+// beziehen kann
+export interface CurrentDraft {
+  brief: TripBrief;
+  draft: TripDraft;
+}
+
+export interface ReviseInput {
+  brief: TripBrief;
+  draft: TripDraft;
+  findings: ResearchFindings;
+  revision: DraftRevision;
+  // Die Folgenachricht des Nutzers
+  request: string;
+}
 
 export interface FinalizeInput {
   brief: TripBrief;
   draft: TripDraft;
   findings: ResearchFindings;
   budget: BudgetReport;
+  // Fassung des Entwurfs in der Session: 1 = erster Plan
+  version?: number;
+  // Nur bei einer Überarbeitung
+  revision?: DraftRevision;
 }
 
 export interface FinalizeResult {
@@ -68,10 +104,11 @@ export interface FinalizeResult {
   route?: GlobeFocus[];
 }
 
-// Der Planer ist der einzige Agent mit LLM in Phase 3a, und er hat vier
+// Der Planer ist der einzige Agent mit LLM in Phase 3a, und er hat fünf
 // Einstiege statt eines run(): triage und plan vor der Recherche, compose
-// danach, finalize am Ende. Pro Lauf höchstens 4 LLM-Aufrufe: triage,
-// compose (+ 1 Reparaturversuch), final. Die Rückfrage endet nach 1 Aufruf.
+// bzw. revise danach, finalize am Ende. Pro Lauf höchstens 4 LLM-Aufrufe:
+// triage, compose oder revise (+ 1 Reparaturversuch), final. Die Rückfrage
+// endet nach 1 Aufruf, eine Überarbeitung ohne Programmänderung nach 2.
 export class PlannerAgent {
   readonly name = 'planner' as const;
 
@@ -79,7 +116,7 @@ export class PlannerAgent {
   // Entwurf speichert der Nutzer selbst ("Plan speichern" im Frontend).
 
   triage(
-    input: { message: string; history: LlmMessage[] },
+    input: { message: string; history: LlmMessage[]; current?: CurrentDraft },
     ctx: AgentContext,
   ): Promise<TriageResult> {
     return agentStep<TriageResult>(ctx, this.name, 'triage', async (stepId) => {
@@ -91,12 +128,21 @@ export class PlannerAgent {
             !message.toolCalls?.length,
         )
         .slice(-TRIAGE_HISTORY_MESSAGES)
-        .map(({ role, content }) => ({ role, content }));
+        .map(({ role, content }) => ({
+          role,
+          content:
+            role === 'assistant'
+              ? (content ?? '').slice(0, TRIAGE_ASSISTANT_CHARS)
+              : content,
+        }));
+      const system = input.current
+        ? triageRevisePrompt(ctx.today, draftDigest(input.current))
+        : triagePrompt(ctx.today);
       const result = await this.callLlm(
         ctx,
         stepId,
         [
-          { role: 'system', content: triagePrompt(ctx.today) },
+          { role: 'system', content: system },
           ...dialog,
           { role: 'user', content: input.message },
         ],
@@ -109,6 +155,32 @@ export class PlannerAgent {
       } catch {
         // Kaputtes JSON: lieber einmal nachfragen als raten
         output = { status: 'ask' };
+      }
+      if (output.status === 'revise' && input.current) {
+        const parsed = parseRevision(
+          output.revision,
+          input.current.brief,
+          ctx.today,
+        );
+        if ('errors' in parsed) {
+          return {
+            value: { kind: 'ask', question: questionFor(parsed.errors) },
+            summary: 'Rückfrage nötig',
+          };
+        }
+        // Anderes Ziel (Code) oder "alles neu" (Modell): voller Ablauf mit
+        // den geänderten Eckdaten
+        if (parsed.kind === 'new' || output.fresh) {
+          return {
+            value: { kind: 'ready', brief: parsed.brief },
+            summary: `neue Reise, ${tripDays(parsed.brief)} Tage`,
+          };
+        }
+        const { days, research } = parsed.revision;
+        return {
+          value: parsed,
+          summary: `Überarbeitung: ${days.length > 0 ? `Tag ${days.join(', ')}` : 'nur Eckdaten'}, ${research.length} Recherche-Aufgaben`,
+        };
       }
       if (output.status === 'ready') {
         const parsed = parseTripBrief(output.brief, ctx.today);
@@ -123,8 +195,10 @@ export class PlannerAgent {
           summary: 'Rückfrage nötig',
         };
       }
+      // Rückfrage, oder eine Änderung ohne bestehenden Entwurf: nachfragen
+      const question = output.status === 'ask' ? output.question : undefined;
       return {
-        value: { kind: 'ask', question: output.question ?? FALLBACK_QUESTION },
+        value: { kind: 'ask', question: question ?? FALLBACK_QUESTION },
         summary: 'Rückfrage nötig',
       };
     });
@@ -132,9 +206,15 @@ export class PlannerAgent {
 
   // Der Plan entsteht in Code aus dem Brief, ohne Tokens: Welche Recherche
   // nötig ist, folgt direkt aus den Eckdaten.
-  plan(brief: TripBrief, ctx: AgentContext): Promise<TaskPlan> {
+  plan(
+    brief: TripBrief,
+    ctx: AgentContext,
+    revision?: DraftRevision,
+  ): Promise<TaskPlan> {
     return agentStep(ctx, this.name, 'plan', () => {
-      const plan = buildTaskPlan(brief);
+      const plan = revision
+        ? buildRevisionPlan(brief, revision)
+        : buildTaskPlan(brief);
       const research = plan.tasks.filter((task) => task.agent === 'research');
       return Promise.resolve({
         value: plan,
@@ -186,6 +266,48 @@ export class PlannerAgent {
     });
   }
 
+  // Schreibt nur die Tage aus revision.days neu; alle anderen Programmpunkte
+  // bleiben unverändert. Dieselbe Prüfung wie compose, ein Reparaturversuch.
+  revise(input: ReviseInput, ctx: AgentContext): Promise<TripDraft> {
+    return agentStep(ctx, this.name, 'revise', async (stepId) => {
+      const { brief, revision } = input;
+      const messages: LlmMessage[] = [
+        {
+          role: 'system',
+          content: revisePrompt(revision.days, tripDays(brief)),
+        },
+        { role: 'user', content: reviseFacts(input) },
+      ];
+      let result = await this.callLlm(ctx, stepId, messages, REVISE_MAX_TOKENS);
+      let checked = checkRevision(result.content, input);
+      if ('errors' in checked) {
+        messages.push(
+          { role: 'assistant', content: result.content ?? '' },
+          {
+            role: 'user',
+            content: `${REPAIR_INSTRUCTION}${checked.errors.slice(0, 10).join('; ')}. Antworte nur mit dem korrigierten JSON-Objekt mit den Programmpunkten der Tage ${revision.days.join(', ')}.`,
+          },
+        );
+        result = await this.callLlm(ctx, stepId, messages, REVISE_MAX_TOKENS);
+        checked = checkRevision(result.content, input);
+        if ('errors' in checked) {
+          throw new PlannerOutputError(
+            'Der Planer hat auch nach einem Reparaturversuch keine gültige Änderung geliefert',
+            checked.errors,
+          );
+        }
+      }
+      const { draft } = checked;
+      const changed = draft.stops.filter((stop) =>
+        revision.days.includes(stop.dayNumber),
+      ).length;
+      return {
+        value: draft,
+        summary: `${revision.days.length === 1 ? 'Tag' : 'Tage'} ${revision.days.join(', ')} neu, ${changed} Programmpunkte`,
+      };
+    });
+  }
+
   finalize(input: FinalizeInput, ctx: AgentContext): Promise<FinalizeResult> {
     return agentStep(ctx, this.name, 'final', async (stepId) => {
       const itinerary = itineraryDraft(input);
@@ -199,23 +321,39 @@ export class PlannerAgent {
         );
       }
 
+      // Überarbeitung einzelner Tage: kurze Antwort nur zu den Änderungen.
+      // Bei geänderter Reisedauer ist der ganze Plan neu, dann die volle.
+      const { revision } = input;
+      const short = revision !== undefined && !revision.recompose;
       const result = await this.callLlm(
         ctx,
         stepId,
         [
-          { role: 'system', content: finalPrompt() },
-          { role: 'user', content: finalFacts(input) },
+          {
+            role: 'system',
+            content: short ? finalRevisionPrompt() : finalPrompt(),
+          },
+          {
+            role: 'user',
+            content: short ? finalRevisionFacts(input) : finalFacts(input),
+          },
         ],
-        FINAL_MAX_TOKENS,
+        short ? FINAL_REVISION_MAX_TOKENS : FINAL_MAX_TOKENS,
       );
       ctx.emit('itinerary.draft', {
         itinerary,
         assumptions: [...input.brief.assumptions],
+        revision: input.version ?? 1,
+        ...(revision && { change: revision.summary }),
       });
       const route = routeFromStops(itinerary.stops);
+      const text = result.content?.trim() || 'Dein Reiseplan ist fertig.';
       return {
         value: {
-          reply: result.content?.trim() || 'Dein Reiseplan ist fertig.',
+          // Die Änderung steht vorn, aus Code statt aus der Modellantwort
+          reply: revision
+            ? `**Geändert:** ${revision.summary}\n\n${text}`
+            : text,
           itinerary,
           ...(route.length > 0 && { route }),
         },
@@ -270,6 +408,34 @@ export function buildTaskPlan(brief: TripBrief): TaskPlan {
   };
 }
 
+// Aufgaben einer Überarbeitung: nur die Recherche, die die Änderung
+// braucht, dann revise (nur betroffene Tage) oder compose (Dauer geändert),
+// budget und final. Ohne betroffene Tage schreibt niemand den Plan neu.
+export function buildRevisionPlan(
+  brief: TripBrief,
+  revision: DraftRevision,
+): TaskPlan {
+  const task = (
+    type: PlanTask['type'],
+    agent: PlanTask['agent'],
+    dependsOn: string[],
+  ): PlanTask => ({ id: type, type, agent, dependsOn, status: 'pending' });
+  const research = revision.research;
+  const writer: PlanTask['type'] | undefined = revision.recompose
+    ? 'compose'
+    : revision.days.length > 0
+      ? 'revise'
+      : undefined;
+  return {
+    tasks: [
+      ...research.map((type) => task(type, 'research', [])),
+      ...(writer ? [task(writer, 'planner', research)] : []),
+      task('budget', 'budget', writer ? [writer] : research),
+      task('final', 'planner', ['budget']),
+    ],
+  };
+}
+
 // Der Entwurf in genau der Form von CreateItineraryDto. Budget ist das
 // genannte oder die geschätzte Summe des Budget-Agenten.
 export function itineraryDraft(input: FinalizeInput): ItineraryDraft {
@@ -318,15 +484,65 @@ function checkDraft(
   } catch (error) {
     return { errors: [`Kein gültiges JSON: ${(error as Error).message}`] };
   }
-  const center = findings.destination;
-  if (center) {
-    stops = stops.map((stop) =>
-      stop.lat === undefined || stop.lng === undefined
-        ? { ...stop, lat: center.lat, lng: center.lng }
-        : stop,
-    );
+  const draft = draftFor(brief, findings, withCoordinates(stops, findings));
+  const errors = tripDraftErrors(draft);
+  return errors.length > 0 ? { errors } : { draft };
+}
+
+// Prüft die revise-Antwort: nur Punkte der freigegebenen Tage, danach
+// zusammen mit den unveränderten Tagen dieselbe Prüfung wie compose.
+function checkRevision(
+  content: string | null,
+  input: ReviseInput,
+): { draft: TripDraft } | { errors: string[] } {
+  const { brief, draft, findings, revision } = input;
+  let stops: DraftStop[];
+  try {
+    stops = parseComposeOutput(content);
+  } catch (error) {
+    return { errors: [`Kein gültiges JSON: ${(error as Error).message}`] };
   }
-  const draft: TripDraft = {
+  const outside = stops
+    .map((stop, index) => ({ stop, index }))
+    .filter(({ stop }) => !revision.days.includes(stop.dayNumber))
+    .map(
+      ({ stop, index }) =>
+        `stops.${index}.dayNumber ${String(stop.dayNumber)} gehört nicht zu den Tagen ${revision.days.join(', ')}`,
+    );
+  if (outside.length > 0) return { errors: outside };
+  const merged = draftFor(
+    brief,
+    findings,
+    replaceDays(draft.stops, revision.days, withCoordinates(stops, findings)),
+  );
+  const errors = tripDraftErrors(merged);
+  return errors.length > 0 ? { errors } : { draft: merged };
+}
+
+// Fehlende Koordinaten ergänzt der Code mit denen des Ziels, statt einen
+// Reparaturversuch zu verbrauchen
+function withCoordinates(
+  stops: DraftStop[],
+  findings: ResearchFindings,
+): DraftStop[] {
+  const center = findings.destination;
+  if (!center) return stops;
+  return stops.map((stop) =>
+    stop.lat === undefined || stop.lng === undefined
+      ? { ...stop, lat: center.lat, lng: center.lng }
+      : stop,
+  );
+}
+
+// Entwurf aus Eckdaten und Programmpunkten. Auch für eine Überarbeitung
+// ohne neues Programm: Daten, Budget und Vorlieben kommen aus dem neuen
+// Brief, die Stops bleiben.
+export function draftFor(
+  brief: TripBrief,
+  findings: ResearchFindings,
+  stops: DraftStop[],
+): TripDraft {
+  return {
     destination: brief.destination,
     startDate: brief.startDate,
     endDate: brief.endDate,
@@ -338,8 +554,86 @@ function checkDraft(
     preferences: brief.preferences,
     stops,
   };
-  const errors = tripDraftErrors(draft);
-  return errors.length > 0 ? { errors } : { draft };
+}
+
+// Kurzfassung des bestehenden Entwurfs für die triage: Eckdaten und die
+// Titel pro Tag, damit das Modell "Tag 2" zuordnen und eine Änderung von
+// einer neuen Reise unterscheiden kann (~150 Tokens statt der ganzen
+// Antwort).
+export function draftDigest({ brief, draft }: CurrentDraft): string {
+  const days: Record<string, string[]> = {};
+  for (const stop of draft.stops) {
+    (days[stop.dayNumber] ??= []).push(stop.title);
+  }
+  return JSON.stringify({
+    destination: brief.destination,
+    origin: brief.origin,
+    startDate: brief.startDate,
+    endDate: brief.endDate,
+    travelers: brief.travelers,
+    budget: brief.budget,
+    preferences: brief.preferences,
+    lodging: brief.lodging,
+    days,
+  });
+}
+
+// Fakten für revise: die betroffenen Tage vollständig, die anderen nur als
+// Titel, Wetter nur für die betroffenen Tage.
+export function reviseFacts(input: ReviseInput): string {
+  const { brief, draft, findings, revision, request } = input;
+  const affected = (day: number) => revision.days.includes(day);
+  const others: Record<string, string[]> = {};
+  for (const stop of draft.stops) {
+    if (!affected(stop.dayNumber)) {
+      (others[stop.dayNumber] ??= []).push(stop.title);
+    }
+  }
+  const dates = new Set(
+    revision.days.map((day) => addDays(brief.startDate, day - 1)),
+  );
+  return JSON.stringify({
+    Wunsch: request,
+    Reise: {
+      destination: brief.destination,
+      startDate: brief.startDate,
+      days: tripDays(brief),
+      travelers: brief.travelers,
+      budget: brief.budget ?? null,
+      preferences: brief.preferences,
+      change: revision.summary,
+      center: findings.destination ?? null,
+      Tage: draft.stops
+        .filter((stop) => affected(stop.dayNumber))
+        .map(({ dayNumber, order, title, category, costCents, lat, lng }) => ({
+          dayNumber,
+          order,
+          title,
+          category,
+          costCents,
+          lat,
+          lng,
+        })),
+      AndereTage: others,
+    },
+    Recherche: {
+      weather:
+        findings.weather?.days
+          .filter((day) => dates.has(day.date))
+          .map(({ date, tMax, precipMm, label }) => ({
+            date,
+            tMax,
+            precipMm,
+            label,
+          })) ?? null,
+    },
+  });
+}
+
+function addDays(isoDate: string, days: number): string {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 // Nur Kennzahlen an das Modell (Plan 6.1, Punkt 4): Wetter pro Tag,
@@ -358,6 +652,7 @@ export function composeFacts(
       travelers: brief.travelers,
       budget: brief.budget ?? null,
       preferences: brief.preferences,
+      lodging: brief.lodging ?? null,
       assumptions: brief.assumptions,
       center: findings.destination ?? null,
     },
@@ -403,6 +698,7 @@ export function finalFacts(input: FinalizeInput): string {
       datesAssumed: brief.datesAssumed,
       travelers: brief.travelers,
       preferences: brief.preferences,
+      lodging: brief.lodging ? LODGING_LABELS[brief.lodging] : null,
       assumptions: brief.assumptions,
       stops: draft.stops.map(
         ({ dayNumber, title, description, costCents }) => ({
@@ -458,6 +754,60 @@ export function finalFacts(input: FinalizeInput): string {
         title,
         source,
       })),
+    },
+  });
+}
+
+// Fakten für die Antwort auf eine Überarbeitung: die geänderten Tage, die
+// Nummern der unveränderten, das neue Budget, Unterkünfte nur, wenn sie neu
+// gesucht wurden. Wetter und Wissensbasis kennt der Nutzer schon.
+export function finalRevisionFacts(input: FinalizeInput): string {
+  const { brief, draft, findings, budget, revision } = input;
+  const days = revision?.days ?? [];
+  const unchanged = Array.from(
+    { length: tripDays(brief) },
+    (_, i) => i + 1,
+  ).filter((day) => !days.includes(day));
+  const lodgingRefreshed =
+    revision?.research.includes('research:lodging') ?? false;
+  return JSON.stringify({
+    Reise: {
+      destination: brief.destination,
+      startDate: brief.startDate,
+      endDate: brief.endDate,
+      travelers: brief.travelers,
+      preferences: brief.preferences,
+      lodging: brief.lodging ? LODGING_LABELS[brief.lodging] : null,
+      changedDays: draft.stops
+        .filter((stop) => days.includes(stop.dayNumber))
+        .map(({ dayNumber, title, description, costCents }) => ({
+          dayNumber,
+          title,
+          description,
+          costCents,
+        })),
+      unchangedDays: unchanged,
+      budget: {
+        total: formatEur(budget.totalCents),
+        limit: budget.limitCents === null ? null : formatEur(budget.limitCents),
+        status: budget.status,
+        items: budget.items.map((item) => ({
+          category: item.category,
+          eur: formatEur(item.cents),
+        })),
+      },
+    },
+    Recherche: {
+      lodging:
+        lodgingRefreshed && findings.lodging
+          ? {
+              items: findings.lodging.items.slice(0, 3).map((item) => ({
+                name: item.name,
+                priceEur: `${item.priceMinEur}–${item.priceMaxEur}`,
+              })),
+              searchLinks: findings.lodging.searchLinks,
+            }
+          : null,
     },
   });
 }

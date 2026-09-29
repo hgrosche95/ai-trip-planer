@@ -4,8 +4,10 @@ import type { DraftStop } from '../trip-draft';
 // kurzes Beispiel im Prompt (billiger als ein ausführliches JSON-Schema),
 // der Code prüft jede Antwort, bevor sie weiterverwendet wird.
 
-export const TRIAGE_OUTPUT_EXAMPLE = `{"status":"ready","destination":"Lissabon","origin":"Berlin","startDate":"2026-10-14","endDate":"2026-10-16","datesAssumed":true,"travelers":1,"budget":{"amount":800,"currency":"EUR"},"preferences":["Kultur"],"assumptions":["1 Person","Unterkunft: Mittelklasse-Hotel"]}`;
+export const TRIAGE_OUTPUT_EXAMPLE = `{"status":"ready","destination":"Lissabon","origin":"Berlin","startDate":"2026-10-14","endDate":"2026-10-16","datesAssumed":true,"travelers":1,"budget":{"amount":800,"currency":"EUR"},"preferences":["Kultur"],"lodging":null,"assumptions":["1 Person","Unterkunft: Mittelklasse-Hotel"]}`;
 export const TRIAGE_ASK_EXAMPLE = `{"status":"ask","question":"..."}`;
+// Nur wenn es schon einen Entwurf gibt: was sich daran ändert
+export const TRIAGE_REVISE_EXAMPLE = `{"status":"ready","intent":"revise","days":[2],"changes":{"lodging":"budget"},"summary":"Tag 2 ruhiger, Unterkunft günstiger"}`;
 
 export const STOP_CATEGORIES = [
   'FOOD',
@@ -19,7 +21,12 @@ export const STOP_CATEGORIES = [
 export const COMPOSE_OUTPUT_EXAMPLE = `{"stops":[{"dayNumber":1,"order":1,"title":"...","description":"...","category":"${STOP_CATEGORIES.join('|')}","costCents":0,"lat":38.71,"lng":-9.13}]}`;
 
 export type TriageOutput =
-  { status: 'ask'; question?: string } | { status: 'ready'; brief: unknown };
+  | { status: 'ask'; question?: string }
+  | { status: 'ready'; brief: unknown }
+  // Änderung am bestehenden Entwurf: { days, changes, summary }, geprüft
+  // mit parseRevision(). fresh: Das Modell will trotzdem neu planen
+  // (intent "new" mit changes, z. B. "plan alles neu").
+  | { status: 'revise'; revision: unknown; fresh: boolean };
 
 export class PlannerOutputError extends Error {
   constructor(
@@ -45,6 +52,13 @@ export function extractJson(text: string | null): unknown {
 
 export function parseTriageOutput(text: string | null): TriageOutput {
   const raw = extractJson(text) as Record<string, unknown>;
+  // Mit changes ist es immer eine Änderung am Entwurf, auch bei intent
+  // "new" (anderes Ziel = changes.destination). Ohne changes, aber mit
+  // vollständigen Eckdaten, gilt es als neue Reise wie ohne Entwurf.
+  const hasChanges = typeof raw.changes === 'object' && raw.changes !== null;
+  if (raw.status === 'ready' && (raw.intent === 'revise' || hasChanges)) {
+    return { status: 'revise', revision: raw, fresh: raw.intent === 'new' };
+  }
   if (raw.status === 'ready') return { status: 'ready', brief: raw };
   const question =
     typeof raw.question === 'string' && raw.question.trim() !== ''

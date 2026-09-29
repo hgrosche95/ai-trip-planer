@@ -251,4 +251,42 @@ describe('BudgetAgent', () => {
       summary: '576 € von 800 €, im Rahmen',
     });
   });
+
+  describe('Unterkunftsniveau', () => {
+    const lodging = (report: ReturnType<typeof computeBudget>) =>
+      report.items.find((item) => item.category === 'lodging')?.cents;
+
+    it('ohne Angabe: Median der Mitten ohne Hostels (75 € × 2 Nächte)', () => {
+      expect(
+        lodging(computeBudget({ brief, draft, findings: findings() })),
+      ).toBe(15_000);
+    });
+
+    it('"günstig": Median der unteren Enden unter der Preisgrenze (55 € × 2)', () => {
+      const report = computeBudget({
+        brief: { ...brief, lodging: 'budget' },
+        draft,
+        findings: findings(),
+      });
+      expect(lodging(report)).toBe(11_000);
+    });
+
+    it('"günstig" ohne passende Unterkunft: die Preisgrenze (60 € × 2)', () => {
+      const report = computeBudget({
+        brief: { ...brief, lodging: 'budget' },
+        draft,
+        findings: findings({ lodging: undefined }),
+      });
+      expect(lodging(report)).toBe(12_000);
+    });
+
+    it('"gehoben": Median der oberen Enden (95 € × 2)', () => {
+      const report = computeBudget({
+        brief: { ...brief, lodging: 'upscale' },
+        draft,
+        findings: findings(),
+      });
+      expect(lodging(report)).toBe(19_000);
+    });
+  });
 });
