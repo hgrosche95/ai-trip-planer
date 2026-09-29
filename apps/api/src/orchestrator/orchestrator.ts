@@ -21,11 +21,25 @@ import type {
   TripDraft,
 } from './trip-draft';
 
-// AGENT_MODE=multi schaltet POST /agent/runs auf den Orchestrator. Default
-// bleibt classic, damit ein Merge nichts am bestehenden Verhalten ändert.
+// Server-Default für POST /agent/runs, wenn der Client keinen Modus wählt:
+// AGENT_MODE=multi schaltet auf den Orchestrator, sonst classic.
 // POST /agent/chat (Evals, MCP) nutzt immer den Classic-Agenten.
 export function agentMode(): AgentMode {
   return process.env.AGENT_MODE === 'multi' ? 'multi' : 'classic';
+}
+
+// Notbremse: Mit AGENT_MODE_LOCKED=true gilt immer der Server-Default, die
+// Wahl des Clients wird ignoriert (z. B. wenn der Multi-Modus live Probleme
+// macht und niemand auf ein neues Frontend warten soll).
+export function agentModeLocked(): boolean {
+  return process.env.AGENT_MODE_LOCKED === 'true';
+}
+
+// Der Modus eines Laufs: die Wahl des Clients, außer die Notbremse greift
+// oder er hat keine getroffen.
+export function resolveAgentMode(requested?: AgentMode): AgentMode {
+  if (agentModeLocked() || requested === undefined) return agentMode();
+  return requested;
 }
 
 // Laufzeitlimit eines ganzen Laufs; geprüft zwischen den Zuständen und vor

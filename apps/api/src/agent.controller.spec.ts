@@ -387,9 +387,27 @@ describe('AgentController AGENT_MODE', () => {
   const user = { userId: 'user-a', role: 'guest' } as const;
   const body = { sessionId: 's1', message: 'Lissabon' };
   const original = process.env.AGENT_MODE;
+  const originalLocked = process.env.AGENT_MODE_LOCKED;
   afterEach(() => {
     if (original === undefined) delete process.env.AGENT_MODE;
     else process.env.AGENT_MODE = original;
+    if (originalLocked === undefined) delete process.env.AGENT_MODE_LOCKED;
+    else process.env.AGENT_MODE_LOCKED = originalLocked;
+  });
+
+  const classicService = () => ({
+    sendMessage: jest.fn().mockResolvedValue({
+      reply: 'ok',
+      sources: [],
+      searchAttempted: false,
+    }),
+  });
+  const multiOrchestrator = () => ({
+    run: jest.fn().mockResolvedValue({
+      reply: 'Wohin?',
+      sources: [],
+      searchAttempted: false,
+    }),
   });
 
   function runStarted(sse: string) {
@@ -482,5 +500,96 @@ describe('AgentController AGENT_MODE', () => {
 
     expect(service.sendMessage).toHaveBeenCalled();
     expect(orchestrator.run).not.toHaveBeenCalled();
+  });
+
+  it('nutzt den Modus aus dem Body statt des Server-Defaults', async () => {
+    delete process.env.AGENT_MODE;
+    const service = classicService();
+    const orchestrator = multiOrchestrator();
+    const res = fakeResponse();
+
+    await controller(service, undefined, orchestrator).run(
+      user,
+      { ...body, mode: 'multi' },
+      res as unknown as Response,
+    );
+
+    expect(orchestrator.run).toHaveBeenCalled();
+    expect(service.sendMessage).not.toHaveBeenCalled();
+    expect(runStarted(res.written)).toMatchObject({ mode: 'multi' });
+  });
+
+  it('wählt per Body classic, auch wenn der Server-Default multi ist', async () => {
+    process.env.AGENT_MODE = 'multi';
+    const service = classicService();
+    const orchestrator = multiOrchestrator();
+    const res = fakeResponse();
+
+    await controller(service, undefined, orchestrator).run(
+      user,
+      { ...body, mode: 'classic' },
+      res as unknown as Response,
+    );
+
+    expect(service.sendMessage).toHaveBeenCalled();
+    expect(orchestrator.run).not.toHaveBeenCalled();
+    expect(runStarted(res.written)).toMatchObject({ mode: 'classic' });
+  });
+
+  it.each([['swarm'], [''], [42], [{ mode: 'multi' }]])(
+    'lehnt mode %p mit 400 ab, bevor der Stream beginnt',
+    async (mode) => {
+      const service = classicService();
+      const orchestrator = multiOrchestrator();
+      const res = fakeResponse();
+
+      await expect(
+        controller(service, undefined, orchestrator).run(
+          user,
+          { ...body, mode } as unknown as typeof body,
+          res as unknown as Response,
+        ),
+      ).rejects.toMatchObject({ status: 400 });
+      expect(res.flushHeaders).not.toHaveBeenCalled();
+      expect(res.written).toBe('');
+      expect(service.sendMessage).not.toHaveBeenCalled();
+      expect(orchestrator.run).not.toHaveBeenCalled();
+    },
+  );
+
+  it('ignoriert mit AGENT_MODE_LOCKED=true die Wahl des Clients', async () => {
+    delete process.env.AGENT_MODE;
+    process.env.AGENT_MODE_LOCKED = 'true';
+    const service = classicService();
+    const orchestrator = multiOrchestrator();
+    const res = fakeResponse();
+
+    await controller(service, undefined, orchestrator).run(
+      user,
+      { ...body, mode: 'multi' },
+      res as unknown as Response,
+    );
+
+    expect(service.sendMessage).toHaveBeenCalled();
+    expect(orchestrator.run).not.toHaveBeenCalled();
+    expect(runStarted(res.written)).toMatchObject({ mode: 'classic' });
+  });
+
+  it('erzwingt mit Sperre auch einen Server-Default multi', async () => {
+    process.env.AGENT_MODE = 'multi';
+    process.env.AGENT_MODE_LOCKED = 'true';
+    const service = classicService();
+    const orchestrator = multiOrchestrator();
+    const res = fakeResponse();
+
+    await controller(service, undefined, orchestrator).run(
+      user,
+      { ...body, mode: 'classic' },
+      res as unknown as Response,
+    );
+
+    expect(orchestrator.run).toHaveBeenCalled();
+    expect(service.sendMessage).not.toHaveBeenCalled();
+    expect(runStarted(res.written)).toMatchObject({ mode: 'multi' });
   });
 });
