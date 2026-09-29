@@ -29,8 +29,30 @@ Screenshots aus dem echten Frontend, das Backend war dabei ein Mock mit Beispiel
 Screenshot aus dem echten Frontend. Das Backend war ein Mock, der einen erfundenen Lauf
 (Berlin → Lissabon) mit realistischen Zeiten abspielt; die Zahlen sind Beispielwerte.
 
-Der Standard bleibt **`AGENT_MODE=classic`**: Ohne die Variable ändert sich nach dem Merge nichts.
-`POST /agent/chat` (Evals, MCP-Server) nutzt immer den Classic-Agenten.
+Ohne die Variable bleibt der Server-Default **`AGENT_MODE=classic`**; im Chat lässt sich der Modus
+pro Anfrage wählen (siehe [Modus wählen](#modus-wählen)). `POST /agent/chat` (Evals, MCP-Server)
+nutzt immer den Classic-Agenten.
+
+## Modus wählen
+
+![Umschalter über dem Eingabefeld, darüber je eine Antwort aus beiden Modi](mode-toggle.png)
+
+- **Umschalter:** Über dem Eingabefeld steht „Klassisch · ein Agent“ | „Multi-Agent · Planer,
+  Recherche, Budget“ (Radiogruppe, mit Pfeiltasten bedienbar). Default ist Multi-Agent, die Wahl
+  merkt sich der Browser in `localStorage`. Sie geht mit jeder Anfrage als `mode` an
+  `POST /agent/runs`; ungültige Werte lehnt die API vor dem Stream mit 400 ab.
+- **Vergleich:** Die eingeklappte Ablauf-Zeile unter jeder Antwort beginnt mit dem Modus, den der
+  Server tatsächlich genutzt hat (aus `run.started.mode`), z. B. „Multi-Agent · 3 LLM-Aufrufe · …“.
+  So lässt sich dieselbe Frage in beiden Modi direkt nebeneinander vergleichen. Das Replay zeigt
+  den Modus ebenso.
+- **Server-Default:** Schickt ein Client keinen `mode` (ältere Frontends, Skripte), gilt
+  `AGENT_MODE` (`classic`, wenn nicht gesetzt). In Azure setzt ihn der Bicep-Parameter `agentMode`,
+  in `infra/main.parameters.json` steht `multi`.
+- **Notbremse:** `AGENT_MODE_LOCKED=true` (Bicep-Parameter `agentModeLocked`) erzwingt
+  `AGENT_MODE` für alle Läufe und ignoriert die Wahl des Clients, ohne neues Frontend. Der
+  Umschalter bleibt sichtbar, die Ablauf-Zeile zeigt dann den erzwungenen Modus. Das Startup-Log
+  nennt Default und Sperrstatus („Agentenmodus für POST /agent/runs: multi (Default, Client kann
+  per mode wählen)“).
 
 ## Die Idee in einem Satz
 
@@ -136,8 +158,10 @@ Replay ohne Änderung.
    `ChatResult`. Laufzeitlimit 120 s über `AbortSignal`, geprüft zwischen den Zuständen und vor jedem
    LLM-Aufruf. `createOrchestrator` gibt jedem Agenten eine eigene `ToolRegistry` aus denselben
    Tool-Objekten ([`tools/index.ts`](../../apps/api/src/tools/index.ts), `createToolSet`).
-8. **Modus:** [`agent.controller.ts`](../../apps/api/src/agent.controller.ts) liest `AGENT_MODE` pro
-   Lauf. Bei `multi` ruft `POST /agent/runs` den Orchestrator auf, sonst `AgentService` wie bisher. Die
+8. **Modus:** [`agent.controller.ts`](../../apps/api/src/agent.controller.ts) nimmt pro Lauf `mode`
+   aus dem Body, sonst `AGENT_MODE`; mit `AGENT_MODE_LOCKED=true` immer `AGENT_MODE`
+   (`resolveAgentMode` in `orchestrator.ts`). Bei `multi` ruft `POST /agent/runs` den Orchestrator
+   auf, sonst `AgentService` wie bisher. Die
    Ereignisse danach (`stops.updated`, `sources`, `message.completed`, `run.finished`) und das Speichern
    fürs Replay sind für beide gleich.
 
@@ -187,7 +211,8 @@ Gemessen wird das erst mit echtem Key (siehe unten).
 | `orchestrator/agents/planner.agent.spec.ts` | triage mit 1 Aufruf (auch JSON in ```-Block), Rückfrage, `ready` ohne Zeitraum und kaputtes JSON werden Rückfragen, Verlauf ohne Tool-Runden; Aufgaben-Graph (ohne Abreiseort, Tagesausflug, fremde Währung); compose ergänzt Koordinaten, ungültiges JSON → 1 Reparaturversuch → Erfolg, Regelverstöße im Reparaturversuch, zweimal ungültig → `PlannerOutputError` nach genau 2 Aufrufen; finalize speichert mit Koordinaten und Route; Injection-Regeln in allen Prompts |
 | `orchestrator/agents/research.agent.spec.ts` | echte Tools mit nachgebauten API-Clients: Kennzahlen aller vier Aufgaben, alle Starts vor dem ersten Ende (parallel), Classic-Ereignisse mit `agent`/`parentStepId`, genau ein Zielmarker, Statusmeldungen, ausgefallene API trifft nur ihre Aufgabe, Währungsumrechnung, Suchanfrage nur aus Ziel und Präferenzen |
 | `orchestrator/agents/budget.agent.spec.ts` | Posten und Summe, `ok` / `tight` / `over`, Grenzen bei 90 % und 100 %, ohne Unterkünfte und ohne Abreiseort, ohne Budget, fremde Währung nur mit Kurs, Ereignisse ohne LLM |
-| `agent.controller.spec.ts` | Default `classic` mit `mode` in `run.started`; `AGENT_MODE=multi` ruft den Orchestrator, seine Ereignisse landen im Stream; `/agent/chat` bleibt classic |
+| `agent.controller.spec.ts` | Default `classic` mit `mode` in `run.started`; `AGENT_MODE=multi` ruft den Orchestrator, seine Ereignisse landen im Stream; `mode` im Body schlägt den Default (in beide Richtungen); ungültiger `mode` → 400 vor dem Stream; `AGENT_MODE_LOCKED=true` ignoriert die Wahl des Clients; `/agent/chat` bleibt classic |
+| `apps/web/src/lib/agent-mode.test.ts` | Default `multi`, Wahl in `localStorage` merken und lesen, unbekannte Werte, werfender Speicher (Wahl bleibt bis zum Neuladen), Benachrichtigung des Umschalters |
 | `apps/web/src/lib/agent-lanes.test.ts` | Reducer: Modus, Agenten-Schritte, Herkunft der Tool-Schritte, `lastMs`, `plan.updated`, `budget.updated`, alte Läufe ohne `mode`; Lanes: Balken relativ zur Laufzeit, parallele Recherche, Tokens pro Schritt, keine Lanes bei classic |
 
 Kein Test braucht Netz: Groq, Open-Meteo, Overpass, Frankfurter und der RAG-Service sind gemockt.
