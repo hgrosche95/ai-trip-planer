@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Spinner from '@/components/spinner';
 import type { RunState, TraceStep } from '@/lib/run-state';
@@ -7,10 +8,11 @@ import type { RunState, TraceStep } from '@/lib/run-state';
 // Anzeigenamen der Tools. Unbekannte Tools erscheinen mit ihrem technischen Namen.
 const TOOL_LABELS: Record<string, string> = {
   search_travel_knowledge: 'Wissensbasis durchsuchen',
-  search_flights: 'Flüge suchen',
-  search_hotels: 'Hotels suchen',
   show_destination_on_globe: 'Ziel auf dem Globus zeigen',
   get_weather: 'Wetter abrufen',
+  search_lodging: 'Unterkünfte suchen',
+  estimate_transport: 'Anreise schätzen',
+  convert_currency: 'Währung umrechnen',
   save_itinerary: 'Reiseplan speichern',
 };
 
@@ -40,8 +42,15 @@ function stepLabel(step: TraceStep) {
   return TOOL_LABELS[step.name] ?? step.name;
 }
 
+// Ganze Sekunden reichen für eine Wartezeit, "6,2 s" wäre Scheingenauigkeit
+function formatWait(ms: number) {
+  return ms < 1000 ? `${ms} ms` : `${Math.round(ms / 1000)} s`;
+}
+
 function stepDetails(step: TraceStep) {
   const parts: string[] = [];
+  // Vorab eingeplante Pause statt HTTP 429: erklärt, warum ein Schritt dauert
+  if (step.throttledMs) parts.push(`wartet ${formatWait(step.throttledMs)} auf Groq-Limit`);
   if (step.inputTokens !== undefined && step.outputTokens !== undefined) {
     parts.push(`${numberFormat.format(step.inputTokens + step.outputTokens)} Tokens`);
   }
@@ -118,8 +127,17 @@ function StartingHint() {
 
 // Zeigt, was der Agent gerade tut bzw. getan hat: jede Zeile ein LLM-Aufruf
 // oder Tool, mit Tokens, Kosten und Dauer. Während des Laufs offen, danach
-// als eingeklappter Abschnitt unter der Antwort.
-export default function TracePanel({ run, live = false }: { run: RunState; live?: boolean }) {
+// als eingeklappter Abschnitt unter der Antwort, dort mit Link zum erneuten
+// Abspielen (/replay), sobald der Lauf gespeichert ist.
+export default function TracePanel({
+  run,
+  live = false,
+  replayLink = true,
+}: {
+  run: RunState;
+  live?: boolean;
+  replayLink?: boolean;
+}) {
   if (live) {
     return (
       <div className="rounded-xl border border-rule bg-card px-3 py-2 text-sm" aria-live="polite">
@@ -150,6 +168,14 @@ export default function TracePanel({ run, live = false }: { run: RunState; live?
           <StepRow key={step.id} step={step} />
         ))}
       </ol>
+      {replayLink && run.runId && (
+        <Link
+          href={`/replay?run=${encodeURIComponent(run.runId)}`}
+          className="mt-1 inline-block font-mono text-[10px] uppercase tracking-widest text-teal hover:underline dark:text-teal-300"
+        >
+          ▶ Lauf erneut abspielen
+        </Link>
+      )}
     </details>
   );
 }

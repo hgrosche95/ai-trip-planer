@@ -81,10 +81,11 @@ describe('createAgentTools', () => {
 
     expect(registry.definitions().map((d) => d.name)).toEqual([
       'search_travel_knowledge',
-      'search_flights',
-      'search_hotels',
       'show_destination_on_globe',
       'get_weather',
+      'search_lodging',
+      'estimate_transport',
+      'convert_currency',
       'save_itinerary',
     ]);
   });

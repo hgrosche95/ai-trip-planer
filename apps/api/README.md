@@ -5,7 +5,7 @@ Umgebungsvariablen und alle Endpunkte stehen in der
 [Haupt-README](../../README.md#backend-endpunkte-appsapi).
 
 - `src/agent.service.ts` – Tool-Loop: LLM mit `tools`-Array aufrufen, Tool-Calls einer Runde parallel ausführen, Ergebnisse zurückgeben (max. 8 Runden pro Nachricht), Langfuse-Tracing ohne Freitext
-- `src/tools/` – `ToolRegistry` und die Tools des Agenten: `search_flights`/`search_hotels` (simuliert), `search_travel_knowledge` (RAG), `save_itinerary`, `show_destination_on_globe`
+- `src/tools/` – `ToolRegistry` und die Tools des Agenten: `search_travel_knowledge` (RAG), `show_destination_on_globe`, `get_weather` (Open-Meteo), `search_lodging` (OpenStreetMap, Preise geschätzt), `estimate_transport` (Tarifmodell, geschätzt), `convert_currency` (EZB-Kurse), `save_itinerary`
 - `src/llm/` – `LlmProvider`-Interface mit Groq- und Anthropic-Adapter, Retry-Wrapper, Chat-Verlauf in Postgres (`conversation-store.ts`, Löschung nach `CONVERSATION_RETENTION_DAYS`, Standard 30)
 - `src/auth/` – Besitzer-Login und anonyme Gast-Tokens (JWT)
 - `src/itineraries.*`, `src/knowledge.controller.ts` – REST für Reisepläne und Wissenssuche (auch vom MCP-Server genutzt)

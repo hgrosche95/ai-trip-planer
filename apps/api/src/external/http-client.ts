@@ -20,6 +20,11 @@ export interface FetchJsonOptions<T> {
   // Prüfung würde eine unerwartete Antwort (z. B. Fehlerseite mit Status 200)
   // für Stunden oder Tage im Cache festsitzen.
   isValid?: (data: unknown) => data is T;
+  // Ohne Angabe ein GET. Overpass erwartet die Abfrage als POST-Formular,
+  // weil sie für eine URL schnell zu lang wird.
+  method?: 'GET' | 'POST';
+  body?: string;
+  contentType?: string;
 }
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.EXTERNAL_API_TIMEOUT_MS ?? 5000);
@@ -50,7 +55,13 @@ export async function fetchJsonCached<T>(
 
   try {
     const response = await fetch(url, {
-      headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+      method: options.method ?? 'GET',
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': USER_AGENT,
+        ...(options.contentType && { 'Content-Type': options.contentType }),
+      },
+      ...(options.body !== undefined && { body: options.body }),
       signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
     if (!response.ok) {

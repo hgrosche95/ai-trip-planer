@@ -25,7 +25,9 @@ describe('trimHistory', () => {
       { role: 'user', content: 'plan trip' },
       {
         role: 'assistant',
-        toolCalls: [{ id: 'call-1', name: 'search_flights', arguments: {} }],
+        toolCalls: [
+          { id: 'call-1', name: 'estimate_transport', arguments: {} },
+        ],
       },
       { role: 'tool', toolResults: [{ toolCallId: 'call-1', content: '{}' }] },
       { role: 'assistant', content: 'here are flights' },

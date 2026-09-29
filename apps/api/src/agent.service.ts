@@ -42,7 +42,10 @@ const SYSTEM_PROMPT = `Du bist ein Reiseplaner-Assistent. Du hilfst Nutzern dabe
 Nutze die verfügbaren Werkzeuge.
 - show_destination_on_globe, sobald der Nutzer ein konkretes Reiseziel nennt: als allererstes Werkzeug, noch vor jeder Suche und in derselben Antwort, einmal pro Ziel (bei Rundreisen in Reihenfolge der Route), mit den Koordinaten des Ortszentrums. Kennst du den Abreiseort, gib ihn als origin mit; erfährst du ihn erst später, rufe das Werkzeug dann einmal erneut mit origin auf. Dieses Werkzeug braucht keine weiteren Angaben, rufe es also auch dann auf, wenn du noch Rückfragen stellst. Es läuft unsichtbar im Hintergrund: Erwähne den Globus oder die Markierung nie in deiner Antwort.
 - search_travel_knowledge, um Faktenfragen zu einem Reiseziel (Sehenswürdigkeiten, Essen & Trinken, Transport) zu beantworten. Nutze es, BEVOR du aus dem Gedächtnis antwortest, und belege deine Aussage mit der zurückgegebenen Quelle (Titel + Quelle). Ordne einer Quelle nur zu, was tatsächlich in ihren Treffern steht. Ergänzt du etwas aus eigenem Wissen, trenne es sichtbar davon ab, z. B. in einem eigenen Abschnitt "Weitere Ideen (nicht aus der Wissensbasis)", statt es unter die Quellenangabe zu mischen. Liefert es keine passenden Treffer, sag das ehrlich, statt zu raten oder zu spekulieren. Bei Vergleichen oder mehreren Fragen rufe das Werkzeug für alle Ziele und Themen gleichzeitig in derselben Antwort auf, statt nacheinander, und höchstens einmal pro Ziel.
-- search_flights und search_hotels, um passende Optionen zu finden, sobald du Ziel, Zeitraum (Start-/Enddatum) und Budget kennst.
+- estimate_transport für die Anreise (Bahn oder Flug), sobald du Abreiseort und Ziel kennst.
+- search_lodging für Unterkünfte im Zentrum, sobald Ziel und Reisedaten feststehen (checkIn/checkOut, wenn bekannt auch budgetPerNightEur). Empfiehl nur Unterkünfte, die das Werkzeug geliefert hat, mit ihrem Namen. Für echte Preise und freie Zimmer verweise auf die Links aus searchLinks (Booking.com, Airbnb). Gib nur diese Links aus, erfinde keine eigenen.
+- convert_currency, wenn Preise oder das Budget in einer anderen Währung als Euro vorliegen oder der Nutzer in einer anderen Währung rechnet.
+Preise aus estimate_transport und search_lodging sind Schätzungen, keine Angebote: Nenne sie immer als ungefähre Spanne mit dem Zusatz "geschätzt" und erfinde keine genauen Preise, Verbindungen, Flugnummern oder freien Zimmer.
 - save_itinerary, um den fertigen Plan zu speichern, sobald du gemeinsam mit dem Nutzer einen konkreten Tagesplan mit einzelnen Programmpunkten erarbeitet hast. Gib bei jedem Programmpunkt die ungefähren Koordinaten seines Orts an (lat, lng; bei Punkten ohne festen Ort die der Stadt), damit die ganze Route auf dem Globus erscheint.
 - get_weather, sobald Ziel und Reisedaten feststehen, für den Reisezeitraum. Plane Tage mit Regen oder Gewitter mit Indoor-Programm (Museen, Märkte, Cafés). Stammen die Werte aus dem Vorjahr (source "climate"), sag das dazu, statt sie als Vorhersage auszugeben.
 
@@ -61,7 +64,7 @@ const MAX_TOOL_RESULT_CHARS = Number(
 // eine manipulierte Eingabe) die Schleife unbegrenzt weiterlaufen lassen, und
 // jede Runde ist ein bezahlter LLM-Aufruf. 8 statt 5: Groq (gpt-oss) ruft
 // die Tools meist einzeln nacheinander auf statt gebündelt in einer Runde -
-// bei einer vollständigen Reiseplanung (Wissen, Flüge, Hotels, Globus, ...)
+// bei einer vollständigen Reiseplanung (Wissen, Anreise, Unterkünfte, Globus, ...)
 // fiel sonst genau der abschließende save_itinerary-Aufruf dem Limit zum Opfer.
 export const MAX_TOOL_ITERATIONS = Number(
   process.env.LLM_MAX_TOOL_ITERATIONS ?? 8,
@@ -187,6 +190,7 @@ export class AgentService {
             // Wie die Globus-Updates sofort, damit die Wetter-Chips schon
             // erscheinen, während das Modell noch am Plan schreibt
             if (run.weather) events?.emit('weather.updated', run.weather);
+            if (run.lodging) events?.emit('lodging.updated', run.lodging);
             toolResults.push({
               toolCallId: call.id,
               content: truncateToolResult(
@@ -291,6 +295,10 @@ export class AgentService {
         const startedAt = performance.now();
         const result = await this.llm.chat(messages, this.tools.definitions(), {
           maxTokens: MAX_TOKENS,
+          // Nur Groq drosselt vorab (RateLimitedLlmProvider), die Wartezeit
+          // erscheint dann an dieser Zeile der Timeline
+          onThrottle: (waitMs, reason) =>
+            events?.emit('llm.throttled', { stepId, waitMs, reason }),
         });
         events?.emit('llm.call', {
           stepId,

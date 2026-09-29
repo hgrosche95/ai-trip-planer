@@ -5,7 +5,7 @@ import type { RunEvent } from './run-events.ts';
 
 // Ein typischer Lauf, wie ihn POST /agent/runs schickt
 const EVENTS: RunEvent[] = [
-  { type: 'run.started', seq: 1, elapsedMs: 0, data: {} },
+  { type: 'run.started', seq: 1, elapsedMs: 0, data: { runId: 'run-1' } },
   { type: 'llm.started', seq: 2, elapsedMs: 5, data: { stepId: 'l1' } },
   {
     type: 'llm.call',
@@ -58,6 +58,38 @@ test('baut aus den Ereignissen Timeline, Globus-Daten und Antwort', () => {
   assert.equal(state.routes.length, 1);
   assert.equal(state.reply, 'Los geht es!');
   assert.equal(state.status, 'running');
+  // für den Link "Lauf erneut abspielen"
+  assert.equal(state.runId, 'run-1');
+});
+
+test('merkt sich die Wartezeit auf das Groq-Limit am laufenden LLM-Schritt', () => {
+  const throttled = (seq: number, waitMs: number): RunEvent => ({
+    type: 'llm.throttled',
+    seq,
+    elapsedMs: 5,
+    data: { stepId: 'l1', waitMs, reason: 'tokens' },
+  });
+  const running = [EVENTS[0], EVENTS[1], throttled(3, 6000)].reduce(
+    applyRunEvent,
+    initialRunState(),
+  );
+  assert.equal(running.steps[0].status, 'running');
+  assert.equal(running.steps[0].throttledMs, 6000);
+
+  // Ein zweites Warten desselben Schritts addiert sich, llm.call lässt den Wert stehen
+  const done = [throttled(4, 1500), EVENTS[2]].reduce(applyRunEvent, running);
+  assert.equal(done.steps[0].status, 'done');
+  assert.equal(done.steps[0].throttledMs, 7500);
+});
+
+test('ignoriert llm.throttled für einen unbekannten Schritt', () => {
+  const state = applyRunEvent(initialRunState(), {
+    type: 'llm.throttled',
+    seq: 1,
+    elapsedMs: 0,
+    data: { stepId: 'fehlt', waitMs: 1000, reason: 'requests' },
+  });
+  assert.deepEqual(state.steps, []);
 });
 
 test('übernimmt die Stationen einer Route', () => {
@@ -144,4 +176,52 @@ test('merkt sich Cache-Treffer eines Tools', () => {
   ].reduce((current, event) => applyRunEvent(current, event as RunEvent), initialRunState());
 
   assert.equal(state.steps[0].cached, true);
+});
+
+test('sammelt Unterkünfte pro Ort, ein erneuter Bericht ersetzt den alten', () => {
+  const hotel = (name: string, priceMinEur: number) => ({
+    name,
+    lat: 48.2,
+    lng: 16.37,
+    kind: 'hotel' as const,
+    priceMinEur,
+    priceMaxEur: priceMinEur + 80,
+  });
+  const lodging = (seq: number, place: string, items: ReturnType<typeof hotel>[]): RunEvent => ({
+    type: 'lodging.updated',
+    seq,
+    elapsedMs: seq * 10,
+    data: { place: { name: place, lat: 48.21, lng: 16.37 }, items },
+  });
+
+  const state = [
+    lodging(1, 'Wien', [hotel('Hotel Sacher', 180)]),
+    lodging(2, 'Rom', [hotel('Hotel Artemide', 95)]),
+    lodging(3, 'Wien', [hotel('Pension Nossek', 65), hotel('Hotel Sacher', 180)]),
+  ].reduce(applyRunEvent, initialRunState());
+
+  assert.deepEqual(
+    state.lodging.map((report) => [report.place.name, report.items.map((item) => item.name)]),
+    [
+      ['Wien', ['Pension Nossek', 'Hotel Sacher']],
+      ['Rom', ['Hotel Artemide']],
+    ],
+  );
+  // Wetter bleibt davon unberührt
+  assert.deepEqual(state.weather, []);
+});
+
+test('übernimmt die Such-Links eines Unterkunftsberichts, auch ohne Einträge', () => {
+  const searchLinks = {
+    booking: 'https://www.booking.com/searchresults.html?ss=Wien&group_adults=2&no_rooms=1',
+    airbnb: 'https://www.airbnb.de/s/Wien/homes?adults=2',
+  };
+  const state = applyRunEvent(initialRunState(), {
+    type: 'lodging.updated',
+    seq: 1,
+    elapsedMs: 1,
+    data: { place: { name: 'Wien', lat: 48.21, lng: 16.37 }, searchLinks, items: [] },
+  });
+
+  assert.deepEqual(state.lodging[0].searchLinks, searchLinks);
 });

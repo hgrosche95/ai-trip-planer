@@ -34,9 +34,13 @@ Cloud-Deployment, das bei Nichtnutzung nichts kostet.
 - **Chat-Verlauf in Postgres** statt im Arbeitsspeicher, übersteht also
   Neustarts; Verläufe werden nach 30 Tagen ohne Nutzung gelöscht
   (`CONVERSATION_RETENTION_DAYS`)
-- **Flug- und Hotelsuche sind simuliert**: `search_flights` und `search_hotels`
-  liefern Beispieldaten (`apps/api/src/tools/travel-search.tools.ts`), keine echten
-  Angebote. Es geht um die Tool-Use-Schleife, nicht um eine Buchungs-API
+- **Echte Unterkünfte, geschätzte Preise**: `search_lodging` holt Hotels, Hostels,
+  Pensionen und Apartments aus OpenStreetMap (Overpass), `estimate_transport`
+  schätzt die Anreise per Bahn oder Flug aus der Entfernung, `convert_currency`
+  rechnet mit EZB-Kursen (Frankfurter). Preise für Anreise und Unterkunft sind
+  **Schätzungen** aus einem offengelegten Modell, keine Angebote; für echte Preise
+  verlinkt die Antwort die Suche auf Booking.com und Airbnb. Es gibt keine
+  Buchungs-API (siehe [Phase 2, Teil d](docs/phase-2/README.md#teil-d-unterkünfte-anreise-und-wechselkurse))
 - **Austauschbarer LLM-Anbieter** (Groq oder Anthropic) per einer
   Env-Variable, kein Codeeingriff nötig
 - **MCP-Server**: dieselben Fähigkeiten (Wissenssuche, Reiseplan anlegen/

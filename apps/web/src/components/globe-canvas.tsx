@@ -26,7 +26,16 @@ export interface GlobeCanvasProps {
   // Stationen einer Reise in Reihenfolge: werden markiert und mit Bögen
   // verbunden, die Kamera nimmt die ganze Route ins Bild. Hat Vorrang vor focus.
   route?: GlobeFocus[] | null;
+  // Orte in der Nähe (z. B. Unterkünfte): kleine Punkte ohne Ring und ohne
+  // Beschriftung, der Name steht im Tooltip. Die Kamera richtet sich nicht nach ihnen.
+  pois?: GlobeFocus[];
 }
+
+type GlobePoint = GlobeFocus & { poi: boolean };
+
+// Unterkünfte in Türkis, damit sie sich von den weißen Reisezielen abheben
+const POI_COLOR = '#7FD1CF';
+const POI_RADIUS = 0.06;
 
 // Texturen stammen aus three-globe (NASA Blue Marble, gemeinfrei) und liegen
 // in public/globe, damit sie mit dem statischen Export ausgeliefert werden.
@@ -98,6 +107,15 @@ function placeLabel(name: string, small: boolean) {
   return anchor;
 }
 
+// Der Tooltip (pointLabel) wird als HTML gesetzt. Namen kommen vom Modell
+// oder aus OpenStreetMap, deshalb maskieren.
+function escapeHtml(text: string) {
+  return text.replace(
+    /[&<>"']/g,
+    (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!,
+  );
+}
+
 function greatCircleDegrees(lat1: number, lng1: number, lat2: number, lng2: number) {
   const toRad = Math.PI / 180;
   const cos =
@@ -112,6 +130,7 @@ export default function GlobeCanvas({
   focus = null,
   places = [],
   route = null,
+  pois = [],
 }: GlobeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
@@ -191,6 +210,14 @@ export default function GlobeCanvas({
     [hasRoute, route],
   );
   const allArcs = useMemo(() => [...arcs, ...routeArcs], [arcs, routeArcs]);
+  // Ziele zuletzt, damit sie über den Unterkünften liegen
+  const points = useMemo<GlobePoint[]>(
+    () => [
+      ...pois.map((poi) => ({ ...poi, poi: true })),
+      ...markers.map((marker) => ({ ...marker, poi: false })),
+    ],
+    [pois, markers],
+  );
   // Der pulsierende Ring nur am Start der Route bzw. am Ziel, sonst flimmert
   // es überall
   const rings = hasRoute ? markers.slice(0, 1) : focus ? [focus] : markers.slice(0, 1);
@@ -263,13 +290,15 @@ export default function GlobeCanvas({
           ringMaxRadius={2}
           ringPropagationSpeed={2}
           ringRepeatPeriod={1200}
-          pointsData={markers}
-          pointLat={(marker) => (marker as GlobeFocus).lat}
-          pointLng={(marker) => (marker as GlobeFocus).lng}
-          pointColor={() => '#FFFFFF'}
+          pointsData={points}
+          pointLat={(point) => (point as GlobePoint).lat}
+          pointLng={(point) => (point as GlobePoint).lng}
+          pointColor={(point) => ((point as GlobePoint).poi ? POI_COLOR : '#FFFFFF')}
           pointAltitude={0.002}
-          pointRadius={hasRoute ? 0.18 : 0.25}
-          pointLabel={(marker) => (marker as GlobeFocus).name}
+          pointRadius={(point) =>
+            (point as GlobePoint).poi ? POI_RADIUS : hasRoute ? 0.18 : 0.25
+          }
+          pointLabel={(point) => escapeHtml((point as GlobePoint).name)}
           htmlElementsData={labels}
           htmlLat={(marker) => (marker as GlobeFocus).lat}
           htmlLng={(marker) => (marker as GlobeFocus).lng}

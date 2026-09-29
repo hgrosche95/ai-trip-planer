@@ -1,4 +1,9 @@
-import type { ChatSource, GlobeFocus, ToolWeather } from '../tools';
+import type {
+  ChatSource,
+  GlobeFocus,
+  ToolLodging,
+  ToolWeather,
+} from '../tools';
 
 // Ereignisse, die ein Agentenlauf live an das Frontend schickt (POST
 // /agent/runs, Server-Sent Events). Jedes Ereignis beschreibt nur die FORM
@@ -6,9 +11,19 @@ import type { ChatSource, GlobeFocus, ToolWeather } from '../tools';
 // ausschließlich in message.completed, das ohnehin nur der Nutzer selbst sieht.
 // apps/web/src/lib/run-events.ts spiegelt diese Typen für das Frontend.
 export interface RunEventPayloads {
-  'run.started': Record<string, never>;
+  // runId = Schlüssel des gespeicherten Laufs, für /replay?run=<runId>
+  'run.started': { runId: string };
   // LLM-Aufruf beginnt: das Frontend zeigt sofort eine laufende Zeile
   'llm.started': { stepId: string };
+  // Der Rate-Limiter hält den laufenden LLM-Aufruf an, weil das Minutenbudget
+  // (tokens) bzw. die freien Anfragen (requests) bei Groq nicht reichen.
+  // Kommt zwischen llm.started und llm.call; latencyMs in llm.call enthält
+  // die Wartezeit.
+  'llm.throttled': {
+    stepId: string;
+    waitMs: number;
+    reason: 'tokens' | 'requests';
+  };
   // LLM-Aufruf ist fertig, mit allem, was die Timeline anzeigt
   'llm.call': {
     stepId: string;
@@ -37,6 +52,10 @@ export interface RunEventPayloads {
   // Wetter pro Reisetag, sobald get_weather lief. source 'climate' heißt:
   // Vorjahreswerte, keine Vorhersage - das Frontend weist darauf hin.
   'weather.updated': ToolWeather;
+  // Echte Unterkünfte (OpenStreetMap) mit GESCHÄTZTER Preisspanne pro
+  // Nacht, sobald search_lodging lief. Ein neuer Bericht zum selben Ort
+  // ersetzt den alten.
+  'lodging.updated': ToolLodging;
   // Stationen in Reihenfolge (gespeicherter Plan oder Rundreise), kommt am
   // Ende des Laufs; der Globus verbindet sie mit Bögen
   'stops.updated': { stops: GlobeFocus[] };

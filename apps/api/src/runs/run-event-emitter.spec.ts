@@ -6,7 +6,7 @@ describe('RunEventEmitter', () => {
     const received: RunEvent[] = [];
     const events = new RunEventEmitter((event) => received.push(event));
 
-    events.emit('run.started', {});
+    events.emit('run.started', { runId: 'r1' });
     for (const [input, output, cost] of [
       [1000, 200, 0.001],
       [500, 100, null],
@@ -23,7 +23,7 @@ describe('RunEventEmitter', () => {
     }
     events.emit('tool.finished', {
       stepId: 't',
-      tool: 'search_hotels',
+      tool: 'search_lodging',
       kind: 'tool',
       latencyMs: 5,
       ok: true,
@@ -45,10 +45,10 @@ describe('RunEventEmitter', () => {
       type: 'run.started',
       seq: 1,
       elapsedMs: 0,
-      data: {},
+      data: { runId: 'r1' },
     });
     expect(sse).toBe(
-      'event: run.started\nid: 1\ndata: {"type":"run.started","seq":1,"elapsedMs":0,"data":{}}\n\n',
+      'event: run.started\nid: 1\ndata: {"type":"run.started","seq":1,"elapsedMs":0,"data":{"runId":"r1"}}\n\n',
     );
   });
 });
