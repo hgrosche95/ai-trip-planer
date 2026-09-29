@@ -50,6 +50,16 @@ param authPasswordHash string
 @secure()
 param jwtSecret string
 
+@description('Server-Default für POST /agent/runs, wenn der Client keinen Modus schickt: classic (ein Agent) oder multi (Planer, Recherche, Budget). Default classic, damit sich ohne Parameteränderung nichts ändert.')
+@allowed([
+  'classic'
+  'multi'
+])
+param agentMode string = 'classic'
+
+@description('Notbremse: true erzwingt agentMode und ignoriert die Wahl des Clients (Umschalter im Chat).')
+param agentModeLocked bool = false
+
 @description('Minimale Anzahl Replicas. 0 = Scale-to-Zero, spart Kosten in Ruhephasen.')
 param minReplicas int = 0
 
@@ -170,6 +180,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'AUTH_USERNAME', value: authUsername }
             { name: 'AUTH_PASSWORD_HASH', secretRef: 'auth-password-hash' }
             { name: 'JWT_SECRET', secretRef: 'jwt-secret' }
+            // Modus für POST /agent/runs (docs/phase-3/README.md, "Modus
+            // wählen"): Default, wenn der Client nichts wählt, und Notbremse.
+            { name: 'AGENT_MODE', value: agentMode }
+            { name: 'AGENT_MODE_LOCKED', value: agentModeLocked ? 'true' : 'false' }
           ]
         }
       ]
