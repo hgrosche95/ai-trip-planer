@@ -1,12 +1,14 @@
 import type { BudgetItem, RunEventPayloads } from '../../runs/run-events';
 import { priceLevelFor } from '../../tools/lodging.tool';
 import { agentStep } from '../agent.types';
+import { formatEur } from '../rules/format';
 import { lodgingNightCapEur } from '../draft-revision';
 import type { Agent, AgentContext } from '../agent.types';
 import { tripDays, tripNights } from '../trip-draft';
 import type { ResearchFindings, TripBrief, TripDraft } from '../trip-draft';
 
 export type BudgetReport = RunEventPayloads['budget.updated'];
+export { formatEur };
 
 export interface BudgetInput {
   brief: TripBrief;
@@ -174,10 +176,6 @@ function budgetSummary(report: BudgetReport): string {
   if (report.limitCents === null) return `${total}, kein Budget genannt`;
   const labels = { ok: 'im Rahmen', tight: 'knapp', over: 'überschritten' };
   return `${total} von ${formatEur(report.limitCents)}, ${labels[report.status]}`;
-}
-
-export function formatEur(cents: number): string {
-  return `${Math.round(cents / 100).toLocaleString('de-DE')} €`;
 }
 
 function mid(min: number, max: number): number {

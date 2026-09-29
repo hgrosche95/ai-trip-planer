@@ -1,4 +1,4 @@
-import { formatEur } from '../agents/budget.agent';
+import { formatEur } from './format';
 import type { Rule } from './rule.types';
 
 // Die Schätzung liegt über dem genannten Budget. Nur ein Hinweis: Den

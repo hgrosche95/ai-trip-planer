@@ -32,16 +32,22 @@ async function login(): Promise<string> {
   return data.accessToken;
 }
 
+// Token für weitere Clients (run-client.ts), einmal pro Prozess
+export async function authToken(): Promise<string> {
+  cachedToken ??= await login();
+  return cachedToken;
+}
+
 export async function chat(
   sessionId: string,
   message: string,
 ): Promise<ChatResponse> {
-  cachedToken ??= await login();
+  const token = await authToken();
   const response = await fetch(`${API_BASE_URL}/agent/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${cachedToken}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ sessionId, message }),
   });

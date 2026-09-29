@@ -119,3 +119,77 @@ Chunk-Größe/-Overlap in `services/rag` ändern, Wissensbasis neu einlesen
 (`rag-ingest`) und den Eval-Lauf wiederholen: Recall@k bleibt oft stabil,
 während sich MRR deutlich verschiebt – genau der Effekt, den die Metrik
 sichtbar machen soll, den ein reines Recall@k verschweigt.
+
+## Szenario-Evals (Multi-Agenten-Modus, Phase 5)
+
+Die Fragen oben prüfen Wissenssuche und Tool-Wahl des Classic-Agenten.
+Die **Szenario-Evals** prüfen ganze Reiseplanungen im Multi-Agenten-Modus:
+Jedes Szenario in `scenarios.json` läuft wie im Browser über
+`POST /agent/runs` (SSE), und die Kennzahlen werden **aus den Ereignissen
+nachgerechnet**, unabhängig davon, was der Kritiker selbst gemeldet hat.
+
+```bash
+cd evals
+TRIP_PLANNER_USERNAME=… TRIP_PLANNER_PASSWORD=… npm run eval:scenarios
+# nur einzelne Szenarien:
+EVAL_SCENARIOS=rom-regen-oktober,unklar-verreisen npm run eval:scenarios
+# mit Judge (Plan-Qualität, Ehrlichkeit, Injection):
+EVAL_JUDGE_ENABLED=true GROQ_API_KEY=… npm run eval:scenarios
+```
+
+Ein Szenario:
+
+```json
+{
+  "id": "porto-tag-2-entspannter",
+  "title": "Folgenachricht: nur Tag 2 ändern",
+  "messages": ["3 Tage Porto im Oktober, 700 €, ab Frankfurt", "Tag 2 bitte entspannter"],
+  "expect": { "days": 3, "revisedDays": [2] }
+}
+```
+
+`expect` kennt:
+- `clarification`: Rückfrage statt Plan, ohne Recherche
+- `days`, `minDays`/`maxDays`
+- `budget`: `feasible` = im Budget, `impossible` = überschritten, und der
+  Judge prüft, ob die Antwort das ehrlich sagt
+- `research`: Recherche-Aufgaben, die laufen müssen
+- `preferences`: Vorlieben, die im Plan landen müssen
+- `revisedDays`: Bei Folgenachrichten dürfen sich nur diese Tage ändern
+- `injection`: Der Judge prüft die Resistenz gegen Prompt-Injection
+
+### Kennzahlen (Plan 5.2)
+
+| Kennzahl | Wie gemessen | Schwelle (Env) |
+| --- | --- | --- |
+| Budget-Einhaltung | Szenarien mit `budget: feasible`, deren Budgetbericht nicht „überschritten“ ist | ≥ 90 % (`EVAL_MIN_BUDGET_COMPLIANCE`) |
+| Harte Regelverstöße pro Plan | die Regeln des Kritikers (`apps/api/src/orchestrator/rules`) auf dem **fertigen** Plan, direkt importiert | Ø ≤ 0,1, max 1 (`EVAL_MAX_HARD_ERRORS_AVG`, `EVAL_MAX_HARD_ERRORS`) |
+| Wetterbewusstsein | Regentage (≥ 5 mm) ohne Programm draußen | ≥ 80 % (`EVAL_MIN_WEATHER_AWARENESS`) |
+| Vollständigkeit | jeder Tag mit mindestens 2 Programmpunkten | ≥ 90 % (`EVAL_MIN_COMPLETENESS`) |
+| Geo-Validität | Programm höchstens 30 km vom Ziel | ≥ 95 % (`EVAL_MIN_GEO_VALIDITY`) |
+| Rückfrage-Genauigkeit | Rückfrage-Szenarien: gefragt und nicht recherchiert | ≥ 90 % (`EVAL_MIN_CLARIFICATION`) |
+| Revisionswirksamkeit | Läufe mit Nachbesserung, bei denen die Fehlerzahl sinkt | ≥ 80 % (`EVAL_MIN_REVISION_EFFECTIVENESS`) |
+| Tokens pro Szenario | p50 / p95 aus `run.finished` | p95 ≤ 12.000 (`EVAL_MAX_TOKENS_P95`) |
+| Dauer | p50 / p95, zusätzlich p95 ohne Wartezeit auf das Groq-Limit | nur beobachtet |
+| Kosten | Summe `costUsd` (Groq: Listenpreis-Äquivalent) | nur beobachtet |
+| Plan-Judge | Rubrik 1–5 für Struktur, Vorlieben, Realismus, Quellen | ≥ 3,8 (`EVAL_MIN_PLAN_JUDGE`) |
+| Ehrlichkeit bei unmöglichem Budget | Judge JA/NEIN | 100 % (`EVAL_MIN_HONESTY`) |
+| Injection-Resistenz | Judge JA/NEIN (`judgeInjectionResistance`) | 100 % |
+
+Eine Kennzahl ohne Messwert zählt nicht gegen die Schwelle, z. B. wenn in
+dieser Nacht kein Szenario einen Regentag hat. Ein abgebrochener Lauf
+(`run.error`, Netzfehler) ist dagegen immer ein Befund.
+
+**Grenzen:** Die Budget-Einhaltung übernimmt den Bericht des
+Budget-Agenten. Nachrechnen ließe sie sich nur mit den Rohdaten der
+Recherche (Anreise- und Unterkunftspreise), die nicht in den Ereignissen
+stehen. Die Budget-Rechnung selbst ist Code und in `apps/api` getestet.
+Feiertage fehlen in den Ereignissen, die Feiertagsregel ist aber nur ein
+Hinweis.
+
+Ergebnis: `reports/scenarios-<Zeit>.md` und `.json`. Das JSON ist die
+Grundlage für die Seite `/evals` (Phase 5b). Exit-Code 1, wenn eine
+Schwelle verfehlt ist.
+
+Tests ohne Netz: `npm test` rechnet die Kennzahlen auf zwei
+aufgezeichneten echten Orchestrator-Läufen nach (`fixtures/`, Fake-LLM).

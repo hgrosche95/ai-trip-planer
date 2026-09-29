@@ -7,6 +7,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
+    // Die Szenario-Evals importieren Typen und Regeln aus apps/api, dessen
+    // DTOs Decorators nutzen
+    "experimentalDecorators": true,
     "types": ["node"]
   },
   "include": ["src"]

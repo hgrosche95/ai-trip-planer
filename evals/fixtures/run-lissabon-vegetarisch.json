@@ -1,0 +1,3235 @@
+[
+{
+"type": "run.started",
+"seq": 1,
+"elapsedMs": 0,
+"data": {
+"runId": "mock-run",
+"mode": "multi"
+}
+},
+{
+"type": "agent.started",
+"seq": 2,
+"elapsedMs": 3,
+"data": {
+"stepId": "d014ff86-7844-45c1-a3e6-136eac36556f",
+"agent": "planner",
+"task": "triage"
+}
+},
+{
+"type": "llm.started",
+"seq": 3,
+"elapsedMs": 5,
+"data": {
+"stepId": "be911176-aa85-47d7-ba9e-820af3617876",
+"agent": "planner",
+"parentStepId": "d014ff86-7844-45c1-a3e6-136eac36556f"
+}
+},
+{
+"type": "llm.call",
+"seq": 4,
+"elapsedMs": 6,
+"data": {
+"stepId": "be911176-aa85-47d7-ba9e-820af3617876",
+"agent": "planner",
+"model": "openai/gpt-oss-120b",
+"inputTokens": 780,
+"outputTokens": 240,
+"latencyMs": 0,
+"costUsd": 0.000261,
+"finishReason": "stop"
+}
+},
+{
+"type": "agent.finished",
+"seq": 5,
+"elapsedMs": 7,
+"data": {
+"stepId": "d014ff86-7844-45c1-a3e6-136eac36556f",
+"agent": "planner",
+"task": "triage",
+"status": "ok",
+"durationMs": 3,
+"summary": "3 Tage, 1 Person"
+}
+},
+{
+"type": "agent.started",
+"seq": 6,
+"elapsedMs": 7,
+"data": {
+"stepId": "6622bd33-bb86-42e6-8421-affcb4ba4157",
+"agent": "planner",
+"task": "plan"
+}
+},
+{
+"type": "agent.finished",
+"seq": 7,
+"elapsedMs": 7,
+"data": {
+"stepId": "6622bd33-bb86-42e6-8421-affcb4ba4157",
+"agent": "planner",
+"task": "plan",
+"status": "ok",
+"durationMs": 0,
+"summary": "5 Recherche-Aufgaben"
+}
+},
+{
+"type": "plan.updated",
+"seq": 8,
+"elapsedMs": 7,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 9,
+"elapsedMs": 7,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 10,
+"elapsedMs": 8,
+"data": {
+"stepId": "9d0c8599-e5a8-48b4-9c1a-adc06d0b400d",
+"agent": "research",
+"task": "research:weather"
+}
+},
+{
+"type": "tool.started",
+"seq": 11,
+"elapsedMs": 8,
+"data": {
+"stepId": "8d12c809-4f56-4e3d-b28b-c14e3c7e52dd",
+"tool": "get_weather",
+"agent": "research",
+"parentStepId": "9d0c8599-e5a8-48b4-9c1a-adc06d0b400d"
+}
+},
+{
+"type": "plan.updated",
+"seq": 12,
+"elapsedMs": 8,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 13,
+"elapsedMs": 8,
+"data": {
+"stepId": "01b493a2-b26d-4080-a05b-2bb000461b30",
+"agent": "research",
+"task": "research:lodging"
+}
+},
+{
+"type": "tool.started",
+"seq": 14,
+"elapsedMs": 9,
+"data": {
+"stepId": "aa6c9bbb-ff3b-4b91-b6d0-0ae64d820524",
+"tool": "search_lodging",
+"agent": "research",
+"parentStepId": "01b493a2-b26d-4080-a05b-2bb000461b30"
+}
+},
+{
+"type": "plan.updated",
+"seq": 15,
+"elapsedMs": 9,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 16,
+"elapsedMs": 9,
+"data": {
+"stepId": "8857f5d8-4181-4667-bc10-8bbe25fa9f48",
+"agent": "research",
+"task": "research:transport"
+}
+},
+{
+"type": "tool.started",
+"seq": 17,
+"elapsedMs": 9,
+"data": {
+"stepId": "2d71a7b1-c52d-4bb4-9c08-2a1d838dd34c",
+"tool": "estimate_transport",
+"agent": "research",
+"parentStepId": "8857f5d8-4181-4667-bc10-8bbe25fa9f48"
+}
+},
+{
+"type": "plan.updated",
+"seq": 18,
+"elapsedMs": 9,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 19,
+"elapsedMs": 9,
+"data": {
+"stepId": "3c902478-2313-4a86-844f-fb53f875c1aa",
+"agent": "research",
+"task": "research:knowledge"
+}
+},
+{
+"type": "tool.started",
+"seq": 20,
+"elapsedMs": 10,
+"data": {
+"stepId": "d79c2ceb-8923-4932-8b9c-1b5e97829269",
+"tool": "search_travel_knowledge",
+"agent": "research",
+"parentStepId": "3c902478-2313-4a86-844f-fb53f875c1aa"
+}
+},
+{
+"type": "plan.updated",
+"seq": 21,
+"elapsedMs": 10,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 22,
+"elapsedMs": 10,
+"data": {
+"stepId": "f5d4e860-2c56-43ea-93a2-7abebbe45dc9",
+"agent": "research",
+"task": "research:holidays"
+}
+},
+{
+"type": "tool.started",
+"seq": 23,
+"elapsedMs": 10,
+"data": {
+"stepId": "96561bd0-0cd6-4258-b753-066737c2ef50",
+"tool": "get_public_holidays",
+"agent": "research",
+"parentStepId": "f5d4e860-2c56-43ea-93a2-7abebbe45dc9"
+}
+},
+{
+"type": "tool.finished",
+"seq": 24,
+"elapsedMs": 12,
+"data": {
+"stepId": "d79c2ceb-8923-4932-8b9c-1b5e97829269",
+"tool": "search_travel_knowledge",
+"kind": "retriever",
+"latencyMs": 2,
+"ok": true,
+"hits": 1
+}
+},
+{
+"type": "tool.finished",
+"seq": 25,
+"elapsedMs": 13,
+"data": {
+"stepId": "8d12c809-4f56-4e3d-b28b-c14e3c7e52dd",
+"tool": "get_weather",
+"kind": "tool",
+"latencyMs": 5,
+"ok": true,
+"cached": false
+}
+},
+{
+"type": "tool.finished",
+"seq": 26,
+"elapsedMs": 13,
+"data": {
+"stepId": "aa6c9bbb-ff3b-4b91-b6d0-0ae64d820524",
+"tool": "search_lodging",
+"kind": "tool",
+"latencyMs": 4,
+"ok": true,
+"cached": false
+}
+},
+{
+"type": "tool.finished",
+"seq": 27,
+"elapsedMs": 13,
+"data": {
+"stepId": "2d71a7b1-c52d-4bb4-9c08-2a1d838dd34c",
+"tool": "estimate_transport",
+"kind": "tool",
+"latencyMs": 3,
+"ok": true,
+"cached": false
+}
+},
+{
+"type": "agent.finished",
+"seq": 28,
+"elapsedMs": 13,
+"data": {
+"stepId": "3c902478-2313-4a86-844f-fb53f875c1aa",
+"agent": "research",
+"task": "research:knowledge",
+"status": "ok",
+"durationMs": 3,
+"summary": "1 Treffer"
+}
+},
+{
+"type": "weather.updated",
+"seq": 29,
+"elapsedMs": 13,
+"data": {
+"place": {
+"name": "Lissabon",
+"lat": 38.72,
+"lng": -9.14
+},
+"source": "climate",
+"days": [
+{
+"date": "2026-10-14",
+"tMin": 15,
+"tMax": 22,
+"precipMm": 0,
+"code": 1,
+"label": "überwiegend klar"
+},
+{
+"date": "2026-10-15",
+"tMin": 15,
+"tMax": 22,
+"precipMm": 6,
+"code": 63,
+"label": "Regen"
+},
+{
+"date": "2026-10-16",
+"tMin": 15,
+"tMax": 22,
+"precipMm": 0,
+"code": 1,
+"label": "überwiegend klar"
+}
+]
+}
+},
+{
+"type": "place.added",
+"seq": 30,
+"elapsedMs": 13,
+"data": {
+"name": "Lissabon",
+"lat": 38.72,
+"lng": -9.14,
+"kind": "destination"
+}
+},
+{
+"type": "lodging.updated",
+"seq": 31,
+"elapsedMs": 13,
+"data": {
+"place": {
+"name": "Lissabon",
+"lat": 38.72,
+"lng": -9.14
+},
+"searchLinks": {
+"booking": "https://www.booking.com/searchresults.html?ss=Lissabon&checkin=2026-10-14&checkout=2026-10-16&group_adults=1&no_rooms=1",
+"airbnb": "https://www.airbnb.de/s/Lissabon/homes?checkin=2026-10-14&checkout=2026-10-16&adults=1"
+},
+"items": [
+{
+"name": "Hotel Alfama",
+"lat": 38.711,
+"lng": -9.13,
+"kind": "hotel",
+"priceMinEur": 75,
+"priceMaxEur": 140
+},
+{
+"name": "Casa Baixa",
+"lat": 38.712,
+"lng": -9.138,
+"kind": "guest_house",
+"priceMinEur": 55,
+"priceMaxEur": 100
+}
+]
+}
+},
+{
+"type": "place.added",
+"seq": 32,
+"elapsedMs": 13,
+"data": {
+"name": "Berlin",
+"lat": 52.52,
+"lng": 13.4,
+"kind": "origin"
+}
+},
+{
+"type": "route.added",
+"seq": 33,
+"elapsedMs": 13,
+"data": {
+"from": {
+"name": "Berlin",
+"lat": 52.52,
+"lng": 13.4
+},
+"to": {
+"name": "Lissabon",
+"lat": 38.72,
+"lng": -9.14
+}
+}
+},
+{
+"type": "plan.updated",
+"seq": 34,
+"elapsedMs": 13,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "tool.finished",
+"seq": 35,
+"elapsedMs": 13,
+"data": {
+"stepId": "96561bd0-0cd6-4258-b753-066737c2ef50",
+"tool": "get_public_holidays",
+"kind": "tool",
+"latencyMs": 3,
+"ok": true,
+"cached": false
+}
+},
+{
+"type": "agent.finished",
+"seq": 36,
+"elapsedMs": 13,
+"data": {
+"stepId": "9d0c8599-e5a8-48b4-9c1a-adc06d0b400d",
+"agent": "research",
+"task": "research:weather",
+"status": "ok",
+"durationMs": 5,
+"summary": "3 Tage, Vorjahreswerte"
+}
+},
+{
+"type": "agent.finished",
+"seq": 37,
+"elapsedMs": 13,
+"data": {
+"stepId": "01b493a2-b26d-4080-a05b-2bb000461b30",
+"agent": "research",
+"task": "research:lodging",
+"status": "ok",
+"durationMs": 4,
+"summary": "2 Unterkünfte"
+}
+},
+{
+"type": "agent.finished",
+"seq": 38,
+"elapsedMs": 13,
+"data": {
+"stepId": "8857f5d8-4181-4667-bc10-8bbe25fa9f48",
+"agent": "research",
+"task": "research:transport",
+"status": "ok",
+"durationMs": 4,
+"summary": "Flug empfohlen, 2312 km"
+}
+},
+{
+"type": "plan.updated",
+"seq": 39,
+"elapsedMs": 13,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 40,
+"elapsedMs": 13,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 41,
+"elapsedMs": 13,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.finished",
+"seq": 42,
+"elapsedMs": 13,
+"data": {
+"stepId": "f5d4e860-2c56-43ea-93a2-7abebbe45dc9",
+"agent": "research",
+"task": "research:holidays",
+"status": "ok",
+"durationMs": 3,
+"summary": "1 Feiertag"
+}
+},
+{
+"type": "plan.updated",
+"seq": 43,
+"elapsedMs": 13,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 44,
+"elapsedMs": 13,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "running"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 45,
+"elapsedMs": 13,
+"data": {
+"stepId": "c9524b7a-4768-44c3-b1a9-e5d3ac92a4f2",
+"agent": "planner",
+"task": "compose"
+}
+},
+{
+"type": "llm.started",
+"seq": 46,
+"elapsedMs": 14,
+"data": {
+"stepId": "d8039834-5615-49f5-85d0-15f7a4c223d1",
+"agent": "planner",
+"parentStepId": "c9524b7a-4768-44c3-b1a9-e5d3ac92a4f2"
+}
+},
+{
+"type": "llm.call",
+"seq": 47,
+"elapsedMs": 14,
+"data": {
+"stepId": "d8039834-5615-49f5-85d0-15f7a4c223d1",
+"agent": "planner",
+"model": "openai/gpt-oss-120b",
+"inputTokens": 1350,
+"outputTokens": 980,
+"latencyMs": 0,
+"costUsd": 0.0007905,
+"finishReason": "stop"
+}
+},
+{
+"type": "agent.finished",
+"seq": 48,
+"elapsedMs": 24,
+"data": {
+"stepId": "c9524b7a-4768-44c3-b1a9-e5d3ac92a4f2",
+"agent": "planner",
+"task": "compose",
+"status": "ok",
+"durationMs": 11,
+"summary": "7 Programmpunkte an 3 Tagen"
+}
+},
+{
+"type": "plan.updated",
+"seq": 49,
+"elapsedMs": 24,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 50,
+"elapsedMs": 24,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "running"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 51,
+"elapsedMs": 24,
+"data": {
+"stepId": "6871ba56-911b-4647-890b-23be2360a04e",
+"agent": "budget",
+"task": "budget"
+}
+},
+{
+"type": "budget.updated",
+"seq": 52,
+"elapsedMs": 25,
+"data": {
+"currency": "EUR",
+"limitCents": 100000,
+"totalCents": 91300,
+"status": "tight",
+"items": [
+{
+"category": "transport",
+"cents": 60000
+},
+{
+"category": "lodging",
+"cents": 18500
+},
+{
+"category": "activities",
+"cents": 2300
+},
+{
+"category": "food",
+"cents": 10500
+}
+]
+}
+},
+{
+"type": "agent.finished",
+"seq": 53,
+"elapsedMs": 30,
+"data": {
+"stepId": "6871ba56-911b-4647-890b-23be2360a04e",
+"agent": "budget",
+"task": "budget",
+"status": "ok",
+"durationMs": 6,
+"summary": "913 € von 1.000 €, knapp"
+}
+},
+{
+"type": "plan.updated",
+"seq": 54,
+"elapsedMs": 30,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 55,
+"elapsedMs": 30,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "running"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 56,
+"elapsedMs": 31,
+"data": {
+"stepId": "e97124bd-f432-4510-9335-5aafa02df104",
+"agent": "critic",
+"task": "critique"
+}
+},
+{
+"type": "llm.started",
+"seq": 57,
+"elapsedMs": 31,
+"data": {
+"stepId": "5c19c812-59bb-4512-a59a-4a542d3078a1",
+"agent": "critic",
+"parentStepId": "e97124bd-f432-4510-9335-5aafa02df104"
+}
+},
+{
+"type": "llm.call",
+"seq": 58,
+"elapsedMs": 31,
+"data": {
+"stepId": "5c19c812-59bb-4512-a59a-4a542d3078a1",
+"agent": "critic",
+"model": "openai/gpt-oss-120b",
+"inputTokens": 520,
+"outputTokens": 140,
+"latencyMs": 0,
+"costUsd": 0.000162,
+"finishReason": "stop"
+}
+},
+{
+"type": "critique",
+"seq": 59,
+"elapsedMs": 34,
+"data": {
+"round": 0,
+"violations": [
+{
+"ruleId": "preference",
+"severity": "error",
+"dayNumber": 1,
+"stopTitle": "Churrasqueira do Campo",
+"lat": 38.745,
+"lng": -9.147,
+"message": "Churrasqueira do Campo: Grillhaus mit Fleischgerichten, passt nicht zu vegetarisch"
+},
+{
+"ruleId": "holiday",
+"severity": "warning",
+"dayNumber": 3,
+"stopTitle": "Museu Calouste Gulbenkian",
+"lat": 38.737,
+"lng": -9.154,
+"message": "Tag 3 ist Feiertag (Testfeiertag): Öffnungszeiten von Museu Calouste Gulbenkian prüfen"
+}
+],
+"final": false
+}
+},
+{
+"type": "agent.finished",
+"seq": 60,
+"elapsedMs": 34,
+"data": {
+"stepId": "e97124bd-f432-4510-9335-5aafa02df104",
+"agent": "critic",
+"task": "critique",
+"status": "ok",
+"durationMs": 3,
+"summary": "1 Fehler, 1 Hinweis: Tag 1 nachbessern"
+}
+},
+{
+"type": "plan.updated",
+"seq": 61,
+"elapsedMs": 34,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 62,
+"elapsedMs": 34,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 63,
+"elapsedMs": 34,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "running"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 64,
+"elapsedMs": 35,
+"data": {
+"stepId": "5c289bde-7f2e-4659-a4ca-94a000c2fdda",
+"agent": "planner",
+"task": "repair"
+}
+},
+{
+"type": "llm.started",
+"seq": 65,
+"elapsedMs": 35,
+"data": {
+"stepId": "1ea3725d-1b96-482c-a6eb-39c60bd2c3b0",
+"agent": "planner",
+"parentStepId": "5c289bde-7f2e-4659-a4ca-94a000c2fdda"
+}
+},
+{
+"type": "llm.call",
+"seq": 66,
+"elapsedMs": 35,
+"data": {
+"stepId": "1ea3725d-1b96-482c-a6eb-39c60bd2c3b0",
+"agent": "planner",
+"model": "openai/gpt-oss-120b",
+"inputTokens": 1010,
+"outputTokens": 380,
+"latencyMs": 0,
+"costUsd": 0.0003795,
+"finishReason": "stop"
+}
+},
+{
+"type": "agent.finished",
+"seq": 67,
+"elapsedMs": 38,
+"data": {
+"stepId": "5c289bde-7f2e-4659-a4ca-94a000c2fdda",
+"agent": "planner",
+"task": "repair",
+"status": "ok",
+"durationMs": 3,
+"summary": "Tag 1 neu, 3 Programmpunkte"
+}
+},
+{
+"type": "plan.updated",
+"seq": 68,
+"elapsedMs": 38,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 69,
+"elapsedMs": 38,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "running"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 70,
+"elapsedMs": 38,
+"data": {
+"stepId": "6438b20f-7c45-448e-87f2-b15addaaeeed",
+"agent": "budget",
+"task": "budget"
+}
+},
+{
+"type": "budget.updated",
+"seq": 71,
+"elapsedMs": 39,
+"data": {
+"currency": "EUR",
+"limitCents": 100000,
+"totalCents": 91300,
+"status": "tight",
+"items": [
+{
+"category": "transport",
+"cents": 60000
+},
+{
+"category": "lodging",
+"cents": 18500
+},
+{
+"category": "activities",
+"cents": 2300
+},
+{
+"category": "food",
+"cents": 10500
+}
+]
+}
+},
+{
+"type": "agent.finished",
+"seq": 72,
+"elapsedMs": 39,
+"data": {
+"stepId": "6438b20f-7c45-448e-87f2-b15addaaeeed",
+"agent": "budget",
+"task": "budget",
+"status": "ok",
+"durationMs": 0,
+"summary": "913 € von 1.000 €, knapp"
+}
+},
+{
+"type": "plan.updated",
+"seq": 73,
+"elapsedMs": 39,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 74,
+"elapsedMs": 39,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "running"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 75,
+"elapsedMs": 39,
+"data": {
+"stepId": "1cd03a3f-fc28-402c-b460-f4d86a660af9",
+"agent": "critic",
+"task": "critique"
+}
+},
+{
+"type": "critique",
+"seq": 76,
+"elapsedMs": 40,
+"data": {
+"round": 1,
+"violations": [
+{
+"ruleId": "holiday",
+"severity": "warning",
+"dayNumber": 3,
+"stopTitle": "Museu Calouste Gulbenkian",
+"lat": 38.737,
+"lng": -9.154,
+"message": "Tag 3 ist Feiertag (Testfeiertag): Öffnungszeiten von Museu Calouste Gulbenkian prüfen"
+}
+],
+"changes": [
+{
+"dayNumber": 1,
+"removed": [
+"Churrasqueira do Campo"
+],
+"added": [
+"Ai Mouraria (vegetarisch)"
+]
+}
+],
+"final": true
+}
+},
+{
+"type": "agent.finished",
+"seq": 77,
+"elapsedMs": 40,
+"data": {
+"stepId": "1cd03a3f-fc28-402c-b460-f4d86a660af9",
+"agent": "critic",
+"task": "critique",
+"status": "ok",
+"durationMs": 1,
+"summary": "0 Fehler, 1 Hinweis"
+}
+},
+{
+"type": "plan.updated",
+"seq": 78,
+"elapsedMs": 40,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 79,
+"elapsedMs": 40,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "running"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 80,
+"elapsedMs": 40,
+"data": {
+"stepId": "eee6c236-9abc-4e30-a261-ab54d7e25fbe",
+"agent": "planner",
+"task": "final"
+}
+},
+{
+"type": "llm.started",
+"seq": 81,
+"elapsedMs": 42,
+"data": {
+"stepId": "7bb43c2b-33cb-401c-8cbd-f1bd30834ecf",
+"agent": "planner",
+"parentStepId": "eee6c236-9abc-4e30-a261-ab54d7e25fbe"
+}
+},
+{
+"type": "llm.call",
+"seq": 82,
+"elapsedMs": 42,
+"data": {
+"stepId": "7bb43c2b-33cb-401c-8cbd-f1bd30834ecf",
+"agent": "planner",
+"model": "openai/gpt-oss-120b",
+"inputTokens": 1250,
+"outputTokens": 690,
+"latencyMs": 0,
+"costUsd": 0.0006015,
+"finishReason": "stop"
+}
+},
+{
+"type": "itinerary.draft",
+"seq": 83,
+"elapsedMs": 43,
+"data": {
+"itinerary": {
+"destination": "Lissabon",
+"startDate": "2026-10-14",
+"endDate": "2026-10-16",
+"budgetCents": 100000,
+"currency": "EUR",
+"preferences": [
+"vegetarisch"
+],
+"stops": [
+{
+"dayNumber": 1,
+"order": 1,
+"title": "Ankunft am Flughafen",
+"category": "TRANSPORT",
+"costCents": 0,
+"lat": 38.77,
+"lng": -9.13
+},
+{
+"dayNumber": 1,
+"order": 2,
+"title": "Alfama und Tram 28",
+"category": "SIGHTSEEING",
+"costCents": 0,
+"lat": 38.711,
+"lng": -9.13
+},
+{
+"dayNumber": 1,
+"order": 3,
+"title": "Ai Mouraria (vegetarisch)",
+"category": "FOOD",
+"costCents": 0,
+"lat": 38.716,
+"lng": -9.135
+},
+{
+"dayNumber": 2,
+"order": 1,
+"title": "Museu Nacional do Azulejo",
+"category": "CULTURE",
+"costCents": 800,
+"lat": 38.725,
+"lng": -9.113
+},
+{
+"dayNumber": 2,
+"order": 2,
+"title": "Time Out Market",
+"category": "FOOD",
+"costCents": 0,
+"lat": 38.707,
+"lng": -9.146
+},
+{
+"dayNumber": 3,
+"order": 1,
+"title": "Museu Calouste Gulbenkian",
+"category": "CULTURE",
+"costCents": 1500,
+"lat": 38.737,
+"lng": -9.154
+},
+{
+"dayNumber": 3,
+"order": 2,
+"title": "Abreise",
+"category": "TRANSPORT",
+"costCents": 0,
+"lat": 38.77,
+"lng": -9.13
+}
+]
+},
+"assumptions": [
+"1 Person"
+],
+"revision": 1
+}
+},
+{
+"type": "agent.finished",
+"seq": 84,
+"elapsedMs": 43,
+"data": {
+"stepId": "eee6c236-9abc-4e30-a261-ab54d7e25fbe",
+"agent": "planner",
+"task": "final",
+"status": "ok",
+"durationMs": 3,
+"summary": "Antwort geschrieben, Entwurf mit 7 Programmpunkten"
+}
+},
+{
+"type": "plan.updated",
+"seq": 85,
+"elapsedMs": 43,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:holidays",
+"type": "research:holidays",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge",
+"research:holidays"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+}
+]
+}
+},
+{
+"type": "stops.updated",
+"seq": 86,
+"elapsedMs": 44,
+"data": {
+"stops": [
+{
+"name": "Ankunft am Flughafen",
+"lat": 38.77,
+"lng": -9.13
+},
+{
+"name": "Alfama und Tram 28",
+"lat": 38.711,
+"lng": -9.13
+},
+{
+"name": "Ai Mouraria (vegetarisch)",
+"lat": 38.716,
+"lng": -9.135
+},
+{
+"name": "Museu Nacional do Azulejo",
+"lat": 38.725,
+"lng": -9.113
+},
+{
+"name": "Time Out Market",
+"lat": 38.707,
+"lng": -9.146
+},
+{
+"name": "Museu Calouste Gulbenkian",
+"lat": 38.737,
+"lng": -9.154
+},
+{
+"name": "Abreise",
+"lat": 38.77,
+"lng": -9.13
+}
+]
+}
+},
+{
+"type": "sources",
+"seq": 87,
+"elapsedMs": 44,
+"data": {
+"sources": [],
+"searchAttempted": true
+}
+},
+{
+"type": "message.completed",
+"seq": 88,
+"elapsedMs": 44,
+"data": {
+"text": "## 3 Tage Lissabon, vegetarisch\n\n### Tag 1\n- Ankunft, Alfama und Tram 28, Abendessen im Ai Mouraria\n\n### Tag 2\n- Museu Nacional do Azulejo, Time Out Market\n\n### Tag 3\n- Museu Calouste Gulbenkian, Abreise\n\n## Hinweise\n- Tag 3 ist Feiertag: Öffnungszeiten des Gulbenkian vorher prüfen."
+}
+},
+{
+"type": "run.finished",
+"seq": 89,
+"elapsedMs": 44,
+"data": {
+"totals": {
+"llmCalls": 5,
+"toolCalls": 5,
+"inputTokens": 4910,
+"outputTokens": 2430,
+"costUsd": 0.0021945000000000003,
+"durationMs": 44
+}
+}
+}
+]

@@ -1,0 +1,2819 @@
+[
+{
+"type": "run.started",
+"seq": 1,
+"elapsedMs": 0,
+"data": {
+"runId": "mock-run",
+"mode": "multi"
+}
+},
+{
+"type": "agent.started",
+"seq": 2,
+"elapsedMs": 3,
+"data": {
+"stepId": "a83e5cde-27b2-4fcf-bb40-f94bef7a53ec",
+"agent": "planner",
+"task": "triage"
+}
+},
+{
+"type": "llm.started",
+"seq": 3,
+"elapsedMs": 5,
+"data": {
+"stepId": "7d39bc0e-dadd-43a4-8921-12d3ef937b8a",
+"agent": "planner",
+"parentStepId": "a83e5cde-27b2-4fcf-bb40-f94bef7a53ec"
+}
+},
+{
+"type": "llm.call",
+"seq": 4,
+"elapsedMs": 5,
+"data": {
+"stepId": "7d39bc0e-dadd-43a4-8921-12d3ef937b8a",
+"agent": "planner",
+"model": "openai/gpt-oss-120b",
+"inputTokens": 780,
+"outputTokens": 240,
+"latencyMs": 0,
+"costUsd": 0.000261,
+"finishReason": "stop"
+}
+},
+{
+"type": "agent.finished",
+"seq": 5,
+"elapsedMs": 6,
+"data": {
+"stepId": "a83e5cde-27b2-4fcf-bb40-f94bef7a53ec",
+"agent": "planner",
+"task": "triage",
+"status": "ok",
+"durationMs": 3,
+"summary": "3 Tage, 1 Person"
+}
+},
+{
+"type": "agent.started",
+"seq": 6,
+"elapsedMs": 6,
+"data": {
+"stepId": "a4a02c6f-d103-4f6b-bf31-fc91e18b17b6",
+"agent": "planner",
+"task": "plan"
+}
+},
+{
+"type": "agent.finished",
+"seq": 7,
+"elapsedMs": 7,
+"data": {
+"stepId": "a4a02c6f-d103-4f6b-bf31-fc91e18b17b6",
+"agent": "planner",
+"task": "plan",
+"status": "ok",
+"durationMs": 0,
+"summary": "4 Recherche-Aufgaben"
+}
+},
+{
+"type": "plan.updated",
+"seq": 8,
+"elapsedMs": 7,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 9,
+"elapsedMs": 7,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 10,
+"elapsedMs": 7,
+"data": {
+"stepId": "66dcba57-fc39-41a6-a76d-3f814485dccd",
+"agent": "research",
+"task": "research:weather"
+}
+},
+{
+"type": "tool.started",
+"seq": 11,
+"elapsedMs": 7,
+"data": {
+"stepId": "6c4facfa-8b73-4553-8a90-ce184eefef59",
+"tool": "get_weather",
+"agent": "research",
+"parentStepId": "66dcba57-fc39-41a6-a76d-3f814485dccd"
+}
+},
+{
+"type": "plan.updated",
+"seq": 12,
+"elapsedMs": 8,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 13,
+"elapsedMs": 8,
+"data": {
+"stepId": "c610c43e-a208-4b2b-be4a-ba3779c28ce5",
+"agent": "research",
+"task": "research:lodging"
+}
+},
+{
+"type": "tool.started",
+"seq": 14,
+"elapsedMs": 8,
+"data": {
+"stepId": "8469c2ef-6981-4fc2-b2d8-31106a3f1d2e",
+"tool": "search_lodging",
+"agent": "research",
+"parentStepId": "c610c43e-a208-4b2b-be4a-ba3779c28ce5"
+}
+},
+{
+"type": "plan.updated",
+"seq": 15,
+"elapsedMs": 8,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "pending"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 16,
+"elapsedMs": 8,
+"data": {
+"stepId": "52f34fb7-8fb3-401c-9a7e-46b7425853e5",
+"agent": "research",
+"task": "research:transport"
+}
+},
+{
+"type": "tool.started",
+"seq": 17,
+"elapsedMs": 8,
+"data": {
+"stepId": "02729d2f-6b43-4346-b56c-50360a5a0e36",
+"tool": "estimate_transport",
+"agent": "research",
+"parentStepId": "52f34fb7-8fb3-401c-9a7e-46b7425853e5"
+}
+},
+{
+"type": "plan.updated",
+"seq": 18,
+"elapsedMs": 9,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 19,
+"elapsedMs": 9,
+"data": {
+"stepId": "63ab7c3e-f94e-49b5-8a9e-32265b2bc8f1",
+"agent": "research",
+"task": "research:knowledge"
+}
+},
+{
+"type": "tool.started",
+"seq": 20,
+"elapsedMs": 9,
+"data": {
+"stepId": "f9e5ffff-91b7-4158-abc1-bdbc2f25cf32",
+"tool": "search_travel_knowledge",
+"agent": "research",
+"parentStepId": "63ab7c3e-f94e-49b5-8a9e-32265b2bc8f1"
+}
+},
+{
+"type": "tool.finished",
+"seq": 21,
+"elapsedMs": 11,
+"data": {
+"stepId": "f9e5ffff-91b7-4158-abc1-bdbc2f25cf32",
+"tool": "search_travel_knowledge",
+"kind": "retriever",
+"latencyMs": 2,
+"ok": true,
+"hits": 1
+}
+},
+{
+"type": "tool.finished",
+"seq": 22,
+"elapsedMs": 11,
+"data": {
+"stepId": "6c4facfa-8b73-4553-8a90-ce184eefef59",
+"tool": "get_weather",
+"kind": "tool",
+"latencyMs": 4,
+"ok": true,
+"cached": false
+}
+},
+{
+"type": "tool.finished",
+"seq": 23,
+"elapsedMs": 11,
+"data": {
+"stepId": "8469c2ef-6981-4fc2-b2d8-31106a3f1d2e",
+"tool": "search_lodging",
+"kind": "tool",
+"latencyMs": 3,
+"ok": true,
+"cached": false
+}
+},
+{
+"type": "tool.finished",
+"seq": 24,
+"elapsedMs": 11,
+"data": {
+"stepId": "02729d2f-6b43-4346-b56c-50360a5a0e36",
+"tool": "estimate_transport",
+"kind": "tool",
+"latencyMs": 3,
+"ok": true,
+"cached": false
+}
+},
+{
+"type": "agent.finished",
+"seq": 25,
+"elapsedMs": 11,
+"data": {
+"stepId": "63ab7c3e-f94e-49b5-8a9e-32265b2bc8f1",
+"agent": "research",
+"task": "research:knowledge",
+"status": "ok",
+"durationMs": 3,
+"summary": "1 Treffer"
+}
+},
+{
+"type": "weather.updated",
+"seq": 26,
+"elapsedMs": 11,
+"data": {
+"place": {
+"name": "Lissabon",
+"lat": 38.72,
+"lng": -9.14
+},
+"source": "climate",
+"days": [
+{
+"date": "2026-10-14",
+"tMin": 15,
+"tMax": 22,
+"precipMm": 0,
+"code": 1,
+"label": "überwiegend klar"
+},
+{
+"date": "2026-10-15",
+"tMin": 15,
+"tMax": 22,
+"precipMm": 6,
+"code": 63,
+"label": "Regen"
+},
+{
+"date": "2026-10-16",
+"tMin": 15,
+"tMax": 22,
+"precipMm": 0,
+"code": 1,
+"label": "überwiegend klar"
+}
+]
+}
+},
+{
+"type": "place.added",
+"seq": 27,
+"elapsedMs": 11,
+"data": {
+"name": "Lissabon",
+"lat": 38.72,
+"lng": -9.14,
+"kind": "destination"
+}
+},
+{
+"type": "lodging.updated",
+"seq": 28,
+"elapsedMs": 11,
+"data": {
+"place": {
+"name": "Lissabon",
+"lat": 38.72,
+"lng": -9.14
+},
+"searchLinks": {
+"booking": "https://www.booking.com/searchresults.html?ss=Lissabon&checkin=2026-10-14&checkout=2026-10-16&group_adults=1&no_rooms=1",
+"airbnb": "https://www.airbnb.de/s/Lissabon/homes?checkin=2026-10-14&checkout=2026-10-16&adults=1"
+},
+"items": [
+{
+"name": "Hotel Alfama",
+"lat": 38.711,
+"lng": -9.13,
+"kind": "hotel",
+"priceMinEur": 75,
+"priceMaxEur": 140
+},
+{
+"name": "Casa Baixa",
+"lat": 38.712,
+"lng": -9.138,
+"kind": "guest_house",
+"priceMinEur": 55,
+"priceMaxEur": 100
+}
+]
+}
+},
+{
+"type": "place.added",
+"seq": 29,
+"elapsedMs": 11,
+"data": {
+"name": "Berlin",
+"lat": 52.52,
+"lng": 13.4,
+"kind": "origin"
+}
+},
+{
+"type": "route.added",
+"seq": 30,
+"elapsedMs": 11,
+"data": {
+"from": {
+"name": "Berlin",
+"lat": 52.52,
+"lng": 13.4
+},
+"to": {
+"name": "Lissabon",
+"lat": 38.72,
+"lng": -9.14
+}
+}
+},
+{
+"type": "plan.updated",
+"seq": 31,
+"elapsedMs": 11,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.finished",
+"seq": 32,
+"elapsedMs": 11,
+"data": {
+"stepId": "66dcba57-fc39-41a6-a76d-3f814485dccd",
+"agent": "research",
+"task": "research:weather",
+"status": "ok",
+"durationMs": 4,
+"summary": "3 Tage, Vorjahreswerte"
+}
+},
+{
+"type": "agent.finished",
+"seq": 33,
+"elapsedMs": 11,
+"data": {
+"stepId": "c610c43e-a208-4b2b-be4a-ba3779c28ce5",
+"agent": "research",
+"task": "research:lodging",
+"status": "ok",
+"durationMs": 4,
+"summary": "2 Unterkünfte"
+}
+},
+{
+"type": "agent.finished",
+"seq": 34,
+"elapsedMs": 11,
+"data": {
+"stepId": "52f34fb7-8fb3-401c-9a7e-46b7425853e5",
+"agent": "research",
+"task": "research:transport",
+"status": "ok",
+"durationMs": 3,
+"summary": "Flug empfohlen, 2312 km"
+}
+},
+{
+"type": "plan.updated",
+"seq": 35,
+"elapsedMs": 11,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 36,
+"elapsedMs": 11,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "running"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 37,
+"elapsedMs": 11,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "pending"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 38,
+"elapsedMs": 12,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "running"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 39,
+"elapsedMs": 12,
+"data": {
+"stepId": "0823cbc1-9120-407c-be74-f886e0fa6a5d",
+"agent": "planner",
+"task": "compose"
+}
+},
+{
+"type": "llm.started",
+"seq": 40,
+"elapsedMs": 12,
+"data": {
+"stepId": "04137ca5-0bff-4e45-b5fe-0f2bc84b8fb1",
+"agent": "planner",
+"parentStepId": "0823cbc1-9120-407c-be74-f886e0fa6a5d"
+}
+},
+{
+"type": "llm.call",
+"seq": 41,
+"elapsedMs": 12,
+"data": {
+"stepId": "04137ca5-0bff-4e45-b5fe-0f2bc84b8fb1",
+"agent": "planner",
+"model": "openai/gpt-oss-120b",
+"inputTokens": 1350,
+"outputTokens": 980,
+"latencyMs": 0,
+"costUsd": 0.0007905,
+"finishReason": "stop"
+}
+},
+{
+"type": "agent.finished",
+"seq": 42,
+"elapsedMs": 20,
+"data": {
+"stepId": "0823cbc1-9120-407c-be74-f886e0fa6a5d",
+"agent": "planner",
+"task": "compose",
+"status": "ok",
+"durationMs": 8,
+"summary": "8 Programmpunkte an 3 Tagen"
+}
+},
+{
+"type": "plan.updated",
+"seq": 43,
+"elapsedMs": 20,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "pending"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 44,
+"elapsedMs": 20,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "running"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 45,
+"elapsedMs": 20,
+"data": {
+"stepId": "a1ced057-695f-40fa-8898-0ace228b7294",
+"agent": "budget",
+"task": "budget"
+}
+},
+{
+"type": "budget.updated",
+"seq": 46,
+"elapsedMs": 20,
+"data": {
+"currency": "EUR",
+"limitCents": 80000,
+"totalCents": 91500,
+"status": "over",
+"items": [
+{
+"category": "transport",
+"cents": 60000
+},
+{
+"category": "lodging",
+"cents": 18500
+},
+{
+"category": "activities",
+"cents": 2500
+},
+{
+"category": "food",
+"cents": 10500
+}
+]
+}
+},
+{
+"type": "agent.finished",
+"seq": 47,
+"elapsedMs": 24,
+"data": {
+"stepId": "a1ced057-695f-40fa-8898-0ace228b7294",
+"agent": "budget",
+"task": "budget",
+"status": "ok",
+"durationMs": 4,
+"summary": "915 € von 800 €, überschritten"
+}
+},
+{
+"type": "plan.updated",
+"seq": 48,
+"elapsedMs": 24,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 49,
+"elapsedMs": 25,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "running"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 50,
+"elapsedMs": 25,
+"data": {
+"stepId": "86812a67-e921-4899-8443-7c5ff9f2c05c",
+"agent": "critic",
+"task": "critique"
+}
+},
+{
+"type": "critique",
+"seq": 51,
+"elapsedMs": 26,
+"data": {
+"round": 0,
+"violations": [
+{
+"ruleId": "rain-outdoor",
+"severity": "error",
+"dayNumber": 2,
+"stopTitle": "Torre de Belém",
+"lat": 38.692,
+"lng": -9.216,
+"message": "Torre de Belém liegt draußen, an Tag 2 regnet es (6 mm, Vorjahreswert)"
+},
+{
+"ruleId": "rain-outdoor",
+"severity": "error",
+"dayNumber": 2,
+"stopTitle": "Miradouro de Santa Catarina",
+"lat": 38.709,
+"lng": -9.147,
+"message": "Miradouro de Santa Catarina liegt draußen, an Tag 2 regnet es (6 mm, Vorjahreswert)"
+},
+{
+"ruleId": "budget-over",
+"severity": "warning",
+"message": "Geschätzt 915 €, 115 € über dem Budget von 800 €"
+}
+],
+"final": false
+}
+},
+{
+"type": "agent.finished",
+"seq": 52,
+"elapsedMs": 26,
+"data": {
+"stepId": "86812a67-e921-4899-8443-7c5ff9f2c05c",
+"agent": "critic",
+"task": "critique",
+"status": "ok",
+"durationMs": 2,
+"summary": "2 Fehler, 1 Hinweis: Tag 2 nachbessern"
+}
+},
+{
+"type": "plan.updated",
+"seq": 53,
+"elapsedMs": 26,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 54,
+"elapsedMs": 27,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 55,
+"elapsedMs": 27,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "running"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 56,
+"elapsedMs": 27,
+"data": {
+"stepId": "3120c021-25ee-49aa-aea7-f493e5269cd8",
+"agent": "planner",
+"task": "repair"
+}
+},
+{
+"type": "llm.started",
+"seq": 57,
+"elapsedMs": 28,
+"data": {
+"stepId": "487e57b8-2ec5-470e-8b76-3ad920a6f037",
+"agent": "planner",
+"parentStepId": "3120c021-25ee-49aa-aea7-f493e5269cd8"
+}
+},
+{
+"type": "llm.call",
+"seq": 58,
+"elapsedMs": 28,
+"data": {
+"stepId": "487e57b8-2ec5-470e-8b76-3ad920a6f037",
+"agent": "planner",
+"model": "openai/gpt-oss-120b",
+"inputTokens": 1020,
+"outputTokens": 420,
+"latencyMs": 0,
+"costUsd": 0.000405,
+"finishReason": "stop"
+}
+},
+{
+"type": "agent.finished",
+"seq": 59,
+"elapsedMs": 30,
+"data": {
+"stepId": "3120c021-25ee-49aa-aea7-f493e5269cd8",
+"agent": "planner",
+"task": "repair",
+"status": "ok",
+"durationMs": 2,
+"summary": "Tag 2 neu, 3 Programmpunkte"
+}
+},
+{
+"type": "plan.updated",
+"seq": 60,
+"elapsedMs": 30,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 61,
+"elapsedMs": 30,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "running"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 62,
+"elapsedMs": 30,
+"data": {
+"stepId": "4b11dafe-cb1e-4358-9638-81a51136d6af",
+"agent": "budget",
+"task": "budget"
+}
+},
+{
+"type": "budget.updated",
+"seq": 63,
+"elapsedMs": 30,
+"data": {
+"currency": "EUR",
+"limitCents": 80000,
+"totalCents": 91600,
+"status": "over",
+"items": [
+{
+"category": "transport",
+"cents": 60000
+},
+{
+"category": "lodging",
+"cents": 18500
+},
+{
+"category": "activities",
+"cents": 2600
+},
+{
+"category": "food",
+"cents": 10500
+}
+]
+}
+},
+{
+"type": "agent.finished",
+"seq": 64,
+"elapsedMs": 30,
+"data": {
+"stepId": "4b11dafe-cb1e-4358-9638-81a51136d6af",
+"agent": "budget",
+"task": "budget",
+"status": "ok",
+"durationMs": 0,
+"summary": "916 € von 800 €, überschritten"
+}
+},
+{
+"type": "plan.updated",
+"seq": 65,
+"elapsedMs": 30,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 66,
+"elapsedMs": 30,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "running"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 67,
+"elapsedMs": 30,
+"data": {
+"stepId": "85922106-9cfc-4533-8e23-cb5ec29380f6",
+"agent": "critic",
+"task": "critique"
+}
+},
+{
+"type": "critique",
+"seq": 68,
+"elapsedMs": 31,
+"data": {
+"round": 1,
+"violations": [
+{
+"ruleId": "budget-over",
+"severity": "warning",
+"message": "Geschätzt 916 €, 116 € über dem Budget von 800 €"
+}
+],
+"changes": [
+{
+"dayNumber": 2,
+"removed": [
+"Torre de Belém",
+"Miradouro de Santa Catarina"
+],
+"added": [
+"MAAT – Museum für Kunst und Technik",
+"LX Factory"
+]
+}
+],
+"final": true
+}
+},
+{
+"type": "agent.finished",
+"seq": 69,
+"elapsedMs": 31,
+"data": {
+"stepId": "85922106-9cfc-4533-8e23-cb5ec29380f6",
+"agent": "critic",
+"task": "critique",
+"status": "ok",
+"durationMs": 1,
+"summary": "0 Fehler, 1 Hinweis"
+}
+},
+{
+"type": "plan.updated",
+"seq": 70,
+"elapsedMs": 31,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "pending"
+}
+]
+}
+},
+{
+"type": "plan.updated",
+"seq": 71,
+"elapsedMs": 31,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "running"
+}
+]
+}
+},
+{
+"type": "agent.started",
+"seq": 72,
+"elapsedMs": 31,
+"data": {
+"stepId": "026d6bad-f5fc-4805-8472-2845b79b9e0e",
+"agent": "planner",
+"task": "final"
+}
+},
+{
+"type": "llm.started",
+"seq": 73,
+"elapsedMs": 33,
+"data": {
+"stepId": "3de180aa-044c-4ff0-be43-a0998791a1e8",
+"agent": "planner",
+"parentStepId": "026d6bad-f5fc-4805-8472-2845b79b9e0e"
+}
+},
+{
+"type": "llm.call",
+"seq": 74,
+"elapsedMs": 33,
+"data": {
+"stepId": "3de180aa-044c-4ff0-be43-a0998791a1e8",
+"agent": "planner",
+"model": "openai/gpt-oss-120b",
+"inputTokens": 1250,
+"outputTokens": 690,
+"latencyMs": 0,
+"costUsd": 0.0006015,
+"finishReason": "stop"
+}
+},
+{
+"type": "itinerary.draft",
+"seq": 75,
+"elapsedMs": 33,
+"data": {
+"itinerary": {
+"destination": "Lissabon",
+"startDate": "2026-10-14",
+"endDate": "2026-10-16",
+"budgetCents": 80000,
+"currency": "EUR",
+"preferences": [],
+"stops": [
+{
+"dayNumber": 1,
+"order": 1,
+"title": "Ankunft am Flughafen",
+"category": "TRANSPORT",
+"costCents": 0,
+"lat": 38.77,
+"lng": -9.13
+},
+{
+"dayNumber": 1,
+"order": 2,
+"title": "Alfama und Tram 28",
+"category": "SIGHTSEEING",
+"costCents": 0,
+"lat": 38.711,
+"lng": -9.13
+},
+{
+"dayNumber": 1,
+"order": 3,
+"title": "Fado-Abend",
+"category": "CULTURE",
+"costCents": 0,
+"lat": 38.712,
+"lng": -9.129
+},
+{
+"dayNumber": 2,
+"order": 1,
+"title": "MAAT – Museum für Kunst und Technik",
+"category": "CULTURE",
+"costCents": 1100,
+"lat": 38.696,
+"lng": -9.194
+},
+{
+"dayNumber": 2,
+"order": 2,
+"title": "Pastéis de Belém",
+"category": "FOOD",
+"costCents": 0,
+"lat": 38.697,
+"lng": -9.203
+},
+{
+"dayNumber": 2,
+"order": 3,
+"title": "LX Factory",
+"category": "OTHER",
+"costCents": 0,
+"lat": 38.703,
+"lng": -9.178
+},
+{
+"dayNumber": 3,
+"order": 1,
+"title": "Museu Calouste Gulbenkian",
+"category": "CULTURE",
+"costCents": 1500,
+"lat": 38.737,
+"lng": -9.154
+},
+{
+"dayNumber": 3,
+"order": 2,
+"title": "Abreise",
+"category": "TRANSPORT",
+"costCents": 0,
+"lat": 38.77,
+"lng": -9.13
+}
+]
+},
+"assumptions": [
+"1 Person",
+"Unterkunft: Mittelklasse"
+],
+"revision": 1
+}
+},
+{
+"type": "agent.finished",
+"seq": 76,
+"elapsedMs": 34,
+"data": {
+"stepId": "026d6bad-f5fc-4805-8472-2845b79b9e0e",
+"agent": "planner",
+"task": "final",
+"status": "ok",
+"durationMs": 2,
+"summary": "Antwort geschrieben, Entwurf mit 8 Programmpunkten"
+}
+},
+{
+"type": "plan.updated",
+"seq": 77,
+"elapsedMs": 34,
+"data": {
+"tasks": [
+{
+"id": "research:weather",
+"type": "research:weather",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:lodging",
+"type": "research:lodging",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:transport",
+"type": "research:transport",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "research:knowledge",
+"type": "research:knowledge",
+"agent": "research",
+"dependsOn": [],
+"status": "done"
+},
+{
+"id": "compose",
+"type": "compose",
+"agent": "planner",
+"dependsOn": [
+"research:weather",
+"research:lodging",
+"research:transport",
+"research:knowledge"
+],
+"status": "done"
+},
+{
+"id": "budget",
+"type": "budget",
+"agent": "budget",
+"dependsOn": [
+"compose"
+],
+"status": "done"
+},
+{
+"id": "critique",
+"type": "critique",
+"agent": "critic",
+"dependsOn": [
+"budget"
+],
+"status": "done"
+},
+{
+"id": "repair-1",
+"type": "repair",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+},
+{
+"id": "final",
+"type": "final",
+"agent": "planner",
+"dependsOn": [
+"critique"
+],
+"status": "done"
+}
+]
+}
+},
+{
+"type": "stops.updated",
+"seq": 78,
+"elapsedMs": 34,
+"data": {
+"stops": [
+{
+"name": "Ankunft am Flughafen",
+"lat": 38.77,
+"lng": -9.13
+},
+{
+"name": "Alfama und Tram 28",
+"lat": 38.711,
+"lng": -9.13
+},
+{
+"name": "Fado-Abend",
+"lat": 38.712,
+"lng": -9.129
+},
+{
+"name": "MAAT – Museum für Kunst und Technik",
+"lat": 38.696,
+"lng": -9.194
+},
+{
+"name": "Pastéis de Belém",
+"lat": 38.697,
+"lng": -9.203
+},
+{
+"name": "LX Factory",
+"lat": 38.703,
+"lng": -9.178
+},
+{
+"name": "Museu Calouste Gulbenkian",
+"lat": 38.737,
+"lng": -9.154
+},
+{
+"name": "Abreise",
+"lat": 38.77,
+"lng": -9.13
+}
+]
+}
+},
+{
+"type": "sources",
+"seq": 79,
+"elapsedMs": 34,
+"data": {
+"sources": [],
+"searchAttempted": true
+}
+},
+{
+"type": "message.completed",
+"seq": 80,
+"elapsedMs": 34,
+"data": {
+"text": "## 3 Tage Lissabon\n\n**Angenommene Daten:** 14.–16. Oktober 2026.\n\n### Tag 1\n- Ankunft, Alfama und Tram 28, Fado-Abend\n\n### Tag 2 (Regen, Vorjahreswerte)\n- MAAT, Pastéis de Belém, LX Factory: alles drinnen\n\n### Tag 3\n- Museu Calouste Gulbenkian, Abreise\n\n**Budget:** geschätzt, siehe unten."
+}
+},
+{
+"type": "run.finished",
+"seq": 81,
+"elapsedMs": 34,
+"data": {
+"totals": {
+"llmCalls": 4,
+"toolCalls": 4,
+"inputTokens": 4400,
+"outputTokens": 2330,
+"costUsd": 0.002058,
+"durationMs": 34
+}
+}
+}
+]
