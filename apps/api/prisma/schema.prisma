@@ -36,6 +36,7 @@ model User {
   itineraries   Itinerary[]
   conversations Conversation[]
   agentRuns     AgentRun[]
+  tripDrafts    TripDraft[]
 }
 
 model Itinerary {
@@ -194,4 +195,31 @@ model AgentRun {
   userId String
 
   @@index([userId, createdAt])
+}
+
+// Letzter Entwurf des Multi-Agenten-Modus pro Chat-Session, damit
+// Folgenachrichten ("Tag 2 entspannter", "günstiger übernachten") ihn gezielt
+// ändern, statt die ganze Reise neu zu recherchieren und zu planen.
+// brief = TripBrief, draft = TripDraft (Tage, Stops, Koordinaten), findings =
+// ResearchFindings (Wetter, Unterkünfte, Anreise, Treffer), budget = letzter
+// BudgetReport; Typen in apps/api/src/orchestrator/trip-draft.ts. revision
+// zählt die Fassungen in der Session (1 = erster Plan). Enthält Nutzerangaben
+// (Ziel, Vorlieben) und liegt deshalb nicht länger als der Chat-Verlauf
+// (CONVERSATION_RETENTION_DAYS).
+model TripDraft {
+  id        String   @id @default(cuid())
+  sessionId String
+  revision  Int      @default(1)
+  brief     Json
+  draft     Json
+  findings  Json
+  budget    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@unique([userId, sessionId])
+  @@index([updatedAt])
 }
