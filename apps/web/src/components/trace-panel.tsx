@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Spinner from '@/components/spinner';
+import { AGENT_MODE_LABELS } from '@/lib/agent-mode';
 import {
   TASK_LABELS,
   TASK_STATUS_ICONS,
@@ -197,15 +198,20 @@ function StepsView({ run }: { run: RunState }) {
 }
 
 function TotalsLine({ run }: { run: RunState }) {
+  // Modus vorn, damit sich Antworten aus beiden Modi direkt vergleichen lassen.
+  // Auch ohne Summen (abgebrochener Lauf) sieht man, welcher Modus lief.
+  const parts = run.mode ? [AGENT_MODE_LABELS[run.mode]] : [];
   const totals = run.totals;
-  if (!totals) return null;
-  const parts = [
-    `${totals.llmCalls} LLM-Aufrufe`,
-    `${totals.toolCalls} Tools`,
-    `${numberFormat.format(totals.inputTokens + totals.outputTokens)} Tokens`,
-    formatMs(totals.durationMs),
-  ];
-  if (totals.costUsd > 0) parts.push(`≈ ${formatCost(totals.costUsd)}`);
+  if (totals) {
+    parts.push(
+      `${totals.llmCalls} LLM-Aufrufe`,
+      `${totals.toolCalls} Tools`,
+      `${numberFormat.format(totals.inputTokens + totals.outputTokens)} Tokens`,
+      formatMs(totals.durationMs),
+    );
+    if (totals.costUsd > 0) parts.push(`≈ ${formatCost(totals.costUsd)}`);
+  }
+  if (parts.length === 0) return null;
   return <>{parts.join(' · ')}</>;
 }
 

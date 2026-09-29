@@ -1,13 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { authFetch } from '@/lib/auth';
 import BudgetBar from '@/components/budget-bar';
 import LodgingList from '@/components/lodging-list';
+import ModeToggle from '@/components/mode-toggle';
 import ReplyMarkdown from '@/components/reply-markdown';
 import TracePanel from '@/components/trace-panel';
 import TripGlobe, { type GlobeArc, type GlobeFocus } from '@/components/trip-globe';
 import WeatherStrip from '@/components/weather-strip';
+import {
+  DEFAULT_AGENT_MODE,
+  readStoredAgentMode,
+  storeAgentMode,
+  subscribeAgentMode,
+} from '@/lib/agent-mode';
 import type { ChatSource } from '@/lib/run-events';
 import { lodgingPoints } from '@/lib/replay';
 import { applyRunEvent, initialRunState, type RunState } from '@/lib/run-state';
@@ -126,6 +133,13 @@ export default function ChatWindow() {
   const [globeRoute, setGlobeRoute] = useState<GlobeFocus[] | null>(null);
   // Unterkünfte als kleine Punkte, ersetzt wie Marker und Bögen
   const [globePois, setGlobePois] = useState<GlobeFocus[]>([]);
+  // Gewählter Modus aus localStorage; beim statischen Vorrendern und vor dem
+  // Hydrieren gilt der Default, damit das HTML übereinstimmt.
+  const agentMode = useSyncExternalStore(
+    subscribeAgentMode,
+    () => readStoredAgentMode(),
+    () => DEFAULT_AGENT_MODE,
+  );
 
   // Weckt den RAG-Service beim Öffnen des Chats, damit sein Kaltstart läuft,
   // während der Nutzer noch tippt, statt während der ersten Frage. Ohne Token
@@ -149,7 +163,7 @@ export default function ChatWindow() {
       const response = await authFetch(`${API_URL}/agent/runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ sessionId, message: userMessage }),
+        body: JSON.stringify({ sessionId, message: userMessage, mode: agentMode }),
       });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`, { cause: response.status });
@@ -308,6 +322,7 @@ export default function ChatWindow() {
           )}
         </div>
 
+        <ModeToggle mode={agentMode} onChange={storeAgentMode} />
         <form
           onSubmit={handleSubmit}
           className="flex gap-2 rounded-xl border border-rule bg-card p-2 focus-within:border-teal"
