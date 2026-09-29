@@ -134,6 +134,28 @@ test('Lanes: ein Balken pro Schritt, relativ zur Laufzeit, parallele Recherche �
   assert.ok(lodging.leftPct + lodging.widthPct <= 100);
 });
 
+test('Lanes: laufende Schritte wachsen mit der Uhr, auch ohne neues Ereignis', () => {
+  const state = EVENTS.reduce(applyRunEvent, initialRunState());
+
+  // 1 s nach dem letzten Ereignis (1500 ms): Die laufende Unterkunftssuche
+  // reicht jetzt bis 2500 ms, die fertige Triage schrumpft relativ dazu
+  const { lanes, totalMs } = agentLanes(state, 2500);
+  assert.equal(totalMs, 2500);
+  const [triage] = lanes[0].bars;
+  assert.ok(Math.abs(triage.widthPct - (1000 / 2500) * 100) < 0.01);
+  const [weather, lodging] = lanes[1].bars;
+  assert.ok(Math.abs(lodging.leftPct + lodging.widthPct - 100) < 0.01);
+  assert.ok(lodging.widthPct > weather.widthPct);
+});
+
+test('Lanes: eine Uhr hinter dem letzten Ereignis und fertige Läufe ändern nichts', () => {
+  const running = EVENTS.reduce(applyRunEvent, initialRunState());
+  assert.equal(agentLanes(running, 900).totalMs, 1500);
+
+  const finished = { ...running, status: 'done' as const };
+  assert.equal(agentLanes(finished, 9999).totalMs, 1500);
+});
+
 test('Lanes: ohne Agenten-Schritte (classic) keine Lanes', () => {
   const { lanes } = agentLanes(initialRunState());
   assert.deepEqual(lanes, []);

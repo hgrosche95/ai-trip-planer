@@ -45,16 +45,23 @@ export interface Lane {
 const MIN_WIDTH_PCT = 0.8;
 
 // Der Wasserfall als reine Funktion: Jeder Agent eine Lane, jeder Schritt
-// ein Balken relativ zur Laufzeit. Laufende Schritte reichen bis zum letzten
-// Ereignis (lastMs), deshalb wachsen sie live und im Replay gleich.
+// ein Balken relativ zur Laufzeit. Laufende Schritte reichen bis "jetzt".
+// Ohne nowMs ist das der Zeitpunkt des letzten Ereignisses (lastMs); die
+// Live-Anzeige übergibt eine im Browser weiterlaufende Uhr, damit die Balken
+// auch dann wachsen, wenn gerade kein Ereignis kommt (ein KI-Aufruf dauert
+// Sekunden). Ist der Lauf vorbei, zählt nur lastMs.
 // Gleichzeitige Recherche-Schritte liegen als eigene Zeilen übereinander
 // und überlappen zeitlich.
-export function agentLanes(run: RunState): { lanes: Lane[]; totalMs: number } {
+export function agentLanes(
+  run: RunState,
+  nowMs: number = run.lastMs,
+): { lanes: Lane[]; totalMs: number } {
+  const now = run.status === 'running' ? Math.max(run.lastMs, nowMs) : run.lastMs;
   const end = (step: AgentStep) =>
-    step.startedMs + (step.durationMs ?? Math.max(0, run.lastMs - step.startedMs));
+    step.startedMs + (step.durationMs ?? Math.max(0, now - step.startedMs));
   const totalMs = Math.max(
     1,
-    run.lastMs,
+    now,
     run.totals?.durationMs ?? 0,
     ...run.agentSteps.map(end),
   );

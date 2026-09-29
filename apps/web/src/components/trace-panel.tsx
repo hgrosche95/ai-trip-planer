@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Spinner from '@/components/spinner';
 import { AGENT_MODE_LABELS } from '@/lib/agent-mode';
 import {
@@ -112,8 +112,8 @@ function barDetails(bar: LaneBar) {
 // Wasserfall im Multi-Agenten-Modus: eine Lane pro Agent, ein Balken pro
 // Aufgabe, relativ zur Laufzeit. Die Recherche-Aufgaben laufen gleichzeitig
 // und stehen deshalb als überlappende Balken untereinander.
-function AgentLanes({ run }: { run: RunState }) {
-  const { lanes } = agentLanes(run);
+function AgentLanes({ run, nowMs }: { run: RunState; nowMs?: number }) {
+  const { lanes } = agentLanes(run, nowMs);
   if (lanes.length === 0) return null;
   return (
     <div className="space-y-2 py-1" aria-label="Agenten">
@@ -138,7 +138,7 @@ function AgentLanes({ run }: { run: RunState }) {
                   </span>
                   <span className="relative h-2 flex-1 rounded-full bg-rule/40">
                     <span
-                      className={`absolute top-0 h-2 rounded-full ${bar.step.status === 'error' ? 'bg-stamp' : AGENT_BAR_COLORS[lane.agent]} ${bar.step.status === 'running' ? 'animate-pulse' : ''}`}
+                      className={`absolute top-0 h-2 rounded-full transition-[left,width] duration-150 ease-linear motion-reduce:transition-none ${bar.step.status === 'error' ? 'bg-stamp' : AGENT_BAR_COLORS[lane.agent]} ${bar.step.status === 'running' ? 'animate-pulse' : ''}`}
                       style={{ left: `${bar.leftPct}%`, width: `${bar.widthPct}%` }}
                     />
                   </span>
@@ -178,13 +178,42 @@ function TaskChecklist({ tasks }: { tasks: PlanTask[] }) {
   );
 }
 
+// Zeittakt der Live-Anzeige: oft genug für flüssige Balken (zusammen mit der
+// CSS-Transition gleicher Länge), selten genug, um nicht jeden Frame neu zu
+// rendern.
+const CLOCK_TICK_MS = 150;
+
+// Zwischen zwei Ereignissen schickt der Server nichts, ein KI-Aufruf dauert
+// aber Sekunden. Ohne eigene Uhr stünden die Balken so lange still und
+// sprängen beim nächsten Ereignis nach vorn. Die Uhr rechnet deshalb ab dem
+// Moment, in dem das letzte Ereignis im Browser ankam, selbst weiter.
+function useRunClock(run: RunState, active: boolean): number {
+  const anchor = useRef({ lastMs: run.lastMs, receivedAt: 0 });
+  const [nowMs, setNowMs] = useState(run.lastMs);
+
+  useEffect(() => {
+    anchor.current = { lastMs: run.lastMs, receivedAt: performance.now() };
+  }, [run.lastMs]);
+
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => {
+      const { lastMs, receivedAt } = anchor.current;
+      setNowMs(lastMs + (performance.now() - receivedAt));
+    }, CLOCK_TICK_MS);
+    return () => clearInterval(timer);
+  }, [active]);
+
+  return Math.max(run.lastMs, nowMs);
+}
+
 // Classic: eine Zeile pro LLM-Aufruf oder Tool. Multi: Aufgaben und Lanes.
-function StepsView({ run }: { run: RunState }) {
+function StepsView({ run, nowMs }: { run: RunState; nowMs?: number }) {
   if (run.agentSteps.length > 0) {
     return (
       <>
         <TaskChecklist tasks={run.tasks} />
-        <AgentLanes run={run} />
+        <AgentLanes run={run} nowMs={nowMs} />
       </>
     );
   }
@@ -260,6 +289,7 @@ export default function TracePanel({
   live?: boolean;
   replayLink?: boolean;
 }) {
+  const nowMs = useRunClock(run, live && run.status === 'running');
   if (live) {
     return (
       <div className="rounded-xl border border-rule bg-card px-3 py-2 text-sm" aria-live="polite">
@@ -269,7 +299,7 @@ export default function TracePanel({
         {run.steps.length === 0 && run.agentSteps.length === 0 ? (
           <StartingHint />
         ) : (
-          <StepsView run={run} />
+          <StepsView run={run} nowMs={nowMs} />
         )}
       </div>
     );
