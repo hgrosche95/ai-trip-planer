@@ -3,6 +3,7 @@ import type {
   AgentName,
   BudgetReport,
   ChatSource,
+  DayChange,
   GlobePoint,
   ItineraryDraft,
   LodgingReport,
@@ -10,8 +11,17 @@ import type {
   RunEvent,
   RunTotals,
   TaskType,
+  Violation,
   WeatherReport,
 } from './run-events';
+
+// Eine Prüfrunde des Kritikers (critique-Ereignis)
+export interface CritiqueRound {
+  round: number;
+  violations: Violation[];
+  changes: DayChange[];
+  final: boolean;
+}
 
 // Eine Zeile in der Timeline: ein LLM-Aufruf oder ein Tool
 export interface TraceStep {
@@ -59,6 +69,9 @@ export interface RunState {
   agentSteps: AgentStep[];
   tasks: PlanTask[];
   budget?: BudgetReport;
+  // Prüfrunden des Kritikers in Reihenfolge: die erste am ersten Entwurf,
+  // jede weitere nach einer Nachbesserung
+  critiques: CritiqueRound[];
   // Entwurf des Plans (Multi-Modus), noch nicht gespeichert: Der Chat zeigt
   // dafür "Plan speichern" (nur beim neuesten, siehe draft-versions.ts).
   // revision: Fassung in der Session, 1 bei älteren Läufen ohne Angabe;
@@ -93,6 +106,7 @@ export function initialRunState(): RunState {
     steps: [],
     agentSteps: [],
     tasks: [],
+    critiques: [],
     lastMs: 0,
     places: [],
     routes: [],
@@ -145,6 +159,11 @@ function reduce(state: RunState, event: RunEvent): RunState {
       return { ...state, tasks: event.data.tasks };
     case 'budget.updated':
       return { ...state, budget: event.data };
+    case 'critique':
+      return {
+        ...state,
+        critiques: [...state.critiques, { ...event.data, changes: event.data.changes ?? [] }],
+      };
     case 'itinerary.draft':
       return { ...state, draft: { ...event.data, revision: event.data.revision ?? 1 } };
     case 'llm.started':

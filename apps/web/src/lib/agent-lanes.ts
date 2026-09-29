@@ -1,15 +1,15 @@
 import type { AgentName, TaskStatus, TaskType } from './run-events';
 import type { AgentStep, RunState } from './run-state';
 
-// Reihenfolge und Namen der Lanes im Trace-Panel. Der Kritiker kommt in
-// Phase 4 dazu.
-export const LANE_ORDER: AgentName[] = ['planner', 'research', 'budget'];
+// Reihenfolge und Namen der Lanes im Trace-Panel
+export const LANE_ORDER: AgentName[] = ['planner', 'research', 'budget', 'critic'];
 
 export const AGENT_LABELS: Record<AgentName, string> = {
   orchestrator: 'Orchestrator',
   planner: 'Planer',
   research: 'Recherche',
   budget: 'Budget',
+  critic: 'Kritiker',
 };
 
 export const TASK_LABELS: Record<TaskType, string> = {
@@ -23,6 +23,8 @@ export const TASK_LABELS: Record<TaskType, string> = {
   compose: 'Tagesplan entwerfen',
   revise: 'Entwurf anpassen',
   budget: 'Budget rechnen',
+  critique: 'Plan prüfen',
+  repair: 'Plan nachbessern',
   final: 'Antwort schreiben',
 };
 

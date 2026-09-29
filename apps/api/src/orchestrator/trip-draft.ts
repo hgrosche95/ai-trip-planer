@@ -68,11 +68,18 @@ export interface TaskPlan {
   tasks: PlanTask[];
 }
 
-export type DraftStop = CreateItineraryInput['stops'][number];
+// outdoor: Das Modell sagt, ob der Punkt draußen stattfindet (Regel
+// rain-outdoor des Kritikers). Nur im Entwurf, nicht im gespeicherten Plan.
+export type DraftStop = CreateItineraryInput['stops'][number] & {
+  outdoor?: boolean;
+};
 
 // Der Entwurf hat dieselbe Form wie ein gespeicherter Plan
 // (save_itinerary), damit er ohne Umbau gespeichert werden kann.
-export type TripDraft = CreateItineraryInput & { currency: string };
+export type TripDraft = Omit<CreateItineraryInput, 'stops'> & {
+  currency: string;
+  stops: DraftStop[];
+};
 
 export function tripDays(brief: Pick<TripBrief, 'startDate' | 'endDate'>) {
   return daysBetween(brief.startDate, brief.endDate) + 1;

@@ -99,6 +99,7 @@ const AGENT_BAR_COLORS: Record<AgentName, string> = {
   planner: 'bg-navy dark:bg-foreground/80',
   research: 'bg-teal dark:bg-teal-300',
   budget: 'bg-amber-500',
+  critic: 'bg-violet-500',
 };
 
 // Live steht die Dauer rechts in der Zeile, im Ablauf hier in den Details

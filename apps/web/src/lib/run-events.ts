@@ -56,7 +56,7 @@ export interface LodgingReport {
 
 // Wer einen Schritt ausführt. Classic-Läufe haben kein agent-Feld, im
 // Multi-Agenten-Modus ordnet es LLM-Aufrufe und Tools einer Lane zu.
-export type AgentName = 'orchestrator' | 'planner' | 'research' | 'budget';
+export type AgentName = 'orchestrator' | 'planner' | 'research' | 'budget' | 'critic';
 export type AgentMode = 'classic' | 'multi';
 
 export type TaskType =
@@ -71,6 +71,10 @@ export type TaskType =
   // Überarbeitung einzelner Tage eines bestehenden Entwurfs
   | 'revise'
   | 'budget'
+  // Prüfung des Entwurfs durch den Kritiker
+  | 'critique'
+  // Nachbesserung der beanstandeten Tage
+  | 'repair'
   | 'final';
 export type TaskStatus = 'pending' | 'running' | 'done' | 'skipped' | 'error';
 
@@ -109,6 +113,25 @@ export interface ItineraryDraft {
     lat?: number;
     lng?: number;
   }[];
+}
+
+// Ein Befund des Kritikers. error: Der Planer bessert den Tag nach,
+// warning: nur ein Hinweis. lat/lng: Ort für den Ring auf dem Globus.
+export interface Violation {
+  ruleId: string;
+  severity: 'error' | 'warning';
+  dayNumber?: number;
+  stopTitle?: string;
+  lat?: number;
+  lng?: number;
+  message: string;
+}
+
+// Was eine Nachbesserung an einem Tag geändert hat
+export interface DayChange {
+  dayNumber: number;
+  removed: string[];
+  added: string[];
 }
 
 export interface BudgetItem {
@@ -151,6 +174,15 @@ export interface RunEventPayloads {
   // Aufgabenliste des Planers, bei jeder Änderung vollständig
   'plan.updated': { tasks: PlanTask[] };
   'budget.updated': BudgetReport;
+  // Prüfung durch den Kritiker. round 0 = erster Entwurf, n = nach der
+  // n-ten Nachbesserung; changes (ab round 1): Diff pro Tag; final: Es
+  // folgt keine Nachbesserung mehr
+  critique: {
+    round: number;
+    violations: Violation[];
+    changes?: DayChange[];
+    final: boolean;
+  };
   // Fertiger, geprüfter Plan als Entwurf, dazu die Annahmen des Planers.
   // revision: Fassung in der Session (1 = erster Plan, jede Überarbeitung
   // per Folgenachricht +1; fehlt in älteren Läufen), change: kurze

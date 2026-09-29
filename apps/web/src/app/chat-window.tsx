@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { authFetch } from '@/lib/auth';
 import BudgetBar from '@/components/budget-bar';
+import CritiquePanel from '@/components/critique-panel';
 import LodgingList from '@/components/lodging-list';
 import ModeToggle from '@/components/mode-toggle';
 import ReplyMarkdown from '@/components/reply-markdown';
@@ -16,6 +17,7 @@ import {
   storeAgentMode,
   subscribeAgentMode,
 } from '@/lib/agent-mode';
+import { issueMarkers, type IssueMarker } from '@/lib/critique';
 import { draftVersions } from '@/lib/draft-versions';
 import type { ChatSource } from '@/lib/run-events';
 import { lodgingPoints } from '@/lib/replay';
@@ -135,6 +137,8 @@ export default function ChatWindow() {
   const [globeRoute, setGlobeRoute] = useState<GlobeFocus[] | null>(null);
   // Unterkünfte als kleine Punkte, ersetzt wie Marker und Bögen
   const [globePois, setGlobePois] = useState<GlobeFocus[]>([]);
+  // Befunde des Kritikers als Ringe an den Programmpunkten
+  const [globeIssues, setGlobeIssues] = useState<IssueMarker[]>([]);
   // Gewählter Modus aus localStorage; beim statischen Vorrendern und vor dem
   // Hydrieren gilt der Default, damit das HTML übereinstimmt.
   const agentMode = useSyncExternalStore(
@@ -186,6 +190,7 @@ export default function ChatWindow() {
             setGlobePlaces([]);
             setGlobeArcs([]);
             setGlobePois([]);
+            setGlobeIssues([]);
           }
           setGlobePlaces((prev) =>
             prev.some((place) => place.name === name) ? prev : [...prev, { name, lat, lng }],
@@ -203,6 +208,8 @@ export default function ChatWindow() {
           setGlobeRoute(event.data.stops);
         } else if (event.type === 'lodging.updated') {
           setGlobePois(lodgingPoints(run));
+        } else if (event.type === 'critique') {
+          setGlobeIssues(issueMarkers(run.critiques));
         }
       }
 
@@ -278,6 +285,7 @@ export default function ChatWindow() {
           places={globePlaces}
           arcs={globeArcs}
           pois={globePois}
+          issues={globeIssues}
         />
       </div>
       <div className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
@@ -305,6 +313,7 @@ export default function ChatWindow() {
                     <LodgingList key={report.place.name} report={report} />
                   ))}
                   {message.trace?.budget && <BudgetBar report={message.trace.budget} />}
+                  {message.trace && <CritiquePanel critiques={message.trace.critiques} />}
                   <SourcesPanel
                     sources={message.sources}
                     searchAttempted={message.searchAttempted}
@@ -335,6 +344,7 @@ export default function ChatWindow() {
                 <LodgingList key={report.place.name} report={report} />
               ))}
               {liveRun.budget && <BudgetBar report={liveRun.budget} />}
+              <CritiquePanel critiques={liveRun.critiques} />
             </div>
           )}
         </div>

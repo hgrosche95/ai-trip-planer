@@ -8,8 +8,9 @@ import type {
 // Wer einen Schritt ausführt. Im Classic-Modus gibt es nur den einen Agenten,
 // die Ereignisse tragen dann kein agent-Feld. Im Multi-Agenten-Modus
 // (AGENT_MODE=multi, orchestrator/) ordnet das Feld jeden LLM-Aufruf und jedes
-// Tool einer Lane im Trace-Panel zu. 'critic' folgt in Phase 4.
-export type AgentName = 'orchestrator' | 'planner' | 'research' | 'budget';
+// Tool einer Lane im Trace-Panel zu.
+export type AgentName =
+  'orchestrator' | 'planner' | 'research' | 'budget' | 'critic';
 export type AgentMode = 'classic' | 'multi';
 
 // Aufgaben aus dem Plan des Planers (TaskPlan in orchestrator/trip-draft.ts)
@@ -25,6 +26,10 @@ export type TaskType =
   // Überarbeitung einzelner Tage eines bestehenden Entwurfs
   | 'revise'
   | 'budget'
+  // Prüfung des Entwurfs durch den Kritiker (Regeln in Code)
+  | 'critique'
+  // Nachbesserung der Tage, die der Kritiker beanstandet hat
+  | 'repair'
   | 'final';
 export type TaskStatus = 'pending' | 'running' | 'done' | 'skipped' | 'error';
 
@@ -54,6 +59,34 @@ export interface ItineraryDraft {
     lat?: number;
     lng?: number;
   }[];
+}
+
+export interface PlanTaskInfo {
+  id: string;
+  type: TaskType;
+  agent: AgentName;
+  dependsOn: string[];
+  status: TaskStatus;
+}
+
+// Ein Befund des Kritikers (orchestrator/rules). error: Der Planer bessert
+// den Tag nach, warning: Der Plan bleibt, die Antwort nennt den Hinweis.
+// lat/lng: Ort des betroffenen Programmpunkts für den Ring auf dem Globus.
+export interface Violation {
+  ruleId: string;
+  severity: 'error' | 'warning';
+  dayNumber?: number;
+  stopTitle?: string;
+  lat?: number;
+  lng?: number;
+  message: string;
+}
+
+// Was eine Nachbesserung an einem Tag geändert hat (Diff pro Tag)
+export interface DayChange {
+  dayNumber: number;
+  removed: string[];
+  added: string[];
 }
 
 export interface BudgetItem {
@@ -86,15 +119,7 @@ export interface RunEventPayloads {
   };
   // Aufgabenliste des Planers mit aktuellem Stand, bei jeder Änderung
   // vollständig (Checkliste im Frontend)
-  'plan.updated': {
-    tasks: {
-      id: string;
-      type: TaskType;
-      agent: AgentName;
-      dependsOn: string[];
-      status: TaskStatus;
-    }[];
-  };
+  'plan.updated': { tasks: PlanTaskInfo[] };
   // Ergebnis des Budget-Agenten. limitCents null: Der Nutzer hat kein Budget
   // genannt, dann ist status immer 'ok'.
   'budget.updated': {
@@ -103,6 +128,18 @@ export interface RunEventPayloads {
     totalCents: number;
     status: 'ok' | 'tight' | 'over';
     items: BudgetItem[];
+  };
+  // Ergebnis einer Prüfung durch den Kritiker. round 0 = erster Entwurf,
+  // 1 und 2 = nach der 1. bzw. 2. Nachbesserung. changes nur ab round 1:
+  // was die Nachbesserung davor pro Tag geändert hat. final: Es folgt keine
+  // weitere Nachbesserung, offene Befunde nennt die Antwort. Enthält wie
+  // itinerary.draft Titel von Programmpunkten und geht nur an den Nutzer
+  // selbst bzw. in sein eigenes Replay.
+  critique: {
+    round: number;
+    violations: Violation[];
+    changes?: DayChange[];
+    final: boolean;
   };
   // Fertiger, geprüfter Plan als Entwurf (nur Multi-Agenten-Modus), kurz
   // vor dem Ende des Laufs. assumptions: was der Planer angenommen hat, weil

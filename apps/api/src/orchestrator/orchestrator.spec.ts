@@ -5,6 +5,7 @@ import type { LlmChatResult, LlmMessage } from '../llm/llm-provider.interface';
 import { RunEventEmitter } from '../runs/run-event-emitter';
 import type { RunEvent, RunEventPayloads } from '../runs/run-events';
 import { BudgetAgent } from './agents/budget.agent';
+import { CriticAgent } from './agents/critic.agent';
 import { PlannerAgent } from './agents/planner.agent';
 import { ResearchAgent } from './agents/research.agent';
 import { Orchestrator } from './orchestrator';
@@ -94,6 +95,18 @@ const COMPOSE = JSON.stringify({
   ],
 });
 
+// Derselbe Plan in Porto: Mit den Koordinaten aus Lissabon meldet der
+// Kritiker zu Recht far-away
+const COMPOSE_PORTO = JSON.stringify({
+  stops: (
+    JSON.parse(COMPOSE) as { stops: { lat: number; lng: number }[] }
+  ).stops.map((stop) => ({
+    ...stop,
+    lat: stop.lat + 2.43,
+    lng: stop.lng + 0.53,
+  })),
+});
+
 function setup() {
   const stored = new Map<string, LlmMessage[]>();
   const store: ConversationStore = {
@@ -116,6 +129,7 @@ function setup() {
     planner: new PlannerAgent(),
     research: new ResearchAgent(tools.registry),
     budget: new BudgetAgent(),
+    critic: new CriticAgent(),
     today: () => TODAY,
   });
   const events: RunEvent[] = [];
@@ -224,6 +238,9 @@ describe('Orchestrator', () => {
       'agent.started budget/budget',
       'budget.updated',
       'agent.finished budget/budget',
+      'agent.started critic/critique',
+      'critique',
+      'agent.finished critic/critique',
       'agent.started planner/final',
       'llm.started planner',
       'llm.call planner',
@@ -359,6 +376,7 @@ describe('Orchestrator', () => {
       planner: {} as PlannerAgent,
       research: {} as ResearchAgent,
       budget: new BudgetAgent(),
+      critic: new CriticAgent(),
     });
 
     await expect(
@@ -523,6 +541,9 @@ describe('Orchestrator: Entwurf per Folgenachricht anpassen', () => {
       'agent.started budget/budget',
       'budget.updated',
       'agent.finished budget/budget',
+      'agent.started critic/critique',
+      'critique',
+      'agent.finished critic/critique',
       'agent.started planner/final',
       'llm.started planner',
       'llm.call planner',
@@ -532,6 +553,7 @@ describe('Orchestrator: Entwurf per Folgenachricht anpassen', () => {
     expect(lastPlanOf(ctx.events).tasks.map((t) => [t.id, t.status])).toEqual([
       ['revise', 'done'],
       ['budget', 'done'],
+      ['critique', 'done'],
       ['final', 'done'],
     ]);
 
@@ -624,6 +646,7 @@ describe('Orchestrator: Entwurf per Folgenachricht anpassen', () => {
     expect(lastPlanOf(ctx.events).tasks.map((t) => [t.id, t.status])).toEqual([
       ['research:lodging', 'done'],
       ['budget', 'done'],
+      ['critique', 'done'],
       ['final', 'done'],
     ]);
 
@@ -664,7 +687,7 @@ describe('Orchestrator: Entwurf per Folgenachricht anpassen', () => {
           250,
         ),
       )
-      .mockResolvedValueOnce(reply(COMPOSE, 1400, 900))
+      .mockResolvedValueOnce(reply(COMPOSE_PORTO, 1400, 900))
       .mockResolvedValueOnce(reply('## 3 Tage Porto', 1300, 700));
 
     const result = await ctx.run('Lieber nach Porto');
@@ -727,5 +750,208 @@ describe('Orchestrator: Entwurf per Folgenachricht anpassen', () => {
     expect(
       lastPlanOf(ctx.events).tasks.find((t) => t.id === 'revise')?.status,
     ).toBe('error');
+  });
+});
+
+describe('Orchestrator: Kritiker und Nachbesserung', () => {
+  // Tag 2 (15.10.) regnet es laut Recherche-Fixture 6 mm: Ein Aussichtspunkt
+  // draußen ist ein Fehler, den der Planer nachbessern muss
+  const RAINY_COMPOSE = JSON.stringify({
+    stops: (
+      JSON.parse(COMPOSE) as { stops: Record<string, unknown>[] }
+    ).stops.map((stop) =>
+      stop.title === 'Museu Nacional do Azulejo'
+        ? {
+            ...stop,
+            title: 'Miradouro da Senhora do Monte',
+            category: 'SIGHTSEEING',
+            outdoor: true,
+            lat: 38.719,
+            lng: -9.132,
+          }
+        : stop,
+    ),
+  });
+  const day2 = (title: string, outdoor: boolean) =>
+    JSON.stringify({
+      stops: [
+        {
+          dayNumber: 2,
+          order: 1,
+          title,
+          category: outdoor ? 'SIGHTSEEING' : 'CULTURE',
+          costCents: 800,
+          lat: 38.72,
+          lng: -9.11,
+          outdoor,
+        },
+        {
+          dayNumber: 2,
+          order: 2,
+          title: 'Time Out Market',
+          category: 'FOOD',
+          lat: 38.71,
+          lng: -9.15,
+          outdoor: false,
+        },
+      ],
+    });
+
+  function critiques(events: RunEvent[]) {
+    return events.filter((e) => e.type === 'critique').map((e) => e.data);
+  }
+
+  function lastUserPrompt(llm: ReturnType<typeof setup>['llm']): string {
+    const messages = llm.chat.mock.calls.at(-1)![0];
+    return messages.at(-1)!.content ?? '';
+  }
+
+  it('Regentag: Kritiker findet den Aussichtspunkt, der Planer tauscht nur Tag 2, die zweite Prüfung ist sauber', async () => {
+    const { run, llm, events } = setup();
+    llm.chat
+      .mockResolvedValueOnce(reply(TRIAGE, 900, 250))
+      .mockResolvedValueOnce(reply(RAINY_COMPOSE, 1400, 900))
+      .mockResolvedValueOnce(
+        reply(day2('Museu Nacional do Azulejo', false), 900, 300),
+      )
+      .mockResolvedValueOnce(reply('## 3 Tage Lissabon', 1300, 700));
+
+    await run('3 Tage Lissabon im Oktober, 800 €, ab Berlin');
+
+    const labels = events.map(label).filter((l) => l !== 'plan.updated');
+    const after = labels.slice(
+      labels.indexOf('agent.finished planner/compose') + 1,
+    );
+    expect(after).toEqual([
+      'agent.started budget/budget',
+      'budget.updated',
+      'agent.finished budget/budget',
+      'agent.started critic/critique',
+      'critique',
+      'agent.finished critic/critique',
+      'agent.started planner/repair',
+      'llm.started planner',
+      'llm.call planner',
+      'agent.finished planner/repair',
+      'agent.started budget/budget',
+      'budget.updated',
+      'agent.finished budget/budget',
+      'agent.started critic/critique',
+      'critique',
+      'agent.finished critic/critique',
+      'agent.started planner/final',
+      'llm.started planner',
+      'llm.call planner',
+      'itinerary.draft',
+      'agent.finished planner/final',
+    ]);
+    expect(llm.chat).toHaveBeenCalledTimes(4);
+
+    const [first, second] = critiques(events);
+    expect(first.round).toBe(0);
+    expect(first.final).toBe(false);
+    expect(first.violations.filter((v) => v.severity === 'error')).toEqual([
+      {
+        ruleId: 'rain-outdoor',
+        severity: 'error',
+        dayNumber: 2,
+        stopTitle: 'Miradouro da Senhora do Monte',
+        lat: 38.719,
+        lng: -9.132,
+        message:
+          'Miradouro da Senhora do Monte liegt draußen, an Tag 2 regnet es (6 mm, Vorjahreswert)',
+      },
+    ]);
+    expect(second).toMatchObject({
+      round: 1,
+      final: true,
+      changes: [
+        {
+          dayNumber: 2,
+          removed: ['Miradouro da Senhora do Monte'],
+          added: ['Museu Nacional do Azulejo'],
+        },
+      ],
+    });
+    expect(second.violations.filter((v) => v.severity === 'error')).toEqual([]);
+
+    // Die Nachbesserung bekam nur Tag 2 und den Befund, nicht den Wunsch
+    const repairFacts = JSON.parse(
+      llm.chat.mock.calls[2][0].at(-1)!.content!,
+    ) as Record<string, unknown>;
+    expect(repairFacts.Kritik).toEqual([first.violations[0].message]);
+    expect(repairFacts).not.toHaveProperty('Wunsch');
+
+    // Checkliste: repair-1 steht vor final, alles erledigt
+    const plan = events.filter((e) => e.type === 'plan.updated').at(-1)!.data;
+    expect(plan.tasks.slice(-4).map((t) => [t.id, t.status])).toEqual([
+      ['budget', 'done'],
+      ['critique', 'done'],
+      ['repair-1', 'done'],
+      ['final', 'done'],
+    ]);
+    const { itinerary } = draftOf(events);
+    expect(
+      itinerary.stops.filter((s) => s.dayNumber === 2).map((s) => s.title),
+    ).toEqual(['Museu Nacional do Azulejo', 'Time Out Market']);
+    // outdoor gehört nur zum Entwurf, nicht zum speicherbaren Plan
+    expect(itinerary.stops.some((s) => 'outdoor' in s)).toBe(false);
+  });
+
+  it('ein sturer Planer: höchstens 2 Nachbesserungen, danach nennt die Antwort den offenen Fehler', async () => {
+    const { run, llm, events } = setup();
+    const stubborn = day2('Miradouro da Senhora do Monte', true);
+    llm.chat
+      .mockResolvedValueOnce(reply(TRIAGE, 900, 250))
+      .mockResolvedValueOnce(reply(RAINY_COMPOSE, 1400, 900))
+      .mockResolvedValueOnce(reply(stubborn, 900, 300))
+      .mockResolvedValueOnce(reply(stubborn, 900, 300))
+      .mockResolvedValueOnce(reply('## 3 Tage Lissabon', 1300, 700));
+
+    const result = await run('3 Tage Lissabon im Oktober, 800 €, ab Berlin');
+
+    expect(llm.chat).toHaveBeenCalledTimes(5);
+    expect(
+      events.map(label).filter((l) => l === 'agent.started planner/repair'),
+    ).toHaveLength(2);
+    const rounds = critiques(events);
+    expect(rounds.map((c) => [c.round, c.final])).toEqual([
+      [0, false],
+      [1, false],
+      [2, true],
+    ]);
+    expect(rounds[2].violations[0]).toMatchObject({
+      ruleId: 'rain-outdoor',
+      severity: 'error',
+    });
+    const facts = JSON.parse(lastUserPrompt(llm)) as { Hinweise: string[] };
+    expect(facts.Hinweise).toContain(rounds[2].violations[0].message);
+    expect(result.reply).toBe('## 3 Tage Lissabon');
+  });
+
+  it('eine gescheiterte Nachbesserung kostet nicht den Plan: der geprüfte Entwurf geht mit Hinweis raus', async () => {
+    const { run, llm, events } = setup();
+    llm.chat
+      .mockResolvedValueOnce(reply(TRIAGE, 900, 250))
+      .mockResolvedValueOnce(reply(RAINY_COMPOSE, 1400, 900))
+      .mockResolvedValueOnce(reply('kein JSON', 900, 10))
+      .mockResolvedValueOnce(reply('immer noch kein JSON', 900, 10))
+      .mockResolvedValueOnce(reply('## 3 Tage Lissabon', 1300, 700));
+
+    await run('3 Tage Lissabon im Oktober, 800 €, ab Berlin');
+
+    expect(events.map((e) => e.type)).not.toContain('run.error');
+    const repair = events.find(
+      (e) => e.type === 'agent.finished' && e.data.task === 'repair',
+    );
+    expect(repair?.data).toMatchObject({ status: 'error' });
+    const { itinerary } = draftOf(events);
+    expect(itinerary.stops.map((s) => s.title)).toContain(
+      'Miradouro da Senhora do Monte',
+    );
+    const facts = JSON.parse(lastUserPrompt(llm)) as { Hinweise: string[] };
+    expect(facts.Hinweise[0]).toMatch(
+      /Miradouro da Senhora do Monte liegt draußen/,
+    );
   });
 });

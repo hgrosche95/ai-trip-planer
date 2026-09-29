@@ -73,7 +73,10 @@ const ESTIMATE_NOTE =
   'Geschätzt aus der Entfernung, keine echten Verbindungen oder Angebote. Preise dem Nutzer als grobe Spanne nennen und auf die Buchungsseiten von Bahn bzw. Airlines verweisen.';
 
 // Entfernung auf der Erdkugel (Haversine), in km.
-export function haversineKm(a: GlobeFocus, b: GlobeFocus): number {
+export function haversineKm(
+  a: Pick<GlobeFocus, 'lat' | 'lng'>,
+  b: Pick<GlobeFocus, 'lat' | 'lng'>,
+): number {
   const EARTH_RADIUS_KM = 6371;
   const toRad = Math.PI / 180;
   const dLat = (b.lat - a.lat) * toRad;

@@ -5,12 +5,15 @@ import type { ExternalCache } from '../external/external-cache';
 import type { ItinerariesService } from '../itineraries.service';
 import type { ConversationStore } from '../llm/conversation-store';
 import type { LlmProvider } from '../llm/llm-provider.interface';
-import type { AgentMode, TaskStatus } from '../runs/run-events';
+import type { AgentMode, PlanTaskInfo, TaskStatus } from '../runs/run-events';
 import type { EmitRunEvent } from '../runs/step-events';
 import { ToolRegistry, createToolSet } from '../tools';
 import type { AgentContext } from './agent.types';
 import { BudgetAgent } from './agents/budget.agent';
 import type { BudgetReport } from './agents/budget.agent';
+import { CriticAgent } from './agents/critic.agent';
+import type { Critique } from './agents/critic.agent';
+import { PlannerOutputError } from './agents/planner.schema';
 import { PlannerAgent, draftFor } from './agents/planner.agent';
 import type { FinalizeResult } from './agents/planner.agent';
 import { ResearchAgent } from './agents/research.agent';
@@ -56,6 +59,8 @@ export type OrchestratorState =
   | 'compose'
   | 'revise'
   | 'budget'
+  | 'critique'
+  | 'repair'
   | 'finalize'
   | 'done';
 
@@ -67,6 +72,7 @@ export interface OrchestratorDeps {
   planner: PlannerAgent;
   research: ResearchAgent;
   budget: BudgetAgent;
+  critic: CriticAgent;
   today?: () => string;
 }
 
@@ -91,22 +97,31 @@ interface RunData {
   findings?: ResearchFindings;
   draft?: TripDraft;
   budget?: BudgetReport;
+  critique?: Critique;
+  // Zahl der Nachbesserungen nach der Kritik in diesem Lauf
+  repairs: number;
+  // Entwurf vor der letzten Nachbesserung (Diff pro Tag im critique-Ereignis)
+  previousDraft?: TripDraft;
   final?: FinalizeResult;
 }
 
 // Der Orchestrator als explizite State Machine (ADR 0001):
 //
-//   triage ─(Rückfrage)──────────────────────────────────────────┐
-//     └→ plan → research ─┬→ compose ─┬→ budget → finalize → done ◄┘
-//                         ├→ revise ──┤
-//                         └───────────┘ (nur Eckdaten geändert)
+//   triage ─(Rückfrage)────────────────────────────────────────────────────┐
+//     └→ plan → research ─┬→ compose ─┬→ budget → critique ─→ finalize → done ◄┘
+//                         ├→ revise ──┤     ▲         │
+//                         └───────────┘     └─ repair ◄┘ (Fehler, höchstens 2×)
+//                     (nur Eckdaten geändert)
 //
 // Jeder Zustand ist eine Methode, die genau einen Agenten-Schritt anstößt
 // und den Folgezustand zurückgibt. Bei einer Überarbeitung (Folgenachricht
 // zum Entwurf der Session) läuft nur die Recherche, die die Änderung
 // braucht (oft keine), revise schreibt nur die betroffenen Tage neu; ohne
-// betroffene Tage geht es direkt zu budget. Die Kritik kommt in Phase 4
-// zwischen budget und finalize dazu.
+// betroffene Tage geht es direkt zu budget. Danach prüft der Kritiker den
+// Entwurf mit festen Regeln (orchestrator/rules); findet er Fehler, bessert
+// der Planer nur die betroffenen Tage nach (repair), Budget und Kritik laufen
+// erneut. Nach höchstens MAX_REPAIRS Runden geht der Plan mit offenen
+// Befunden raus, die Antwort nennt sie.
 export class Orchestrator {
   private readonly logger = new Logger(Orchestrator.name);
 
@@ -130,7 +145,7 @@ export class Orchestrator {
       this.deps.conversationStore.load(input.userId, input.sessionId),
       this.deps.tripDraftStore.load(input.userId, input.sessionId),
     ]);
-    const data: RunData = { input, ...(base && { base }) };
+    const data: RunData = { input, repairs: 0, ...(base && { base }) };
     const board = new TaskBoard(emit);
 
     let state: OrchestratorState = 'triage';
@@ -186,7 +201,7 @@ export class Orchestrator {
     board: TaskBoard,
     history: Parameters<PlannerAgent['triage']>[0]['history'],
   ): Promise<OrchestratorState> {
-    const { planner, research, budget } = this.deps;
+    const { planner, research, budget, critic } = this.deps;
     switch (state) {
       case 'triage': {
         const result = await planner.triage(
@@ -282,7 +297,64 @@ export class Orchestrator {
             ctx,
           ),
         );
-        return 'finalize';
+        return 'critique';
+      }
+      case 'critique': {
+        data.critique = await board.track('critique', () =>
+          critic.run(
+            {
+              brief: data.brief!,
+              draft: data.draft!,
+              findings: data.findings!,
+              budget: data.budget!,
+              round: data.repairs,
+              ...(data.previousDraft && { previous: data.previousDraft }),
+            },
+            ctx,
+          ),
+        );
+        return data.critique.repairDays.length > 0 ? 'repair' : 'finalize';
+      }
+      case 'repair': {
+        const { repairDays, violations } = data.critique!;
+        data.repairs += 1;
+        const id = `repair-${data.repairs}`;
+        board.add({
+          id,
+          type: 'repair',
+          agent: 'planner',
+          dependsOn: ['critique'],
+          status: 'pending',
+        });
+        try {
+          const repaired = await board.track(id, () =>
+            planner.repair(
+              {
+                brief: data.brief!,
+                draft: data.draft!,
+                findings: data.findings!,
+                days: repairDays,
+                violations: violations.filter(
+                  (v) =>
+                    v.dayNumber !== undefined &&
+                    repairDays.includes(v.dayNumber),
+                ),
+              },
+              ctx,
+            ),
+          );
+          data.previousDraft = data.draft;
+          data.draft = repaired;
+        } catch (error) {
+          // Eine gescheiterte Nachbesserung kostet nicht den ganzen Plan:
+          // Der geprüfte Entwurf bleibt, die Befunde nennt die Antwort
+          if (!(error instanceof PlannerOutputError)) throw error;
+          this.logger.warn(
+            `Lauf ${data.input.runId}: Nachbesserung gescheitert, Entwurf bleibt`,
+          );
+          return 'finalize';
+        }
+        return 'budget';
       }
       case 'finalize': {
         // Speichert nicht: Der Plan geht als itinerary.draft ans Frontend,
@@ -296,6 +368,7 @@ export class Orchestrator {
               budget: data.budget!,
               version: version(data),
               ...(data.revision && { revision: data.revision }),
+              issues: data.critique?.violations ?? [],
             },
             ctx,
           ),
@@ -324,6 +397,14 @@ class TaskBoard {
 
   load(plan: TaskPlan): void {
     this.plan = plan;
+    this.publish();
+  }
+
+  // Neue Aufgabe vor der letzten (final), z. B. eine Nachbesserung
+  add(task: PlanTaskInfo): void {
+    if (!this.plan) return;
+    const tasks = this.plan.tasks;
+    tasks.splice(Math.max(0, tasks.length - 1), 0, { ...task });
     this.publish();
   }
 
@@ -382,5 +463,6 @@ export function createOrchestrator(
       ]),
     ),
     budget: new BudgetAgent(),
+    critic: new CriticAgent(),
   });
 }

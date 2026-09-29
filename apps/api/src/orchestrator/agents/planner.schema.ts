@@ -18,7 +18,7 @@ export const STOP_CATEGORIES = [
   'OTHER',
 ] as const;
 
-export const COMPOSE_OUTPUT_EXAMPLE = `{"stops":[{"dayNumber":1,"order":1,"title":"...","description":"...","category":"${STOP_CATEGORIES.join('|')}","costCents":0,"lat":38.71,"lng":-9.13}]}`;
+export const COMPOSE_OUTPUT_EXAMPLE = `{"stops":[{"dayNumber":1,"order":1,"title":"...","description":"...","category":"${STOP_CATEGORIES.join('|')}","costCents":0,"lat":38.71,"lng":-9.13,"outdoor":false}]}`;
 
 export type TriageOutput =
   | { status: 'ask'; question?: string }
@@ -87,6 +87,9 @@ export function parseComposeOutput(text: string | null): DraftStop[] {
         stop[key] = entry[key];
       }
     }
+    // Nur ein echter Wahrheitswert zählt, sonst entscheidet der Kritiker
+    // nach dem Titel (rules/rain-outdoor.rule.ts)
+    if (typeof entry?.outdoor === 'boolean') stop.outdoor = entry.outdoor;
     return stop as unknown as DraftStop;
   });
 }
