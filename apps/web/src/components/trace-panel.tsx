@@ -3,6 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Spinner from '@/components/spinner';
+import {
+  TASK_LABELS,
+  TASK_STATUS_ICONS,
+  agentLanes,
+  type LaneBar,
+} from '@/lib/agent-lanes';
+import type { AgentName, PlanTask } from '@/lib/run-events';
 import type { RunState, TraceStep } from '@/lib/run-state';
 
 // Anzeigenamen der Tools. Unbekannte Tools erscheinen mit ihrem technischen Namen.
@@ -85,6 +92,110 @@ function StepRow({ step }: { step: TraceStep }) {
   );
 }
 
+// Eine Farbe pro Agent, damit die Lanes auf einen Blick unterscheidbar sind
+const AGENT_BAR_COLORS: Record<AgentName, string> = {
+  orchestrator: 'bg-dim',
+  planner: 'bg-navy dark:bg-foreground/80',
+  research: 'bg-teal dark:bg-teal-300',
+  budget: 'bg-amber-500',
+};
+
+function barDetails(bar: LaneBar) {
+  const parts: string[] = [];
+  if (bar.step.summary) parts.push(bar.step.summary);
+  if (bar.tokens > 0) parts.push(`${numberFormat.format(bar.tokens)} Tokens`);
+  if (bar.step.durationMs !== undefined) parts.push(formatMs(bar.step.durationMs));
+  return parts.join(' · ');
+}
+
+// Wasserfall im Multi-Agenten-Modus: eine Lane pro Agent, ein Balken pro
+// Aufgabe, relativ zur Laufzeit. Die Recherche-Aufgaben laufen gleichzeitig
+// und stehen deshalb als überlappende Balken untereinander.
+function AgentLanes({ run }: { run: RunState }) {
+  const { lanes } = agentLanes(run);
+  if (lanes.length === 0) return null;
+  return (
+    <div className="space-y-2 py-1" aria-label="Agenten">
+      {lanes.map((lane) => (
+        <section key={lane.agent} aria-label={lane.label}>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-dim">{lane.label}</p>
+          <ol className="space-y-0.5">
+            {lane.bars.map((bar) => (
+              <li key={bar.step.id} className="text-xs">
+                <div className="flex items-center gap-2">
+                  <span aria-hidden="true" className="w-4 text-center">
+                    {bar.step.status === 'running' ? (
+                      <Spinner className="h-3 w-3" />
+                    ) : bar.step.status === 'error' ? (
+                      <span className="text-stamp">✗</span>
+                    ) : (
+                      <span className="text-dim">✓</span>
+                    )}
+                  </span>
+                  <span className={`w-36 shrink-0 truncate ${bar.step.status === 'error' ? 'text-stamp' : ''}`}>
+                    {TASK_LABELS[bar.step.task] ?? bar.step.task}
+                  </span>
+                  <span className="relative h-2 flex-1 rounded-full bg-rule/40">
+                    <span
+                      className={`absolute top-0 h-2 rounded-full ${bar.step.status === 'error' ? 'bg-stamp' : AGENT_BAR_COLORS[lane.agent]} ${bar.step.status === 'running' ? 'animate-pulse' : ''}`}
+                      style={{ left: `${bar.leftPct}%`, width: `${bar.widthPct}%` }}
+                    />
+                  </span>
+                </div>
+                <p className="truncate pl-6 font-mono text-[11px] text-dim">{barDetails(bar)}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+// Die Aufgaben aus dem Plan des Planers mit ihrem Stand
+function TaskChecklist({ tasks }: { tasks: PlanTask[] }) {
+  if (tasks.length === 0) return null;
+  return (
+    <ul aria-label="Aufgaben" className="flex flex-wrap gap-x-3 gap-y-0.5 py-1 font-mono text-[11px]">
+      {tasks.map((task) => (
+        <li
+          key={task.id}
+          className={
+            task.status === 'done'
+              ? 'text-teal dark:text-teal-300'
+              : task.status === 'error'
+                ? 'text-stamp'
+                : 'text-dim'
+          }
+        >
+          <span aria-hidden="true">{TASK_STATUS_ICONS[task.status]} </span>
+          {TASK_LABELS[task.type] ?? task.type}
+          <span className="sr-only"> ({task.status})</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Classic: eine Zeile pro LLM-Aufruf oder Tool. Multi: Aufgaben und Lanes.
+function StepsView({ run }: { run: RunState }) {
+  if (run.agentSteps.length > 0) {
+    return (
+      <>
+        <TaskChecklist tasks={run.tasks} />
+        <AgentLanes run={run} />
+      </>
+    );
+  }
+  return (
+    <ol>
+      {run.steps.map((step) => (
+        <StepRow key={step.id} step={step} />
+      ))}
+    </ol>
+  );
+}
+
 function TotalsLine({ run }: { run: RunState }) {
   const totals = run.totals;
   if (!totals) return null;
@@ -142,32 +253,26 @@ export default function TracePanel({
     return (
       <div className="rounded-xl border border-rule bg-card px-3 py-2 text-sm" aria-live="polite">
         <p className="mb-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-teal dark:text-teal-300">
-          Agent arbeitet
+          {run.mode === 'multi' ? 'Agenten arbeiten' : 'Agent arbeitet'}
         </p>
-        {run.steps.length === 0 ? (
+        {run.steps.length === 0 && run.agentSteps.length === 0 ? (
           <StartingHint />
         ) : (
-          <ol>
-            {run.steps.map((step) => (
-              <StepRow key={step.id} step={step} />
-            ))}
-          </ol>
+          <StepsView run={run} />
         )}
       </div>
     );
   }
 
-  if (run.steps.length === 0) return null;
+  if (run.steps.length === 0 && run.agentSteps.length === 0) return null;
   return (
     <details className="mt-3 border-t border-rule pt-2 text-sm">
       <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-dim">
         Ablauf · <TotalsLine run={run} />
       </summary>
-      <ol className="mt-1">
-        {run.steps.map((step) => (
-          <StepRow key={step.id} step={step} />
-        ))}
-      </ol>
+      <div className="mt-1">
+        <StepsView run={run} />
+      </div>
       {replayLink && run.runId && (
         <Link
           href={`/replay?run=${encodeURIComponent(run.runId)}`}
