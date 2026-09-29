@@ -2,8 +2,11 @@ import type {
   LlmChatResult,
   LlmMessage,
 } from '../../llm/llm-provider.interface';
-import { observedLlmCall, observedToolRun } from '../../runs/step-events';
-import type { GlobeFocus, ToolRegistry } from '../../tools';
+import { itineraryValidationErrors } from '../../itinerary.dto';
+import type { ItineraryDraft } from '../../runs/run-events';
+import { observedLlmCall } from '../../runs/step-events';
+import type { GlobeFocus } from '../../tools';
+import { routeFromStops } from '../../tools/save-itinerary.tool';
 import { agentStep } from '../agent.types';
 import type { AgentContext } from '../agent.types';
 import {
@@ -59,8 +62,9 @@ export interface FinalizeInput {
 
 export interface FinalizeResult {
   reply: string;
-  itineraryId?: string;
-  // Stationen des gespeicherten Plans für stops.updated
+  // Geprüfter Entwurf im Format von POST /itineraries (itinerary.draft)
+  itinerary: ItineraryDraft;
+  // Stationen des Entwurfs für stops.updated
   route?: GlobeFocus[];
 }
 
@@ -71,8 +75,8 @@ export interface FinalizeResult {
 export class PlannerAgent {
   readonly name = 'planner' as const;
 
-  // Nur save_itinerary: Der Planer speichert, recherchiert aber nicht
-  constructor(private readonly tools: ToolRegistry) {}
+  // Keine Tools: Der Planer recherchiert nicht und speichert nicht. Den
+  // Entwurf speichert der Nutzer selbst ("Plan speichern" im Frontend).
 
   triage(
     input: { message: string; history: LlmMessage[] },
@@ -184,42 +188,38 @@ export class PlannerAgent {
 
   finalize(input: FinalizeInput, ctx: AgentContext): Promise<FinalizeResult> {
     return agentStep(ctx, this.name, 'final', async (stepId) => {
-      const origin = { agent: this.name, parentStepId: stepId };
-      // Gespeichert wird über dasselbe Tool wie im Classic-Modus, mit
-      // Koordinaten; das Budget ist das genannte oder die geschätzte Summe
-      const itinerary = {
-        ...input.draft,
-        budgetCents: input.budget.limitCents ?? input.budget.totalCents,
-      };
-      const save = await observedToolRun(
-        this.tools,
-        'save_itinerary',
-        itinerary,
-        ctx.userId,
-        ctx.emit,
-        origin,
-      );
-      const output = save.output as { saved?: true; itineraryId?: string };
-      const saved = output.saved === true;
+      const itinerary = itineraryDraft(input);
+      // Dieselbe Prüfung wie beim Speichern: Was als Entwurf rausgeht, muss
+      // POST /itineraries ohne Änderung annehmen
+      const errors = itineraryValidationErrors(itinerary);
+      if (errors.length > 0) {
+        throw new PlannerOutputError(
+          'Der Entwurf ließe sich nicht speichern',
+          errors,
+        );
+      }
 
       const result = await this.callLlm(
         ctx,
         stepId,
         [
           { role: 'system', content: finalPrompt() },
-          { role: 'user', content: finalFacts(input, saved) },
+          { role: 'user', content: finalFacts(input) },
         ],
         FINAL_MAX_TOKENS,
       );
+      ctx.emit('itinerary.draft', {
+        itinerary,
+        assumptions: [...input.brief.assumptions],
+      });
+      const route = routeFromStops(itinerary.stops);
       return {
         value: {
           reply: result.content?.trim() || 'Dein Reiseplan ist fertig.',
-          ...(saved && { itineraryId: output.itineraryId }),
-          route: save.route,
+          itinerary,
+          ...(route.length > 0 && { route }),
         },
-        summary: saved
-          ? 'Plan gespeichert, Antwort geschrieben'
-          : 'Antwort geschrieben, nicht gespeichert',
+        summary: `Antwort geschrieben, Entwurf mit ${itinerary.stops.length} Programmpunkten`,
       };
     });
   }
@@ -267,6 +267,30 @@ export function buildTaskPlan(brief: TripBrief): TaskPlan {
       task('budget', 'budget', ['compose']),
       task('final', 'planner', ['budget']),
     ],
+  };
+}
+
+// Der Entwurf in genau der Form von CreateItineraryDto. Budget ist das
+// genannte oder die geschätzte Summe des Budget-Agenten.
+export function itineraryDraft(input: FinalizeInput): ItineraryDraft {
+  const { draft, budget } = input;
+  return {
+    destination: draft.destination,
+    startDate: draft.startDate,
+    endDate: draft.endDate,
+    budgetCents: budget.limitCents ?? budget.totalCents,
+    currency: draft.currency,
+    preferences: [...(draft.preferences ?? [])],
+    stops: draft.stops.map((stop) => ({
+      dayNumber: stop.dayNumber,
+      order: stop.order,
+      title: stop.title,
+      ...(stop.description !== undefined && { description: stop.description }),
+      ...(stop.category !== undefined && { category: stop.category }),
+      ...(stop.costCents !== undefined && { costCents: stop.costCents }),
+      ...(stop.lat !== undefined && { lat: stop.lat }),
+      ...(stop.lng !== undefined && { lng: stop.lng }),
+    })),
   };
 }
 
@@ -334,6 +358,7 @@ export function composeFacts(
       travelers: brief.travelers,
       budget: brief.budget ?? null,
       preferences: brief.preferences,
+      assumptions: brief.assumptions,
       center: findings.destination ?? null,
     },
     Recherche: {
@@ -364,7 +389,7 @@ export function composeFacts(
   });
 }
 
-export function finalFacts(input: FinalizeInput, saved: boolean): string {
+export function finalFacts(input: FinalizeInput): string {
   const { brief, draft, findings, budget } = input;
   const transport = findings.transport?.options.find(
     (option) => option.mode === findings.transport?.recommended,
@@ -378,7 +403,7 @@ export function finalFacts(input: FinalizeInput, saved: boolean): string {
       datesAssumed: brief.datesAssumed,
       travelers: brief.travelers,
       preferences: brief.preferences,
-      saved,
+      assumptions: brief.assumptions,
       stops: draft.stops.map(
         ({ dayNumber, title, description, costCents }) => ({
           dayNumber,

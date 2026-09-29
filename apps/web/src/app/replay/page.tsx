@@ -208,6 +208,12 @@ function Replay() {
               {run.budget && <BudgetBar report={run.budget} />}
               <TracePanel run={run} replayLink={false} />
             </div>
+            {/* Kein Speichern im Replay: Es zeigt nur, was im Lauf passiert ist */}
+            {run.draft && (
+              <p className="mt-2 text-xs text-dim">
+                Entwurf · gespeichert wird im Chat mit „Plan speichern“
+              </p>
+            )}
           </div>
         )}
       </div>

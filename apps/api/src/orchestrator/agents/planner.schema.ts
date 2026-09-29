@@ -4,7 +4,7 @@ import type { DraftStop } from '../trip-draft';
 // kurzes Beispiel im Prompt (billiger als ein ausführliches JSON-Schema),
 // der Code prüft jede Antwort, bevor sie weiterverwendet wird.
 
-export const TRIAGE_OUTPUT_EXAMPLE = `{"status":"ready","destination":"Lissabon","origin":"Berlin","startDate":"2026-10-14","endDate":"2026-10-16","datesAssumed":true,"travelers":1,"budget":{"amount":800,"currency":"EUR"},"preferences":["Kultur"]}`;
+export const TRIAGE_OUTPUT_EXAMPLE = `{"status":"ready","destination":"Lissabon","origin":"Berlin","startDate":"2026-10-14","endDate":"2026-10-16","datesAssumed":true,"travelers":1,"budget":{"amount":800,"currency":"EUR"},"preferences":["Kultur"],"assumptions":["1 Person","Unterkunft: Mittelklasse-Hotel"]}`;
 export const TRIAGE_ASK_EXAMPLE = `{"status":"ask","question":"..."}`;
 
 export const STOP_CATEGORIES = [

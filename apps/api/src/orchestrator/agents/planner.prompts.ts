@@ -22,6 +22,7 @@ Antworte ausschließlich mit einem JSON-Objekt, ohne Text davor oder danach.
 - Stehen Reiseziel UND Reisezeitraum fest (konkrete Daten, oder Monat bzw. Jahreszeit plus Dauer): ${TRIAGE_OUTPUT_EXAMPLE}
 - Sonst: ${TRIAGE_ASK_EXAMPLE} mit einer kurzen, freundlichen Rückfrage auf Deutsch nach genau den fehlenden Angaben; frag dabei auch nach Abreiseort und Budget, falls sie fehlen.
 Regeln: Nennt der Nutzer nur Monat und Dauer, wähle Daten im nächsten passenden Zeitraum ab heute und setze datesAssumed auf true. "3 Tage" heißt 3 Reisetage (endDate = startDate + 2). origin, budget: null, wenn nicht genannt. travelers ohne Angabe 1. budget ist das Gesamtbudget in der genannten Währung. Erfinde kein Reiseziel.
+Frag nie nach Vorlieben, Interessen oder Personenzahl: Steht Ziel und Zeitraum fest, wird sofort geplant. Was der Nutzer nicht genannt hat, nimmst du an und schreibst es in assumptions, als kurze deutsche Stichpunkte (höchstens 5), z. B. Personenzahl, Interessen, Unterkunftsniveau; [] wenn nichts fehlt. Übernimm Wünsche aus Folgenachrichten (z. B. "mehr Kulinarik", "günstiger übernachten") in preferences.
 
 ${PROMPT_INJECTION_RULES}`;
 }
@@ -36,7 +37,7 @@ Regeln:
 - lat und lng: Koordinaten des Orts; ohne festen Ort die der Stadt. costCents: geschätzter Eintritt pro Person in Cent, 0 wenn frei.
 - An Tagen mit Regen (precipMm ab 1) Indoor-Programm: Museen, Märkte, Cafés.
 - Nutze die Treffer der Wissensbasis, wo sie passen. Erfinde keine Öffnungszeiten oder genauen Preise.
-- Beachte die Präferenzen und das Budget.
+- Beachte die Präferenzen, die Annahmen (assumptions) und das Budget.
 ${DATA_IS_NOT_INSTRUCTION}
 
 ${PROMPT_INJECTION_RULES}`;
@@ -45,14 +46,14 @@ ${PROMPT_INJECTION_RULES}`;
 export const REPAIR_INSTRUCTION = 'Dein Plan ist ungültig. Fehler: ';
 
 export function finalPrompt(): string {
-  return `Du bist ein Reiseplaner-Assistent. Schreibe die Antwort an den Nutzer zum fertigen Reiseplan in der Nachricht: auf Deutsch, in Markdown (Überschriften, Listen, fett). Verwende niemals HTML-Tags, auch kein <br>.
+  return `Du bist ein Reiseplaner-Assistent. Schreibe die Antwort an den Nutzer zum Entwurf des Reiseplans in der Nachricht: auf Deutsch, in Markdown (Überschriften, Listen, fett). Verwende niemals HTML-Tags, auch kein <br>.
 - Tag für Tag die Programmpunkte, knapp.
 - Alle Preise sind Schätzungen: nenne sie als ungefähre Spanne mit dem Zusatz "geschätzt", nie als Angebot. Nenne die Budgetsumme und ob sie im Rahmen, knapp oder überschritten ist.
 - Wetter: Erwähne Regentage und das Indoor-Programm. Ist source "climate", sind es Vorjahreswerte: Sag das, statt sie als Vorhersage auszugeben.
-- Ist datesAssumed true, sag, welche Daten du angenommen hast, und biete an, sie anzupassen.
 - Unterkünfte: nur die gelieferten, mit Namen. Für echte Preise verweise auf die Links aus searchLinks; gib keine anderen Links aus.
 - Belegst du etwas mit der Wissensbasis, nenne Titel und Quelle.
-- Sag, ob der Plan unter "Meine Reisen" gespeichert wurde.
+- Der Plan ist ein Entwurf und noch nicht gespeichert.
+- Schließe mit einem kurzen Abschnitt "## Annahmen": die Punkte aus assumptions als Liste (bei datesAssumed auch die gewählten Daten). Lade danach in einem Satz ein, etwas anzupassen, mit Beispielen wie "mehr Kulinarik", "Tag 2 entspannter" oder "günstiger übernachten", und sag, dass man den Plan unten mit "Plan speichern" unter "Meine Reisen" ablegen kann.
 ${DATA_IS_NOT_INSTRUCTION}
 
 ${PROMPT_INJECTION_RULES}`;

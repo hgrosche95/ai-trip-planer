@@ -80,6 +80,35 @@ export interface PlanTask {
   status: TaskStatus;
 }
 
+export type StopCategory =
+  | 'FOOD'
+  | 'CULTURE'
+  | 'SIGHTSEEING'
+  | 'ACCOMMODATION'
+  | 'TRANSPORT'
+  | 'OTHER';
+
+// Entwurf eines Reiseplans (Multi-Agenten-Modus), genau im Format von
+// POST /itineraries. Gespeichert wird er erst per "Plan speichern".
+export interface ItineraryDraft {
+  destination: string;
+  startDate: string;
+  endDate: string;
+  budgetCents: number;
+  currency: string;
+  preferences: string[];
+  stops: {
+    dayNumber: number;
+    order: number;
+    title: string;
+    description?: string;
+    category?: StopCategory;
+    costCents?: number;
+    lat?: number;
+    lng?: number;
+  }[];
+}
+
 export interface BudgetItem {
   category: 'transport' | 'lodging' | 'activities' | 'food';
   cents: number;
@@ -120,6 +149,8 @@ export interface RunEventPayloads {
   // Aufgabenliste des Planers, bei jeder Änderung vollständig
   'plan.updated': { tasks: PlanTask[] };
   'budget.updated': BudgetReport;
+  // Fertiger, geprüfter Plan als Entwurf, dazu die Annahmen des Planers
+  'itinerary.draft': { itinerary: ItineraryDraft; assumptions: string[] };
   'llm.started': { stepId: string; agent?: AgentName; parentStepId?: string };
   // Der laufende LLM-Aufruf wartet auf das Groq-Limit (Minutenbudget an
   // Tokens bzw. freie Anfragen), bevor er rausgeht

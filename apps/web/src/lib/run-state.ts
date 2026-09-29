@@ -4,6 +4,7 @@ import type {
   BudgetReport,
   ChatSource,
   GlobePoint,
+  ItineraryDraft,
   LodgingReport,
   PlanTask,
   RunEvent,
@@ -58,6 +59,9 @@ export interface RunState {
   agentSteps: AgentStep[];
   tasks: PlanTask[];
   budget?: BudgetReport;
+  // Entwurf des Plans (Multi-Modus), noch nicht gespeichert: Der Chat zeigt
+  // dafür "Plan speichern"
+  draft?: { itinerary: ItineraryDraft; assumptions: string[] };
   // Spätester Zeitpunkt aller Ereignisse bisher: Ende laufender Balken im
   // Wasserfall (live wie im Replay, ohne Uhr im Browser)
   lastMs: number;
@@ -134,6 +138,8 @@ function reduce(state: RunState, event: RunEvent): RunState {
       return { ...state, tasks: event.data.tasks };
     case 'budget.updated':
       return { ...state, budget: event.data };
+    case 'itinerary.draft':
+      return { ...state, draft: event.data };
     case 'llm.started':
       return addStep(state, {
         id: event.data.stepId,

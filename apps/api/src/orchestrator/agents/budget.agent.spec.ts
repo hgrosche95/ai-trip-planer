@@ -34,6 +34,7 @@ const brief: TripBrief = {
   travelers: 1,
   budget: { amount: 800, currency: 'EUR' },
   preferences: [],
+  assumptions: [],
 };
 
 const draft: TripDraft = {
