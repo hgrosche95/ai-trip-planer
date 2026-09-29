@@ -54,6 +54,42 @@ nutzt immer den Classic-Agenten.
   nennt Default und Sperrstatus („Agentenmodus für POST /agent/runs: multi (Default, Client kann
   per mode wählen)“).
 
+## Entwurf statt Auto-Speichern
+
+![Antwort mit Abschnitt „Annahmen“ und Button „Plan speichern“](draft-save.png)
+
+**Warum:** Anfangs hat der Planer den fertigen Plan am Ende selbst über `save_itinerary`
+gespeichert. Das Feedback dazu: „Er hat es direkt gespeichert, nicht gefragt, man konnte nichts
+anpassen, ich habe keine Präferenzen gegeben.“ Vorab nach Vorlieben zu fragen, würde jede Anfrage
+um eine Runde verlängern. Deshalb plant der Multi-Modus weiter **sofort**, liefert den Plan aber
+als **Entwurf**, nennt seine Annahmen offen und speichert erst, wenn der Nutzer es will.
+
+**Ablauf:**
+
+1. **triage** liest wie bisher Ziel und Zeitraum; nur wenn eines davon fehlt, gibt es eine
+   Rückfrage. Nach Vorlieben, Interessen oder Personenzahl fragt der Planer nicht, er nimmt sie an
+   und schreibt sie als kurze Stichpunkte in `TripBrief.assumptions` (z. B. „1 Person“,
+   „Unterkunft: Mittelklasse“). Liefert das Modell keine, ergänzt der Code, was er selbst weiß
+   (keine Vorlieben → gemischtes Programm, kein Budget → mittleres Preisniveau).
+2. **compose** bekommt die Annahmen mit und plant danach.
+3. **final** speichert **nicht** mehr. Der Planer baut den Entwurf im Format von
+   `CreateItineraryDto` (Budget = genanntes Budget oder geschätzte Summe), prüft ihn mit
+   `itineraryValidationErrors` und schickt ihn als Ereignis `itinerary.draft`
+   (`{ itinerary, assumptions }`); die Stationen gehen wie bisher per `stops.updated` an den Globus.
+   Die Antwort endet mit einem Abschnitt **„Annahmen“**, einer Einladung zum Anpassen („mehr
+   Kulinarik“, „Tag 2 entspannter“, „günstiger übernachten“) und dem Hinweis auf „Plan speichern“.
+   In der Checkliste heißt die Aufgabe jetzt „Antwort schreiben“.
+4. **Button „Plan speichern“** unter der Antwortkarte, nur wenn der Lauf einen Entwurf geliefert
+   hat ([`components/save-draft-button.tsx`](../../apps/web/src/components/save-draft-button.tsx)):
+   `POST /itineraries` mit genau dem Entwurf (über `authFetch`, also dem Konto bzw. Gast des
+   Browsers). Danach „Gespeichert · In Meine Reisen ansehen“ mit Link auf
+   `/trips/detail?id=<id>`, der Button bleibt deaktiviert. Bei einem Fehler steht eine kurze
+   Meldung daneben, der Button ist wieder klickbar; ein Doppelklick speichert nicht doppelt. Das
+   Replay zeigt keinen Button, nur den Hinweis „Entwurf“.
+
+Der Classic-Modus bleibt, wie er ist: Dort speichert der Agent weiterhin nur, wenn der Nutzer es
+im Gespräch will.
+
 ## Die Idee in einem Satz
 
 Nur wo Sprache verstanden oder geschrieben werden muss, fragt der Orchestrator ein LLM; alles
@@ -68,8 +104,9 @@ flowchart TD
     P -- "TaskPlan<br/>plan.updated" --> R1["Recherche: Wetter"] & R2["Recherche: Unterkünfte"] & R3["Recherche: Anreise"] & R4["Recherche: Wissensbasis"]
     R1 & R2 & R3 & R4 -- "ResearchFindings" --> C["Planer: compose<br/>1 LLM-Aufruf, JSON<br/>(+1 Reparaturversuch)"]
     C -- "TripDraft" --> B["Budget<br/>Code, 0 Tokens<br/>budget.updated"]
-    B -- "BudgetReport" --> F["Planer: final<br/>save_itinerary + 1 LLM-Aufruf"]
-    F --> E([Antwort, stops.updated])
+    B -- "BudgetReport" --> F["Planer: final<br/>1 LLM-Aufruf, Entwurf"]
+    F --> E([Antwort, itinerary.draft, stops.updated])
+    E -. "Nutzer: Plan speichern" .-> S["POST /itineraries"]
 ```
 
 Die Recherche-Aufgaben laufen mit `Promise.all` gleichzeitig. Welche es gibt, folgt aus dem Brief:
@@ -88,10 +125,13 @@ In [`apps/api/src/runs/run-events.ts`](../../apps/api/src/runs/run-events.ts) un
 | `agent.finished` | `{ stepId, agent, task, status, durationMs, summary }` | Balken abschließen, Zusammenfassung darunter |
 | `plan.updated` | bei jedem Statuswechsel einer Aufgabe, immer die ganze Liste | Checkliste ○ ◐ ✓ ✗ |
 | `budget.updated` | nach dem Budget-Agenten: `{ currency, limitCents, totalCents, status, items }` | Budget-Balken grün/gelb/rot mit Posten |
+| `itinerary.draft` | am Ende von final: `{ itinerary, assumptions }`, `itinerary` im Format von `POST /itineraries` | Button „Plan speichern“ unter der Antwort (nicht im Replay) |
 | `llm.*`, `tool.started` | wie bisher, im Multi-Modus zusätzlich `agent` (und `parentStepId` bei `*.started`) | Tokens pro Agenten-Schritt |
 
 `summary` enthält nur strukturierte Angaben („3 Tage, Vorjahreswerte“, „8 Unterkünfte“,
-„576 € von 800 €, im Rahmen“), nie Nutzerfreitext. Alle bisherigen Ereignisse (`tool.*`,
+„576 € von 800 €, im Rahmen“), nie Nutzerfreitext. Nutzerangaben stecken nur in
+`message.completed` und `itinerary.draft`; beide sieht nur der Nutzer selbst (live und in seinem
+eigenen Replay). Alle bisherigen Ereignisse (`tool.*`,
 `weather.updated`, `lodging.updated`, `place.added`, `route.added`, `stops.updated`, `sources`)
 kommen im Multi-Modus genauso, deshalb funktionieren Globus, Wetter-Chips, Unterkünfte, Quellen und
 Replay ohne Änderung.
@@ -112,7 +152,7 @@ Replay ohne Änderung.
    (`AgentContext` mit `emit`, `llm(agent)`, `signal`; `agentStep()` rahmt eine Aufgabe mit
    `agent.started/finished`) und [`orchestrator/trip-draft.ts`](../../apps/api/src/orchestrator/trip-draft.ts):
    - `TripBrief`: Ziel, Abreiseort, Daten (`datesAssumed`, wenn der Planer sie aus „im Oktober“
-     gewählt hat), Personen, Budget, Präferenzen. `parseTripBrief` prüft die triage-Ausgabe: gültige
+     gewählt hat), Personen, Budget, Präferenzen, Annahmen (`assumptions`). `parseTripBrief` prüft die triage-Ausgabe: gültige
      Daten, nicht in der Vergangenheit, höchstens 14 Tage.
    - `TaskPlan`: Aufgaben mit `dependsOn` und Status.
    - `TripDraft`: dieselbe Form wie ein gespeicherter Plan. `tripDraftErrors` = `itineraryValidationErrors`
@@ -130,9 +170,11 @@ Replay ohne Änderung.
      (kostet keinen Reparaturversuch), alle anderen Fehler gehen mit der eigenen Antwort zurück ans
      Modell, **genau einmal**. Danach `PlannerOutputError`, der Lauf endet mit `run.error`, nichts wird
      gespeichert.
-   - `finalize`: speichert über das bestehende `save_itinerary` (mit Koordinaten; `route()` liefert die
-     Stationen für `stops.updated`) und schreibt die Antwort: Deutsch, Markdown, Preise als geschätzte
-     Spanne, Regentage und „Vorjahreswerte“, angenommene Daten, nur gelieferte Unterkünfte und Links.
+   - `finalize`: speichert **nicht** (siehe [Entwurf statt Auto-Speichern](#entwurf-statt-auto-speichern)),
+     sondern schickt den geprüften Entwurf als `itinerary.draft` (`routeFromStops` liefert die Stationen
+     für `stops.updated`) und schreibt die Antwort: Deutsch, Markdown, Preise als geschätzte Spanne,
+     Regentage und „Vorjahreswerte“, nur gelieferte Unterkünfte und Links, am Ende „Annahmen“ und
+     die Einladung zum Anpassen. Der Planer hat damit keine Tools mehr.
 5. **Recherche:** [`agents/research.agent.ts`](../../apps/api/src/orchestrator/agents/research.agent.ts).
    `TASK_TOOLS` bildet jede Aufgabe auf ein Tool ab, die Argumente kommen aus dem geprüften Brief
    (die Suchanfrage an die Wissensbasis ist „Ziel + Sehenswürdigkeiten Essen Transport + Präferenzen“).
@@ -178,6 +220,9 @@ Replay ohne Änderung.
    Agenten-Schritten die Checkliste und die Lanes (Planer dunkelblau, Recherche türkis, Budget gelb,
    Fehler rot), sonst die Liste wie bisher. [`components/budget-bar.tsx`](../../apps/web/src/components/budget-bar.tsx)
    steht unter der Antwort, im Live-Lauf und im Replay.
+4. **Entwurf speichern:** Der Reducer übernimmt `itinerary.draft` als `draft`;
+   [`components/save-draft-button.tsx`](../../apps/web/src/components/save-draft-button.tsx) steht in
+   [`app/chat-window.tsx`](../../apps/web/src/app/chat-window.tsx) unter der Antwortkarte.
 
 ## Token-Rechnung pro Lauf
 
@@ -191,8 +236,8 @@ ab Berlin“; bei Reasoning-Modellen wie `gpt-oss` kommt das Nachdenken zur Ausg
 | Recherche (4 Tools parallel) | – | 0 | 0 | 0 |
 | Planer compose (Prompt ~450, Fakten ~700) | 1 | ~1.150 | ~1.000 | ~2.150 |
 | Budget | – | 0 | 0 | 0 |
-| Planer final (Prompt ~400, Plan, Budget, Wetter, Unterkünfte ~800) | 1 | ~1.200 | ~800 | ~2.000 |
-| **Summe** | **3** | | | **~5.000** |
+| Planer final (Prompt ~500, Plan, Budget, Wetter, Unterkünfte, Annahmen ~850) | 1 | ~1.350 | ~850 | ~2.200 |
+| **Summe** | **3** | | | **~5.250** |
 | mit Reparaturversuch in compose | 4 | +~2.300 | +~1.000 | ~8.300 |
 | Rückfrage („Ich will verreisen“) | 1 | ~600 | ~150 | ~750 |
 
@@ -207,12 +252,13 @@ Gemessen wird das erst mit echtem Key (siehe unten).
 
 | Test | Prüft |
 | --- | --- |
-| `orchestrator/orchestrator.spec.ts` | Szenario „3 Tage Lissabon im Oktober, 800 €, ab Berlin“: vollständige Ereignisfolge (triage, plan, 4 parallele Recherchen, compose, budget, final), 3 LLM-Aufrufe (≤ 4), ≤ 7.000 Tokens, gespeicherter Plan mit 6 Stops und Koordinaten, Budgetbericht, Quellen, alle Aufgaben `done`; „Ich will verreisen“: genau 1 LLM-Aufruf, keine Recherche-Tools, Dialog gespeichert; gescheiterter Plan: `error` an `compose`, nichts gespeichert; abgelaufenes Laufzeitlimit |
-| `orchestrator/agents/planner.agent.spec.ts` | triage mit 1 Aufruf (auch JSON in ```-Block), Rückfrage, `ready` ohne Zeitraum und kaputtes JSON werden Rückfragen, Verlauf ohne Tool-Runden; Aufgaben-Graph (ohne Abreiseort, Tagesausflug, fremde Währung); compose ergänzt Koordinaten, ungültiges JSON → 1 Reparaturversuch → Erfolg, Regelverstöße im Reparaturversuch, zweimal ungültig → `PlannerOutputError` nach genau 2 Aufrufen; finalize speichert mit Koordinaten und Route; Injection-Regeln in allen Prompts |
+| `orchestrator/orchestrator.spec.ts` | Szenario „3 Tage Lissabon im Oktober, 800 €, ab Berlin“: vollständige Ereignisfolge (triage, plan, 4 parallele Recherchen, compose, budget, final), 3 LLM-Aufrufe (≤ 4), ≤ 7.000 Tokens, kein `save_itinerary`, genau ein `itinerary.draft` mit 6 Stops, Koordinaten, Budget und Annahmen, Budgetbericht, Quellen, alle Aufgaben `done`; der Entwurf passiert `POST /itineraries` unverändert (ValidationPipe wie in `main.ts`, zusätzlich `forbidNonWhitelisted`); „Ich will verreisen“: genau 1 LLM-Aufruf, keine Recherche-Tools, Dialog gespeichert; gescheiterter Plan: `error` an `compose`, kein Entwurf; abgelaufenes Laufzeitlimit |
+| `orchestrator/agents/planner.agent.spec.ts` | triage mit 1 Aufruf (auch JSON in ```-Block), Rückfrage, `ready` ohne Zeitraum und kaputtes JSON werden Rückfragen, Verlauf ohne Tool-Runden; Aufgaben-Graph (ohne Abreiseort, Tagesausflug, fremde Währung); compose ergänzt Koordinaten, ungültiges JSON → 1 Reparaturversuch → Erfolg, Regelverstöße im Reparaturversuch, zweimal ungültig → `PlannerOutputError` nach genau 2 Aufrufen; finalize ruft kein Tool, schickt einen gültigen Entwurf (`itineraryValidationErrors` leer) mit Annahmen, Budget ohne Limit = geschätzte Summe, Fakten ohne Speicherstatus; final-Prompt mit „## Annahmen“, Anpass-Beispielen und „Plan speichern“; triage fragt nicht nach Vorlieben; Annahmen aus Code, wenn das Modell keine nennt; Injection-Regeln in allen Prompts |
 | `orchestrator/agents/research.agent.spec.ts` | echte Tools mit nachgebauten API-Clients: Kennzahlen aller vier Aufgaben, alle Starts vor dem ersten Ende (parallel), Classic-Ereignisse mit `agent`/`parentStepId`, genau ein Zielmarker, Statusmeldungen, ausgefallene API trifft nur ihre Aufgabe, Währungsumrechnung, Suchanfrage nur aus Ziel und Präferenzen |
 | `orchestrator/agents/budget.agent.spec.ts` | Posten und Summe, `ok` / `tight` / `over`, Grenzen bei 90 % und 100 %, ohne Unterkünfte und ohne Abreiseort, ohne Budget, fremde Währung nur mit Kurs, Ereignisse ohne LLM |
 | `agent.controller.spec.ts` | Default `classic` mit `mode` in `run.started`; `AGENT_MODE=multi` ruft den Orchestrator, seine Ereignisse landen im Stream; `mode` im Body schlägt den Default (in beide Richtungen); ungültiger `mode` → 400 vor dem Stream; `AGENT_MODE_LOCKED=true` ignoriert die Wahl des Clients; `/agent/chat` bleibt classic |
 | `apps/web/src/lib/agent-mode.test.ts` | Default `multi`, Wahl in `localStorage` merken und lesen, unbekannte Werte, werfender Speicher (Wahl bleibt bis zum Neuladen), Benachrichtigung des Umschalters |
+| `apps/web/src/lib/run-state.test.ts` | u. a. `itinerary.draft` landet als `draft` im Zustand, Läufe ohne das Ereignis haben keinen Entwurf |
 | `apps/web/src/lib/agent-lanes.test.ts` | Reducer: Modus, Agenten-Schritte, Herkunft der Tool-Schritte, `lastMs`, `plan.updated`, `budget.updated`, alte Läufe ohne `mode`; Lanes: Balken relativ zur Laufzeit, parallele Recherche, Tokens pro Schritt, keine Lanes bei classic |
 
 Kein Test braucht Netz: Groq, Open-Meteo, Overpass, Frankfurter und der RAG-Service sind gemockt.
@@ -223,9 +269,12 @@ Die bestehenden Tests des Classic-Agenten laufen unverändert.
 - **Modelle pro Agent:** `ProviderRegistry` und `AGENT_MODEL_*` (Plan 2.5). Heute liefert
   `ctx.llm(agent)` für alle Agenten den einen `LLM_PROVIDER`; die Schnittstelle ist schon so gebaut,
   dass nur die Factory sich ändert.
-- **`TripDraft` pro Session:** Folgenachrichten wie „Tag 2 entspannter“ laufen heute wieder durch
-  triage und planen neu. Mit einem gespeicherten Entwurf (Prisma-Migration) ändert der Planer nur den
-  betroffenen Tag.
+- **Anpassen per Folgenachricht (`TripDraft` pro Session) folgt:** Die Antwort lädt zu „mehr
+  Kulinarik“ oder „Tag 2 entspannter“ ein. Heute läuft so eine Folgenachricht wieder durch triage
+  (mit dem Dialog als Kontext) und plant neu, als neuer Entwurf. Mit einem gespeicherten Entwurf pro
+  Session (Prisma-Migration) ändert der Planer nur den betroffenen Tag.
+- **Entwurf nur im Browser:** Wird der Chat neu geladen, bevor „Plan speichern“ geklickt ist, ist
+  der Entwurf weg (das Replay zeigt ihn, speichert aber bewusst nicht).
 - **Sparmodus:** automatischer Downgrade auf `classic` (bzw. ein kleinerer Lauf), wenn der Limiter
   weniger als 3.000 freie Tokens für das Planer-Modell meldet, mit Badge in der Timeline.
 - **Sparvorschläge:** Bei `over` 1 LLM-Aufruf „3 konkrete Sparvorschläge“ mit einem kleinen Modell.
