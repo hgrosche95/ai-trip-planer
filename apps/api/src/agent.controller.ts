@@ -58,7 +58,11 @@ export class AgentController {
     private readonly agentService: AgentService,
     @Inject(AGENT_RUN_STORE) private readonly runStore: AgentRunStore,
     private readonly orchestrator: Orchestrator,
-  ) {}
+  ) {
+    // Einmal beim Start ins Log, damit man lokal wie in Azure sofort sieht,
+    // welcher Agent die Chats beantwortet (AGENT_MODE in apps/api/.env).
+    this.logger.log(`Agentenmodus für POST /agent/runs: ${agentMode()}`);
+  }
 
   // Antwortet erst, wenn der Agent fertig ist, mit einem JSON. Bleibt für
   // Evals, den MCP-Server und ältere Clients.

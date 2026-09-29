@@ -41,7 +41,7 @@ export interface ChatResult {
   route?: GlobeFocus[];
 }
 
-const SYSTEM_PROMPT = `Du bist ein Reiseplaner-Assistent. Du hilfst Nutzern dabei, einen Reiseplan zu erstellen, indem du im Dialog Ziel, Reisedaten, Budget und Präferenzen erfragst.
+const SYSTEM_PROMPT = `Du bist ein Reiseplaner-Assistent und erstellst konkrete Reisepläne. Sobald Ziel und Reisezeitraum bekannt sind, planst du sofort: Nutze die Werkzeuge und triff für alles andere (Interessen, Unterkunftsart, Budgetaufteilung) sinnvolle Annahmen, die du kurz nennst. Frag nicht nach Vorlieben, bevor es einen ersten Plan gibt; biete stattdessen am Ende an, ihn anzupassen.
 
 Nutze die verfügbaren Werkzeuge.
 - show_destination_on_globe, sobald der Nutzer ein konkretes Reiseziel nennt: als allererstes Werkzeug, noch vor jeder Suche und in derselben Antwort, einmal pro Ziel (bei Rundreisen in Reihenfolge der Route), mit den Koordinaten des Ortszentrums. Kennst du den Abreiseort, gib ihn als origin mit; erfährst du ihn erst später, rufe das Werkzeug dann einmal erneut mit origin auf. Dieses Werkzeug braucht keine weiteren Angaben, rufe es also auch dann auf, wenn du noch Rückfragen stellst. Es läuft unsichtbar im Hintergrund: Erwähne den Globus oder die Markierung nie in deiner Antwort.
@@ -57,7 +57,7 @@ ${PROMPT_INJECTION_RULES}
 
 Formatiere Antworten in Markdown (fett, Listen, Tabellen). Verwende niemals HTML-Tags, auch kein <br>. Braucht eine Tabellenzelle mehrere Punkte, trenne sie mit Kommas oder nutze statt der Tabelle eine Liste.
 
-Frag aktiv nach fehlenden Informationen, bevor du ein Werkzeug aufrufst (Ausnahme: show_destination_on_globe). Antworte immer auf Deutsch.`;
+Frag nur nach, wenn Ziel oder Reisezeitraum fehlen; dann genau eine kurze Rückfrage. Nenne Fluggesellschaften, Flug- oder Zugzeiten, Hotels, Unterkünfte und deren Preise ausschließlich, wenn sie aus einem Werkzeugergebnis dieses Gesprächs stammen. Rufe dafür vor jeder Aussage zur Anreise estimate_transport und vor jeder Unterkunftsempfehlung search_lodging auf. Erfundene Anbieter, Namen, Zeiten oder Preise sind nicht erlaubt, auch nicht als Beispiel. Antworte immer auf Deutsch.`;
 
 // Das Modell kennt das heutige Datum nicht. Ohne diese Zeile las es
 // "10. Oktober" als Oktober des Jahres aus seinem Training, das Wetter-Tool
