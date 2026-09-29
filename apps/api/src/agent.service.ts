@@ -59,6 +59,16 @@ Formatiere Antworten in Markdown (fett, Listen, Tabellen). Verwende niemals HTML
 
 Frag aktiv nach fehlenden Informationen, bevor du ein Werkzeug aufrufst (Ausnahme: show_destination_on_globe). Antworte immer auf Deutsch.`;
 
+// Das Modell kennt das heutige Datum nicht. Ohne diese Zeile las es
+// "10. Oktober" als Oktober des Jahres aus seinem Training, das Wetter-Tool
+// meldete "liegt in der Vergangenheit", und statt eines Plans kam eine
+// verwirrte Rückfrage. Deshalb kommt das Datum bei jedem Aufruf mit.
+export function systemPrompt(today: string): string {
+  return `${SYSTEM_PROMPT}
+
+Heute ist ${today}. Reisedaten ohne Jahresangabe meinen immer das nächste Mal, an dem dieses Datum noch bevorsteht; setze in Werkzeugaufrufen das passende Jahr ein (Format YYYY-MM-DD) und frag deswegen nicht nach. Widersprechen sich Angaben (z. B. "3 Tage" und ein Zeitraum von einer Woche), nimm den genannten Zeitraum und sag das kurz dazu. Nenne in deiner Antwort nie die Namen der Werkzeuge.`;
+}
+
 const MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS ?? 4096);
 const MAX_HISTORY_MESSAGES = Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20);
 const MAX_TOOL_RESULT_CHARS = Number(
@@ -108,6 +118,9 @@ export function citedSources(
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
   private readonly tools: ToolRegistry;
+
+  // "Heute" als YYYY-MM-DD (UTC), in Tests überschreibbar
+  today = () => new Date().toISOString().slice(0, 10);
 
   constructor(
     itinerariesService: ItinerariesService,
@@ -256,7 +269,7 @@ export class AgentService {
 
   private callLlm(history: LlmMessage[], emit?: EmitRunEvent) {
     const messages: LlmMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt(this.today()) },
       ...trimHistory(history, MAX_HISTORY_MESSAGES),
     ];
     return observedLlmCall(

@@ -1,5 +1,9 @@
 import type { OpenMeteoClient } from '../external/open-meteo.client';
-import { createWeatherTool, MAX_WEATHER_DAYS } from './weather.tool';
+import {
+  createWeatherTool,
+  MAX_WEATHER_DAYS,
+  nextOccurrence,
+} from './weather.tool';
 
 const LISBON = { name: 'Lissabon', lat: 38.72, lng: -9.14, countryCode: 'PT' };
 const RAINY_DAY = {
@@ -164,5 +168,15 @@ describe('get_weather', () => {
     expect(output).toEqual({
       error: 'open-meteo nicht erreichbar: Zeitüberschreitung',
     });
+  });
+});
+
+describe('nextOccurrence', () => {
+  it('setzt ein vergangenes Datum ins laufende Jahr, wenn es noch bevorsteht', () => {
+    expect(nextOccurrence('2025-10-10', '2026-09-29')).toBe('2026-10-10');
+  });
+
+  it('nimmt das nächste Jahr, wenn das Datum dieses Jahr schon vorbei ist', () => {
+    expect(nextOccurrence('2025-03-01', '2026-09-29')).toBe('2027-03-01');
   });
 });
