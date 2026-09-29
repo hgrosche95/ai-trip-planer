@@ -63,6 +63,14 @@ const TASK_TOOLS: Partial<
       ].join(' '),
     },
   }),
+  'research:holidays': (brief) => ({
+    tool: 'get_public_holidays',
+    args: {
+      place: brief.destination,
+      startDate: brief.startDate,
+      endDate: brief.endDate,
+    },
+  }),
   'research:currency': (brief) => ({
     tool: 'convert_currency',
     args: {
@@ -216,6 +224,15 @@ function collect(
       return output.available
         ? `${output.results.length} Treffer`
         : 'Wissensbasis nicht erreichbar';
+    }
+    case 'research:holidays': {
+      const output = run.output as {
+        holidays: { date: string; name: string }[];
+      };
+      findings.holidays = output.holidays;
+      return output.holidays.length === 0
+        ? 'keine Feiertage'
+        : `${output.holidays.length} ${output.holidays.length === 1 ? 'Feiertag' : 'Feiertage'}`;
     }
     case 'research:currency': {
       const output = run.output as { converted: number };

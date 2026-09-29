@@ -2,6 +2,7 @@ import { budgetOverRule } from './budget-over.rule';
 import { dayLoadRule } from './day-load.rule';
 import { duplicateStopRule } from './duplicate-stop.rule';
 import { farAwayRule } from './far-away.rule';
+import { holidayRule } from './holiday.rule';
 import { rainOutdoorRule } from './rain-outdoor.rule';
 import type { Rule, RuleInput, Violation } from './rule.types';
 
@@ -14,6 +15,7 @@ export const RULES: Rule[] = [
   duplicateStopRule,
   farAwayRule,
   dayLoadRule,
+  holidayRule,
   budgetOverRule,
 ];
 

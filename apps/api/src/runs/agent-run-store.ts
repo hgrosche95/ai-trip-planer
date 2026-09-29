@@ -38,6 +38,9 @@ export interface AgentRunStore {
   // null, wenn es den Lauf nicht gibt ODER er einem anderen Nutzer gehört:
   // Die Ereignisse enthalten mit message.completed Nutzertext.
   findForUser(userId: string, id: string): Promise<StoredAgentRun | null>;
+  // Summe der LLM-Tokens (Eingabe + Ausgabe) aller Läufe des Nutzers seit
+  // `since`, für das Tageskontingent der Gäste
+  tokensSince(userId: string, since: Date): Promise<number>;
 }
 
 // Ein Lauf hat realistisch 60 bis 150 Ereignisse (Plan 2.4). Die Grenze
@@ -126,6 +129,14 @@ export class PrismaAgentRunStore implements AgentRunStore {
     };
   }
 
+  async tokensSince(userId: string, since: Date): Promise<number> {
+    const { _sum } = await this.prisma.agentRun.aggregate({
+      where: { userId, createdAt: { gte: since } },
+      _sum: { inputTokens: true, outputTokens: true },
+    });
+    return (_sum.inputTokens ?? 0) + (_sum.outputTokens ?? 0);
+  }
+
   // Läufe enthalten mit message.completed die Antwort und damit indirekt,
   // was der Nutzer gefragt hat. Sie liegen deshalb nicht länger als die
   // Chat-Verläufe (CONVERSATION_RETENTION_DAYS, Default 30).
@@ -167,5 +178,15 @@ export class InMemoryAgentRunStore implements AgentRunStore {
       totals: run.totals,
       events: run.events,
     });
+  }
+
+  tokensSince(userId: string, since: Date): Promise<number> {
+    let sum = 0;
+    for (const run of this.runs.values()) {
+      if (run.userId === userId && run.createdAt >= since) {
+        sum += run.totals.inputTokens + run.totals.outputTokens;
+      }
+    }
+    return Promise.resolve(sum);
   }
 }

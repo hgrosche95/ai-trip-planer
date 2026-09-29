@@ -1,4 +1,4 @@
-# Phase 4: Kritiker und Nachbesserung (Teil a)
+# Phase 4: Kritiker und Nachbesserung
 
 Bis Phase 3 ging jeder Entwurf des Planers direkt an den Nutzer. Ab jetzt
 prüft ein **Kritiker** jeden Entwurf, bevor er rausgeht. Findet er einen
@@ -76,6 +76,8 @@ Nachbesserung aus, **Hinweise** (warning) nennt die Antwort.
 | `far-away` | `far-away.rule.ts` | > 150 km vom Ziel: Koordinaten falsch; 30–150 km: Tagesausflug | Fehler / Hinweis |
 | `day-load` | `day-load.rule.ts` | mehr als 4 Programmpunkte an einem Tag | Hinweis |
 | `budget-over` | `budget-over.rule.ts` | geschätzte Kosten über dem genannten Budget | Hinweis |
+| `holiday` | `holiday.rule.ts` | Museum, Galerie, Palast an einem gesetzlichen Feiertag (Teil b) | Hinweis |
+| `preference` | `critic.agent.ts` | Widerspruch zu einer Vorliebe, 1 KI-Aufruf (Teil b) | Fehler |
 
 Warum ist das Budget nur ein Hinweis? Den größten Teil machen Anreise und
 Unterkunft aus. Ein anderes Tagesprogramm rettet das nicht, eine
@@ -181,14 +183,97 @@ Kritiker ist das Sicherheitsnetz, wenn das Modell es trotzdem vergisst.
   - Gescheiterte Nachbesserung: Der Plan geht trotzdem raus.
 - Web `lib/critique.test.ts`: Reducer, Ringe, Badge.
 
-## Bewusst offen (Restliste für 4b)
+## Teil b: Vorlieben, Feiertage, Gast-Kontingent
 
-- **Weiche Regeln per KI** (1 Aufruf): Präferenzen wie „vegetarisch“ oder
-  „mit Kind“ und grobe Plausibilität. Das kostet Tokens bei jedem Lauf,
-  deshalb erst mit Schalter und Messung.
-- **Feiertage** (`nager-date.client.ts`): Museen, die an einem Feiertag
-  geschlossen haben.
-- **Gast-Kontingent** `GUEST_DAILY_TOKEN_BUDGET`, summiert aus `AgentRun`.
-- **Szenario `rom-regen-oktober`** in den Evals gegen echtes Groq. Hier
-  im Container sind Groq, Open-Meteo und OpenStreetMap nicht erreichbar,
-  deshalb bisher nur mit Fake-LLM getestet.
+### Vorlieben per KI (1 Aufruf, nur wenn nötig)
+
+„Churrasqueira“ bei „vegetarisch“ oder eine Bar am Abend bei „mit Kind“
+erkennt keine Regel in Code. Dafür macht der Kritiker **einen** kurzen
+KI-Aufruf, und zwar nur unter drei Bedingungen:
+
+- Der Nutzer hat Vorlieben genannt (`brief.preferences` ist nicht leer).
+  Ohne Vorlieben kostet die Prüfung weiter 0 Tokens.
+- Es ist die **erste** Prüfung. Nach einer Nachbesserung prüft wieder Code:
+  Ein Befund ist offen, solange der beanstandete Punkt noch an seinem Tag
+  steht. So kostet eine Nachbesserungsrunde keinen weiteren Prüfaufruf, und
+  die KI kann nicht in jeder Runde etwas Neues finden (keine Endlosschleife).
+- `CRITIC_PREFERENCE_CHECK` ist nicht `off`.
+
+Was die KI meldet, wird geprüft, bevor es zählt. Der Programmpunkt muss am
+genannten Tag wirklich existieren, es gibt höchstens 3 Befunde, und die
+Meldung wird zu einer Zeile Klartext. Erfundene oder falsch zugeordnete
+Punkte fallen weg. Schlägt der Aufruf fehl, gilt der Plan ohne diese
+Prüfung; die harten Regeln haben ihn trotzdem geprüft.
+
+![Prüfung: Grillhaus ersetzt, Feiertag als Hinweis](preference-panel.png)
+
+Im Ablauf sieht man den KI-Aufruf in der Lane des Kritikers („660 Tokens“).
+Die zweite Prüfung kommt ohne KI aus (40 ms):
+
+![Ablauf mit Vorlieben-Prüfung und Feiertags-Recherche](preference-lanes.png)
+
+> Auch diese Screenshots zeigen einen echten Orchestrator-Lauf mit
+> nachgebautem Modell. Der „Testfeiertag“ stammt aus den Test-Fixtures.
+
+### Feiertage (Nager.Date)
+
+- `external/nager-date.client.ts`: landesweite Feiertage pro Land und Jahr
+  (kostenlos, ohne Key, 30 Tage im Cache). Regionale Feiertage fehlen
+  bewusst, weil nicht sicher ist, ob das Reiseziel dazugehört.
+- `tools/holidays.tool.ts` (`get_public_holidays`): Den Ländercode liefert
+  die Geokodierung (Open-Meteo, aus dem Cache). Eine Reise über Silvester
+  fragt zwei Jahre ab. Nur der Recherche-Agent bekommt das Tool, der
+  Classic-Agent nicht, damit sein Prompt nicht länger wird.
+- Neue Recherche-Aufgabe `research:holidays` (Chip „Feiertage“). Sie läuft
+  parallel zu den anderen und bei einer Überarbeitung nur, wenn sich die
+  Daten ändern.
+- Der Planer sieht die Feiertage schon beim Entwurf („Museen haben oft
+  geschlossen“).
+- Regel `holiday` (Hinweis): Museum, Galerie oder Palast an einem Feiertag
+  → „Öffnungszeiten prüfen“. Nur ein Hinweis, weil viele Häuser trotzdem
+  offen haben.
+
+### Gast-Kontingent
+
+Gäste (anonymer Zugang, `role: 'guest'`) dürfen in 24 Stunden höchstens
+`GUEST_DAILY_TOKEN_BUDGET` Tokens verbrauchen (Default 60.000, `0` = aus),
+gezählt aus den gespeicherten Läufen (`AgentRun`). Ist das Kontingent
+aufgebraucht, antwortet `POST /agent/runs` mit `run.error`
+(`quota_exhausted`, „Das Tageskontingent für Gastzugänge … ist
+aufgebraucht“), `POST /agent/chat` mit 429. Der Eigentümer hat kein
+Kontingent. Das schützt das Groq-Kontingent der Demo vor einem einzelnen
+Besucher; ein voller Plan braucht etwa 5.000 bis 10.000 Tokens, 60.000
+reichen also für ein Dutzend Pläne am Tag.
+
+Gezählt werden nur die Läufe über `POST /agent/runs`, denn nur die werden
+gespeichert. `/agent/chat` (Evals, MCP) prüft das Kontingent, zählt aber
+nicht mit.
+
+### Neue Tests (Teil b)
+
+- `critic.agent.spec.ts`:
+  - Vorlieben-Befund mit Ort
+  - erfundene Punkte werden verworfen
+  - ohne Vorlieben oder mit `off` kein Aufruf
+  - ein Fehlschlag kostet nicht den Plan
+  - nach einer Nachbesserung prüft Code statt KI
+- `orchestrator.spec.ts`:
+  - „vegetarisch“: 5 Aufrufe, das Grillhaus wird ersetzt, die zweite
+    Prüfung ohne KI
+  - Feiertag: Hinweis am Museum und Feiertag in den Fakten für den Planer
+- `nager-date.client.spec.ts`, `holidays.tool.spec.ts`: Filter, Cache,
+  Eingaben, Jahreswechsel
+- `agent.controller.spec.ts`: Kontingent (Gast gestoppt, 24-Stunden-Fenster,
+  nur der eigene Nutzer, der Eigentümer frei, `0` = aus, 429 bei
+  `/agent/chat`); `agent-run-store.spec.ts`: Summe per Prisma-`aggregate`
+
+## Bewusst offen
+
+- **Szenario `rom-regen-oktober`** in den Evals gegen echtes Groq (Phase 5).
+  Hier im Container sind Groq, Open-Meteo, OpenStreetMap und Nager.Date
+  nicht erreichbar, deshalb bisher nur mit Fake-LLM getestet.
+- **Demo-Replay als Ausweg** beim aufgebrauchten Gast-Kontingent: Den
+  öffentlichen Demo-Lauf gibt es erst in Phase 6.
+- **Plausibilität per KI** (z. B. „3 Museen und ein Tagesausflug an einem
+  Tag“): Das deckt die Regel `day-load` grob ab. Eine KI-Prüfung ohne
+  Vorlieben würde jeden Lauf verteuern.

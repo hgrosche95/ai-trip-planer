@@ -210,13 +210,14 @@ describe('PlannerAgent', () => {
       'research:lodging',
       'research:transport',
       'research:knowledge',
+      'research:holidays',
       'compose',
       'budget',
       'critique',
       'final',
     ]);
     expect(plan.tasks.find((t) => t.id === 'compose')?.dependsOn).toHaveLength(
-      4,
+      5,
     );
   });
 
@@ -229,7 +230,12 @@ describe('PlannerAgent', () => {
     });
     expect(
       plan.tasks.filter((t) => t.agent === 'research').map((t) => t.id),
-    ).toEqual(['research:weather', 'research:knowledge', 'research:currency']);
+    ).toEqual([
+      'research:weather',
+      'research:knowledge',
+      'research:holidays',
+      'research:currency',
+    ]);
   });
 
   describe('compose', () => {

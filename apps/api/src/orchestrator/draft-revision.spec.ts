@@ -63,14 +63,14 @@ describe('parseRevision', () => {
     });
   });
 
-  it('geänderte Reisedauer: ganzer Plan neu (recompose), Wetter und Unterkünfte neu', () => {
+  it('geänderte Reisedauer: ganzer Plan neu (recompose), Wetter, Unterkünfte und Feiertage neu', () => {
     const result = revise({ endDate: '2026-10-17' });
 
     expect(result).toMatchObject({
       kind: 'revise',
       revision: {
         recompose: true,
-        research: ['research:weather', 'research:lodging'],
+        research: ['research:weather', 'research:lodging', 'research:holidays'],
       },
     });
   });
@@ -124,7 +124,7 @@ describe('revisionResearch: welche Änderung welche Recherche auslöst', () => {
     [
       'Daten, gleiche Dauer',
       { startDate: '2026-10-21', endDate: '2026-10-23' },
-      ['research:weather', 'research:lodging'],
+      ['research:weather', 'research:lodging', 'research:holidays'],
     ],
     ['Abreiseort', { origin: 'Hamburg' }, ['research:transport']],
     [
@@ -153,7 +153,7 @@ describe('revisionResearch: welche Änderung welche Recherche auslöst', () => {
         startDate: '2026-10-15',
         endDate: '2026-10-15',
       }),
-    ).toEqual(['research:weather']);
+    ).toEqual(['research:weather', 'research:holidays']);
   });
 
   it('mehrere Änderungen in der Reihenfolge des Aufgaben-Graphen, ohne Dopplung', () => {
@@ -166,7 +166,12 @@ describe('revisionResearch: welche Änderung welche Recherche auslöst', () => {
         startDate: '2026-10-15',
         endDate: '2026-10-17',
       }),
-    ).toEqual(['research:weather', 'research:lodging', 'research:transport']);
+    ).toEqual([
+      'research:weather',
+      'research:lodging',
+      'research:transport',
+      'research:holidays',
+    ]);
   });
 });
 

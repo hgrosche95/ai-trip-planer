@@ -58,6 +58,35 @@ const MAX_SESSION_ID_LENGTH = 100;
 // wenn ein LLM-Aufruf mal länger dauert.
 const HEARTBEAT_MS = 15_000;
 
+// Tageskontingent für Gäste: So viele LLM-Tokens darf ein Gastzugang in 24
+// Stunden verbrauchen (Summe aus AgentRun). Ein voller Lauf im
+// Multi-Agenten-Modus braucht etwa 5.000 bis 10.000, das reicht also für
+// ein Dutzend Pläne. Schützt das Groq-Kontingent der Demo vor einem
+// einzelnen Besucher. GUEST_DAILY_TOKEN_BUDGET=0 schaltet es ab; der
+// Eigentümer (owner) hat kein Kontingent.
+const DEFAULT_GUEST_DAILY_TOKEN_BUDGET = 60_000;
+const QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function guestDailyTokenBudget(): number {
+  const raw = process.env.GUEST_DAILY_TOKEN_BUDGET;
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_GUEST_DAILY_TOKEN_BUDGET;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0
+    ? value
+    : DEFAULT_GUEST_DAILY_TOKEN_BUDGET;
+}
+
+// Wird geworfen, wenn ein Gast sein Tageskontingent aufgebraucht hat;
+// toRunError macht daraus quota_exhausted mit eigener Meldung.
+export class GuestQuotaExceededError extends Error {
+  constructor(readonly budget: number) {
+    super('Tageskontingent für Gäste aufgebraucht');
+    this.name = 'GuestQuotaExceededError';
+  }
+}
+
 @Controller('agent')
 @UseGuards(JwtAuthGuard)
 export class AgentController {
@@ -87,6 +116,7 @@ export class AgentController {
   async chat(@CurrentUser() user: AuthUser, @Body() body: ChatRequest) {
     const { sessionId, message } = parseChatRequest(body);
     try {
+      await this.checkGuestQuota(user);
       return await this.agentService.sendMessage(
         user.userId,
         sessionId,
@@ -158,6 +188,7 @@ export class AgentController {
 
     try {
       events.emit('run.started', { runId, mode });
+      await this.checkGuestQuota(user);
       const result =
         mode === 'multi'
           ? await this.orchestrator.run(
@@ -183,7 +214,11 @@ export class AgentController {
     } catch (error) {
       // Der Status 200 ist schon raus, Fehler gehen deshalb als Ereignis
       // an den Client statt als HTTP-Status.
-      this.logger.error('Agentenlauf fehlgeschlagen', error);
+      if (error instanceof GuestQuotaExceededError) {
+        this.logger.warn(`Gast ${user.userId}: Tageskontingent aufgebraucht`);
+      } else {
+        this.logger.error('Agentenlauf fehlgeschlagen', error);
+      }
       events.emit('run.error', toRunError(error));
       status = 'ERROR';
     } finally {
@@ -216,6 +251,20 @@ export class AgentController {
     const run = await this.runStore.findForUser(user.userId, id);
     if (!run) throw new NotFoundException('Lauf nicht gefunden');
     return run;
+  }
+
+  // Gäste: Kontingent aus den gespeicherten Läufen der letzten 24 Stunden.
+  // Gezählt werden die Läufe über POST /agent/runs (nur die werden
+  // gespeichert); geprüft wird vor jedem Lauf, ein laufender wird nicht
+  // abgebrochen.
+  private async checkGuestQuota(user: AuthUser): Promise<void> {
+    const budget = guestDailyTokenBudget();
+    if (user.role !== 'guest' || budget === 0) return;
+    const used = await this.runStore.tokensSince(
+      user.userId,
+      new Date(Date.now() - QUOTA_WINDOW_MS),
+    );
+    if (used >= budget) throw new GuestQuotaExceededError(budget);
   }
 
   // Ein fehlgeschlagenes Speichern kostet nur das Replay, nicht den Lauf:
@@ -263,6 +312,12 @@ function parseMode(mode: unknown): AgentMode | undefined {
 // Drei Fälle unterscheidet das Frontend. Die Fehlermeldung selbst bleibt im
 // Server-Log, damit keine Interna (Provider, Stacktrace) nach außen gehen.
 export function toRunError(error: unknown): RunEventPayloads['run.error'] {
+  if (error instanceof GuestQuotaExceededError) {
+    return {
+      code: 'quota_exhausted',
+      message: `Das Tageskontingent für Gastzugänge (${error.budget.toLocaleString('de-DE')} Tokens in 24 Stunden) ist aufgebraucht. Versuch es in ein paar Stunden noch einmal.`,
+    };
+  }
   const { status, headers } =
     (error as { status?: unknown; headers?: unknown } | null) ?? {};
   if (status !== 429) {

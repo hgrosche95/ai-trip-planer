@@ -593,3 +593,102 @@ describe('AgentController AGENT_MODE', () => {
     expect(runStarted(res.written)).toMatchObject({ mode: 'multi' });
   });
 });
+
+describe('AgentController: Tageskontingent für Gäste', () => {
+  const guest = { userId: 'guest-1', role: 'guest' } as const;
+  const owner = { userId: 'owner-1', role: 'owner' } as const;
+  const body = { sessionId: 's1', message: 'Lissabon' };
+  const totals = (tokens: number) => ({
+    llmCalls: 3,
+    toolCalls: 4,
+    inputTokens: tokens,
+    outputTokens: 0,
+    costUsd: 0,
+    durationMs: 1000,
+  });
+
+  function storeWith(userId: string, tokens: number, hoursAgo = 1) {
+    const store = new InMemoryAgentRunStore();
+    const createdAt = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
+    void store.save({
+      id: `alt-${userId}`,
+      userId,
+      sessionId: 's0',
+      status: 'OK',
+      totals: totals(tokens),
+      events: [],
+      createdAt,
+      finishedAt: createdAt,
+    });
+    return store;
+  }
+
+  const service = () => ({
+    sendMessage: jest.fn().mockResolvedValue({
+      reply: 'Fertig',
+      sources: [],
+      searchAttempted: false,
+    }),
+  });
+
+  afterEach(() => {
+    delete process.env.GUEST_DAILY_TOKEN_BUDGET;
+  });
+
+  it('stoppt einen Gast über dem Kontingent vor dem ersten LLM-Aufruf', async () => {
+    const agent = service();
+    const res = fakeResponse();
+
+    await controller(agent, storeWith('guest-1', 60_000)).run(
+      guest,
+      body,
+      res as unknown as Response,
+    );
+
+    expect(agent.sendMessage).not.toHaveBeenCalled();
+    expect(eventTypes(res.written)).toEqual(['run.started', 'run.error']);
+    expect(res.written).toContain('"code":"quota_exhausted"');
+    expect(res.written).toContain('60.000 Tokens in 24 Stunden');
+  });
+
+  it('zählt nur die letzten 24 Stunden und nur den eigenen Nutzer', async () => {
+    const agent = service();
+    await controller(agent, storeWith('guest-1', 90_000, 25)).run(
+      guest,
+      body,
+      fakeResponse() as unknown as Response,
+    );
+    await controller(agent, storeWith('guest-2', 90_000)).run(
+      guest,
+      body,
+      fakeResponse() as unknown as Response,
+    );
+    expect(agent.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('gilt nicht für den Eigentümer und ist mit GUEST_DAILY_TOKEN_BUDGET=0 aus', async () => {
+    const agent = service();
+    await controller(agent, storeWith('owner-1', 500_000)).run(
+      owner,
+      body,
+      fakeResponse() as unknown as Response,
+    );
+    process.env.GUEST_DAILY_TOKEN_BUDGET = '0';
+    await controller(agent, storeWith('guest-1', 500_000)).run(
+      guest,
+      body,
+      fakeResponse() as unknown as Response,
+    );
+    expect(agent.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('eigenes Limit per Umgebungsvariable, POST /agent/chat antwortet mit 429', async () => {
+    process.env.GUEST_DAILY_TOKEN_BUDGET = '10000';
+    const agent = service();
+
+    await expect(
+      controller(agent, storeWith('guest-1', 12_000)).chat(guest, body),
+    ).rejects.toMatchObject({ status: 429 });
+    expect(agent.sendMessage).not.toHaveBeenCalled();
+  });
+});

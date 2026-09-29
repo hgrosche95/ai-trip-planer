@@ -309,6 +309,9 @@ export class Orchestrator {
               budget: data.budget!,
               round: data.repairs,
               ...(data.previousDraft && { previous: data.previousDraft }),
+              ...(data.critique && {
+                preferenceIssues: data.critique.preferenceIssues,
+              }),
             },
             ctx,
           ),
@@ -460,6 +463,7 @@ export function createOrchestrator(
         tools.transport,
         tools.knowledge,
         tools.currency,
+        tools.holidays,
       ]),
     ),
     budget: new BudgetAgent(),

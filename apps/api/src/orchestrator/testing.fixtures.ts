@@ -2,12 +2,14 @@
 // Build, siehe tsconfig.build.json). Wer sie nutzt, muss '../rag-client'
 // bzw. '../../rag-client' selbst per jest.mock ersetzen.
 import type { FrankfurterClient } from '../external/frankfurter.client';
+import type { NagerDateClient } from '../external/nager-date.client';
 import type { OpenMeteoClient } from '../external/open-meteo.client';
 import type { OverpassClient } from '../external/overpass.client';
 import { searchTravelKnowledge } from '../rag-client';
 import type { RunEventType } from '../runs/run-events';
 import { ToolRegistry } from '../tools';
 import { createCurrencyTool } from '../tools/currency.tool';
+import { createHolidaysTool } from '../tools/holidays.tool';
 import { createLodgingTool } from '../tools/lodging.tool';
 import { createTransportEstimateTool } from '../tools/transport-estimate.tool';
 import { travelKnowledgeTool } from '../tools/travel-knowledge.tool';
@@ -34,7 +36,9 @@ export function researchTools() {
       Promise.resolve({
         available: true,
         cached: false,
-        data: PLACES[name.toLowerCase()] ?? null,
+        data: PLACES[name.toLowerCase()]
+          ? { ...PLACES[name.toLowerCase()], countryCode: 'PT' }
+          : null,
       }),
     ),
     dailyWeather: jest.fn(() =>
@@ -76,6 +80,22 @@ export function researchTools() {
       }),
     ),
   };
+  // Portugal 2026: der Tag der Republik liegt vor der Reise (14.–16.10.)
+  const nagerDate = {
+    holidays: jest.fn(() =>
+      Promise.resolve({
+        available: true,
+        cached: false,
+        data: [
+          {
+            date: '2026-10-05',
+            localName: 'Implantação da República',
+            name: 'Republic Day',
+          },
+        ],
+      }),
+    ),
+  };
   (searchTravelKnowledge as jest.Mock).mockResolvedValue({
     available: true,
     results: [
@@ -96,8 +116,9 @@ export function researchTools() {
     createTransportEstimateTool(geocoder),
     travelKnowledgeTool,
     createCurrencyTool(frankfurter as unknown as FrankfurterClient),
+    createHolidaysTool(geocoder, nagerDate as unknown as NagerDateClient),
   ]);
-  return { registry, openMeteo, overpass, frankfurter };
+  return { registry, openMeteo, overpass, frankfurter, nagerDate };
 }
 
 // AgentContext, der alle Ereignisse in ein Array schreibt
