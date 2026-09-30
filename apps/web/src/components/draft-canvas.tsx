@@ -40,12 +40,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: 'Sonstiges',
 };
 
-const dayLabel = new Intl.DateTimeFormat('de-DE', {
-  weekday: 'short',
-  day: 'numeric',
-  month: 'numeric',
-  timeZone: 'UTC',
-});
+const weekdayLabel = new Intl.DateTimeFormat('de-DE', { weekday: 'short', timeZone: 'UTC' });
+const dateLabel = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
 
 // Vier Tagesfarben, danach von vorn
 function dayColor(dayNumber: number) {
@@ -65,39 +61,50 @@ function DayCard({
 }) {
   const changed = day.removed.length > 0 || day.stops.some((stop) => stop.isNew);
   const rainy = (day.weather?.precipMm ?? 0) > 1;
+  const color = dayColor(day.dayNumber);
+  const date = new Date(`${day.date}T00:00:00Z`);
+  // Ticket-Abschnitt wie die Bordkarten unter "Meine Reisen": links ein
+  // Abriss mit Tag, Datum und Wetter, rechts die Programmpunkte
   return (
     <section
       aria-label={`Tag ${day.dayNumber}${changed ? ', geändert' : ''}`}
       onMouseEnter={() => onHover(day.dayNumber)}
       onMouseLeave={() => onHover(null)}
       className={
-        'flex min-w-0 flex-col rounded-xl border border-t-4 border-rule bg-card transition-opacity duration-150 motion-reduce:transition-none ' +
-        (changed ? 'ring-2 ring-teal dark:ring-teal-300 ' : '') +
+        'relative grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] rounded-xl bg-card shadow-[0_1px_2px_rgb(20_33_61/0.08),0_4px_14px_-6px_rgb(20_33_61/0.18)] transition-opacity duration-150 motion-reduce:transition-none dark:shadow-none dark:ring-1 dark:ring-rule ' +
+        (changed ? 'ring-2 ring-teal dark:ring-2 dark:ring-teal-300 ' : '') +
         (dimmed ? 'opacity-45' : '')
       }
-      style={{ borderTopColor: dayColor(day.dayNumber) }}
     >
-      <header className="flex items-baseline justify-between gap-2 border-b border-rule px-3 py-2 font-mono text-xs">
-        <span className="font-semibold" style={{ color: dayColor(day.dayNumber) }}>
-          TAG {day.dayNumber} · {dayLabel.format(new Date(`${day.date}T00:00:00Z`))}
+      <div
+        className="relative flex flex-col items-center justify-center gap-0.5 rounded-l-xl border-r-2 border-dashed border-rule px-1 py-3 text-center before:absolute before:-top-2 before:-right-[9px] before:size-4 before:rounded-full before:bg-background after:absolute after:-right-[9px] after:-bottom-2 after:size-4 after:rounded-full after:bg-background"
+        style={{ background: `color-mix(in srgb, ${color} 9%, transparent)` }}
+      >
+        <span className="font-mono text-[11px] font-semibold tracking-widest text-dim">TAG</span>
+        <span className="text-3xl font-extrabold leading-none" style={{ color }}>
+          {day.dayNumber}
+        </span>
+        <span className="font-mono text-[11px] font-semibold">
+          {weekdayLabel.format(date).replace('.', '').toUpperCase()} {dateLabel.format(date)}
         </span>
         {day.weather && (
-          <span title={day.weather.label} className={rainy ? 'text-day-1' : 'text-dim'}>
-            <span aria-hidden="true">{weatherEmoji(day.weather.code)}</span>{' '}
+          <span title={day.weather.label} className={'mt-1.5 text-[11px] leading-snug ' + (rainy ? 'text-day-1' : 'text-dim')}>
+            <span aria-hidden="true" className="block text-sm">
+              {weatherEmoji(day.weather.code)}
+            </span>
             <span className="sr-only">{day.weather.label}, </span>
-            {Math.round(day.weather.tMax)}° /{' '}
-            {Math.round(day.weather.tMin)}°
-            {rainy && ` · ${Math.round(day.weather.precipMm)} mm`}
+            {Math.round(day.weather.tMax)}°/{Math.round(day.weather.tMin)}°
+            {rainy && <span className="block">{Math.round(day.weather.precipMm)} mm</span>}
           </span>
         )}
-      </header>
-      <ol className="flex flex-col px-3 py-1">
+      </div>
+      <ol className="flex min-w-0 flex-col px-3.5 py-1">
         {day.stops.map((stop, index) => (
           <li
             key={`${stop.order}-${stop.title}`}
             className={
-              'flex items-baseline gap-2 border-b border-dashed border-rule py-2 last:border-b-0 ' +
-              (stop.isNew ? '-mx-3 bg-teal/10 px-3' : '')
+              'flex items-baseline gap-2.5 border-b border-rule py-2.5 last:border-b-0 ' +
+              (stop.isNew ? '-mx-3.5 bg-teal/10 px-3.5' : '')
             }
           >
             <span
@@ -111,12 +118,12 @@ function DayCard({
             <span className="min-w-0 flex-1">
               <span className="text-sm font-semibold">{stop.title}</span>
               {stop.isNew && (
-                <span className="ml-1.5 font-mono text-[11px] uppercase tracking-widest text-teal dark:text-teal-300">
+                <span className="ml-1.5 rounded-sm bg-teal/10 px-1 align-[1px] font-mono text-[11px] font-semibold uppercase tracking-wider text-teal dark:text-teal-300">
                   neu
                 </span>
               )}
               {stop.category && (
-                <span className="block font-mono text-[11px] uppercase tracking-widest text-dim">
+                <span className="block text-xs text-dim">
                   {CATEGORY_LABELS[stop.category] ?? stop.category}
                 </span>
               )}
