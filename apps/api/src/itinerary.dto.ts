@@ -7,6 +7,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -16,6 +17,7 @@ import {
   MaxLength,
   Min,
   Validate,
+  ValidateIf,
   ValidateNested,
   ValidationArguments,
   ValidatorConstraint,
@@ -89,6 +91,44 @@ export class ItineraryStopDto {
   lng?: number;
 }
 
+export class BudgetItemDto {
+  @IsIn(['transport', 'lodging', 'activities', 'food'])
+  category!: 'transport' | 'lodging' | 'activities' | 'food';
+
+  @IsInt()
+  @Min(0)
+  @Max(MAX_BUDGET_CENTS)
+  cents!: number;
+}
+
+// Budgetbericht des Budget-Agenten, wie ihn der Entwurf zeigt (Schätzung)
+export class BudgetReportDto {
+  @IsString()
+  @Length(3, 3)
+  currency!: string;
+
+  // null = kein Budget genannt
+  @ValidateIf((_, value) => value !== null)
+  @IsInt()
+  @Min(0)
+  @Max(MAX_BUDGET_CENTS)
+  limitCents!: number | null;
+
+  @IsInt()
+  @Min(0)
+  @Max(MAX_BUDGET_CENTS)
+  totalCents!: number;
+
+  @IsIn(['ok', 'tight', 'over'])
+  status!: 'ok' | 'tight' | 'over';
+
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => BudgetItemDto)
+  items!: BudgetItemDto[];
+}
+
 export class CreateItineraryDto {
   @IsString()
   @Length(1, 100)
@@ -125,6 +165,18 @@ export class CreateItineraryDto {
   @ValidateNested({ each: true })
   @Type(() => ItineraryStopDto)
   stops!: ItineraryStopDto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BudgetReportDto)
+  budgetReport?: BudgetReportDto;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  assumptions?: string[];
 }
 
 // Für Aufrufer ohne ValidationPipe (das save_itinerary-Tool des Agenten):

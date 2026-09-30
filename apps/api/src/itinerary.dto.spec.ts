@@ -62,6 +62,45 @@ describe('CreateItineraryDto (über die ValidationPipe)', () => {
     });
   });
 
+  const budgetReport = {
+    currency: 'EUR',
+    limitCents: 80_000,
+    totalCents: 74_500,
+    status: 'tight',
+    items: [{ category: 'lodging', cents: 42_000 }],
+  };
+
+  it('übernimmt Budgetbericht und Annahmen aus dem Entwurf', async () => {
+    await expect(
+      validate({ ...validPlan, budgetReport, assumptions: ['1 Person'] }),
+    ).resolves.toMatchObject({
+      budgetReport: { totalCents: 74_500, status: 'tight' },
+      assumptions: ['1 Person'],
+    });
+  });
+
+  it('akzeptiert einen Budgetbericht ohne genanntes Budget', async () => {
+    await expect(
+      validate({
+        ...validPlan,
+        budgetReport: { ...budgetReport, limitCents: null, status: 'ok' },
+      }),
+    ).resolves.toMatchObject({ budgetReport: { limitCents: null } });
+  });
+
+  it.each([
+    ['einen unbekannten Budgetstatus', { status: 'knapp' }],
+    ['eine negative Summe', { totalCents: -1 }],
+    [
+      'einen unbekannten Budgetposten',
+      { items: [{ category: 'souvenirs', cents: 100 }] },
+    ],
+  ])('lehnt einen Budgetbericht mit %s ab', async (_label, override) => {
+    await expect(
+      validate({ ...validPlan, budgetReport: { ...budgetReport, ...override } }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('entfernt unbekannte Felder, statt den Request abzulehnen', async () => {
     const result = (await validate({
       ...validPlan,

@@ -5,7 +5,8 @@
   --foreground: #14213D;
   --card: #FFFFFF;
   --rule: #D3D9E2;
-  --dim: #6A7486;
+  --dim: #626C7E;
+  --focus: #0E6E74;
   /* Tagesfarben: ein Tag hat überall dieselbe Farbe (Arbeitsfläche, Karten) */
   --day-1: #2F6FB0;
   --day-2: #C07A12;
@@ -20,6 +21,7 @@
     --card: #16203A;
     --rule: #2A3654;
     --dim: #93A0B8;
+    --focus: #5EEAD4;
     --day-1: #6FA8E0;
     --day-2: #E6A646;
     --day-3: #A988DA;
@@ -47,4 +49,22 @@
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Sichtbarer Fokus für alles, was keinen eigenen Ring mitbringt: Links,
+   Knöpfe, Felder. In @layer base, damit focus-visible:-Klassen ihn
+   weiter überschreiben können. Auf der dunklen Navigationsleiste hell. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  nav :focus-visible {
+    outline-color: #5EEAD4;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--focus) 25%, transparent);
+  }
 }

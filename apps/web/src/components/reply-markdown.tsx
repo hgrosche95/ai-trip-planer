@@ -34,7 +34,7 @@ const MARKDOWN_COMPONENTS: Components = {
     </div>
   ),
   thead: ({ children }) => (
-    <thead className="bg-background font-mono text-[10px] uppercase tracking-widest text-dim">
+    <thead className="bg-background font-mono text-[11px] uppercase tracking-widest text-dim">
       {children}
     </thead>
   ),

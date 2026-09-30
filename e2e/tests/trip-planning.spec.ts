@@ -12,9 +12,9 @@ test('Chat-Nachricht führt zu gespeichertem und angezeigtem Reiseplan', async (
   }
 
   await page.goto('/login');
-  await page.getByPlaceholder('Username').fill(username);
-  await page.getByPlaceholder('Passwort').fill(password);
-  await page.getByRole('button', { name: 'Einloggen' }).click();
+  await page.getByLabel('Benutzername').fill(username);
+  await page.getByLabel('Passwort').fill(password);
+  await page.getByRole('button', { name: 'Anmelden' }).click();
   await page.waitForURL('/');
 
   // Möglichst wenig Lücken für Rückfragen lassen: explizites Enddatum,
@@ -32,7 +32,7 @@ test('Chat-Nachricht führt zu gespeichertem und angezeigtem Reiseplan', async (
     'selbst über Aktivitäten, Essen und die Budgetaufteilung und speichere den fertigen Plan sofort, ' +
     'ohne nochmal nachzufragen.';
 
-  await page.getByPlaceholder('Beschreib deine Reisewünsche...').fill(message);
+  await page.getByRole('textbox', { name: 'Nachricht' }).fill(message);
   await page.getByRole('button', { name: 'Senden' }).click();
 
   // Auch mit einer vollständig spezifizierten Erstnachricht bleibt eine
@@ -51,7 +51,7 @@ test('Chat-Nachricht führt zu gespeichertem und angezeigtem Reiseplan', async (
   await expect(replies).toHaveCount(1, { timeout: 150_000 });
   if (!(await saved.isVisible())) {
     await page
-      .getByPlaceholder('Beschreib deine Reisewünsche...')
+      .getByRole('textbox', { name: 'Nachricht' })
       .fill(
         'Nutze für alle offenen Details plausible Annahmen (1 Reisender, Abflug München, Budget frei ' +
           'auf Flug/Hotel/Aktivitäten aufteilen) und speichere den Plan jetzt ohne weitere Rückfragen.',

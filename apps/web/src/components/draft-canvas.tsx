@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import BudgetBar from '@/components/budget-bar';
 import CritiquePanel from '@/components/critique-panel';
 import LodgingList from '@/components/lodging-list';
@@ -10,7 +10,9 @@ import WeatherStrip, { weatherEmoji } from '@/components/weather-strip';
 import { critiqueOverview } from '@/lib/critique';
 import { draftDays, type DraftDay } from '@/lib/draft-days';
 import { formatDate, formatMoney, placeCode, tripDays } from '@/lib/format';
+import type { BudgetReport } from '@/lib/run-events';
 import type { RunState } from '@/lib/run-state';
+import { nextTabIndex } from '@/lib/tabs';
 
 // Ein Entwurf auf der Arbeitsfläche: der abgeschlossene Lauf, der ihn geliefert
 // hat, und die Stelle seiner Antwort im Chat
@@ -67,7 +69,9 @@ function DayCard({ day, currency }: { day: DraftDay; currency: string }) {
         </span>
         {day.weather && (
           <span title={day.weather.label} className={rainy ? 'text-day-1' : 'text-dim'}>
-            {weatherEmoji(day.weather.code)} {Math.round(day.weather.tMax)}° /{' '}
+            <span aria-hidden="true">{weatherEmoji(day.weather.code)}</span>{' '}
+            <span className="sr-only">{day.weather.label}, </span>
+            {Math.round(day.weather.tMax)}° /{' '}
             {Math.round(day.weather.tMin)}°
             {rainy && ` · ${Math.round(day.weather.precipMm)} mm`}
           </span>
@@ -85,12 +89,12 @@ function DayCard({ day, currency }: { day: DraftDay; currency: string }) {
             <span className="min-w-0">
               <span className="text-sm font-semibold">{stop.title}</span>
               {stop.isNew && (
-                <span className="ml-1.5 font-mono text-[10px] uppercase tracking-widest text-teal dark:text-teal-300">
+                <span className="ml-1.5 font-mono text-[11px] uppercase tracking-widest text-teal dark:text-teal-300">
                   neu
                 </span>
               )}
               {stop.category && (
-                <span className="block font-mono text-[10px] uppercase tracking-widest text-dim">
+                <span className="block font-mono text-[11px] uppercase tracking-widest text-dim">
                   {CATEGORY_LABELS[stop.category] ?? stop.category}
                 </span>
               )}
@@ -120,7 +124,7 @@ function PlanView({ run, previous }: { run: CanvasDraft['run']; previous?: Canva
   const days = draftDays(itinerary, previous?.draft.itinerary, weather);
   const origin = run.places.find((place) => place.kind === 'origin');
   const budget = run.budget;
-  const over = budget?.status === 'over';
+  const status = budget?.limitCents ? BUDGET_STATUS[budget.status] : undefined;
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-rule bg-card p-4">
@@ -153,11 +157,16 @@ function PlanView({ run, previous }: { run: CanvasDraft['run']; previous?: Canva
           </div>
           <div>
             <dt className="uppercase tracking-widest text-dim">Budget</dt>
-            <dd className={`text-sm font-semibold tabular-nums ${over ? 'text-stamp' : ''}`}>
+            <dd className="text-sm font-semibold tabular-nums">
               {budget
-                ? `ca. ${formatMoney(Math.round(budget.totalCents / 100) * 100, itinerary.currency)}` +
-                  (budget.limitCents ? ` / ${formatMoney(budget.limitCents, itinerary.currency)}` : '')
+                ? `ca. ${formatMoney(Math.round(budget.totalCents / 100) * 100, budget.currency)}` +
+                  (budget.limitCents ? ` / ${formatMoney(budget.limitCents, budget.currency)}` : '')
                 : formatMoney(itinerary.budgetCents, itinerary.currency)}
+              {status && (
+                <span className={`ml-2 font-sans text-xs font-bold ${status.className}`}>
+                  {status.label}
+                </span>
+              )}
             </dd>
           </div>
         </dl>
@@ -190,7 +199,7 @@ function DetailsView({ run }: { run: CanvasDraft['run'] }) {
       <CritiquePanel critiques={run.critiques} />
       {assumptions.length > 0 && (
         <section aria-label="Annahmen" className="mt-3">
-          <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-dim">Annahmen</p>
+          <p className="mb-1 font-mono text-[11px] uppercase tracking-widest text-dim">Annahmen</p>
           <ul className="list-disc space-y-0.5 pl-5 text-sm">
             {assumptions.map((assumption) => (
               <li key={assumption}>{assumption}</li>
@@ -202,25 +211,60 @@ function DetailsView({ run }: { run: CanvasDraft['run'] }) {
   );
 }
 
+// Ampel für den Budgetwert im Kopf, gleiche Wörter wie in der BudgetBar
+const BUDGET_STATUS: Record<BudgetReport['status'], { label: string; className: string }> = {
+  ok: { label: 'im Rahmen', className: 'text-teal dark:text-teal-300' },
+  tight: { label: 'knapp', className: 'text-amber-700 dark:text-amber-400' },
+  over: { label: 'überschritten', className: 'text-stamp dark:text-red-400' },
+};
+
 // Kurze Marken im Kopf: Ergebnis des Kritikers und Budget auf einen Blick.
-// Teal heißt erledigt, Rot heißt offen.
-function StatusTags({ run }: { run: CanvasDraft['run'] }) {
+// Rot heißt offener Fehler, Amber offener Hinweis, Teal ohne Befund. Ein
+// Klick führt zu den Details (Wetter & Budget).
+function StatusTags({ run, onOpen }: { run: CanvasDraft['run']; onOpen: () => void }) {
   const overview = critiqueOverview(run.critiques);
   const budget = run.budget;
-  const tag = 'rounded-sm border-[1.5px] border-current px-1.5 font-mono text-[10px] font-semibold uppercase tracking-widest';
+  const tag =
+    'min-h-6 rounded-sm border-[1.5px] border-current px-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider hover:bg-current/10 focus-visible:outline-2 focus-visible:outline-offset-2';
+  const warnings = overview ? overview.open.length - overview.lastErrors : 0;
+  let critique: { text: string; className: string } | undefined;
+  if (overview && overview.lastErrors > 0) {
+    critique = {
+      text: `${overview.lastErrors} Fehler offen`,
+      className: 'text-stamp dark:text-red-400',
+    };
+  } else if (warnings > 0) {
+    critique = {
+      text: `Geprüft · ${warnings} ${warnings === 1 ? 'Hinweis' : 'Hinweise'}`,
+      className: 'text-amber-700 dark:text-amber-400',
+    };
+  } else if (overview) {
+    critique = { text: 'Geprüft', className: 'text-teal dark:text-teal-300' };
+  }
+  const budgetTag =
+    budget?.limitCents && budget.status !== 'ok'
+      ? budget.status === 'over'
+        ? {
+            text: `Budget +${formatMoney(Math.round((budget.totalCents - budget.limitCents) / 100) * 100, budget.currency)}`,
+            className: 'text-stamp dark:text-red-400',
+          }
+        : { text: 'Budget knapp', className: 'text-amber-700 dark:text-amber-400' }
+      : undefined;
   return (
     <>
-      {overview && (
-        <span
-          className={`${tag} ${overview.lastErrors > 0 ? 'text-stamp' : 'text-teal dark:text-teal-300'}`}
-        >
-          {overview.lastErrors} Fehler
-        </span>
-      )}
-      {budget?.limitCents && budget.status === 'over' && (
-        <span className={`${tag} text-stamp`}>
-          +{formatMoney(Math.round((budget.totalCents - budget.limitCents) / 100) * 100, 'EUR')}
-        </span>
+      {[critique, budgetTag].map(
+        (entry) =>
+          entry && (
+            <button
+              key={entry.text}
+              type="button"
+              onClick={onOpen}
+              title="Details unter Wetter & Budget"
+              className={`${tag} ${entry.className}`}
+            >
+              {entry.text}
+            </button>
+          ),
       )}
     </>
   );
@@ -236,13 +280,22 @@ export default function DraftCanvas({
   selected,
   onSelect,
   map,
+  saved,
+  onSaved,
 }: {
   drafts: CanvasDraft[];
   selected: number;
   onSelect: (position: number) => void;
   map: ReactNode;
+  // Gespeicherte Entwürfe: Index der Antwort im Chat -> ID der Reise
+  saved: Record<number, string>;
+  onSaved: (messageIndex: number, id: string) => void;
 }) {
   const [tab, setTab] = useState<Tab>('plan');
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const idPrefix = useId();
+  const tabId = (id: Tab) => `${idPrefix}-tab-${id}`;
+  const panelId = `${idPrefix}-panel`;
   const current = drafts[selected];
   if (!current) return null;
   const latest = drafts.length - 1;
@@ -263,7 +316,7 @@ export default function DraftCanvas({
                   onClick={() => onSelect(position)}
                   aria-pressed={position === selected}
                   className={
-                    'rounded border px-1.5 font-mono text-[11px] focus-visible:outline-2 focus-visible:outline-teal ' +
+                    'min-h-8 rounded border px-2 font-mono text-xs focus-visible:outline-2 focus-visible:outline-(--focus) ' +
                     (position === selected
                       ? 'border-foreground font-semibold'
                       : 'border-rule text-dim hover:border-foreground')
@@ -276,7 +329,7 @@ export default function DraftCanvas({
               ))}
             </div>
           )}
-          <StatusTags run={current.run} />
+          <StatusTags run={current.run} onOpen={() => setTab('details')} />
         </div>
         {/* Alle Buttons bleiben montiert, damit "Gespeichert" beim Umschalten
             der Fassung erhalten bleibt und nichts doppelt gespeichert wird */}
@@ -286,21 +339,38 @@ export default function DraftCanvas({
               itinerary={draft.run.draft.itinerary}
               revision={draft.run.draft.revision}
               superseded={position !== latest}
+              budgetReport={draft.run.budget}
+              assumptions={draft.run.draft.assumptions}
+              savedId={saved[draft.messageIndex]}
+              onSaved={(id) => onSaved(draft.messageIndex, id)}
             />
           </div>
         ))}
       </div>
 
-      <div role="tablist" aria-label="Ansicht" className="flex gap-5 overflow-x-auto border-b border-rule px-4 text-sm font-semibold">
-        {TABS.map((entry) => (
+      <div role="tablist" aria-label="Entwurf" className="flex gap-5 overflow-x-auto border-b border-rule px-4 text-sm font-semibold">
+        {TABS.map((entry, index) => (
           <button
             key={entry.id}
+            ref={(element) => {
+              tabRefs.current[index] = element;
+            }}
+            id={tabId(entry.id)}
             type="button"
             role="tab"
             aria-selected={tab === entry.id}
+            aria-controls={panelId}
+            tabIndex={tab === entry.id ? 0 : -1}
             onClick={() => setTab(entry.id)}
+            onKeyDown={(event) => {
+              const next = nextTabIndex(event.key, index, TABS.length);
+              if (next === undefined) return;
+              event.preventDefault();
+              setTab(TABS[next].id);
+              tabRefs.current[next]?.focus();
+            }}
             className={
-              'shrink-0 py-2.5 focus-visible:outline-2 focus-visible:outline-teal ' +
+              'shrink-0 py-3 focus-visible:outline-2 focus-visible:outline-(--focus) ' +
               (tab === entry.id ? 'shadow-[inset_0_-2px_0_currentColor]' : 'text-dim hover:text-foreground')
             }
           >
@@ -309,14 +379,22 @@ export default function DraftCanvas({
         ))}
       </div>
 
-      <div role="tabpanel" aria-label={TABS.find((entry) => entry.id === tab)?.label} className="flex-1 p-4">
+      <div id={panelId} role="tabpanel" aria-labelledby={tabId(tab)} className="flex-1 p-4">
         {tab === 'plan' && (
           <PlanView
             run={current.run}
             previous={current.run.draft.revision > 1 ? drafts[selected - 1]?.run : undefined}
           />
         )}
-        {tab === 'map' && <div className="mx-auto aspect-square w-full max-w-[36rem]">{map}</div>}
+        {tab === 'map' && (
+          <div
+            role="img"
+            aria-label={`Karte: ${current.run.draft.itinerary.stops.map((stop) => stop.title).join(', ')}`}
+            className="mx-auto aspect-square w-full max-w-[36rem]"
+          >
+            {map}
+          </div>
+        )}
         {tab === 'details' && <DetailsView run={current.run} />}
         {tab === 'trace' && (
           <div className="rounded-xl border border-rule bg-card px-4 py-2">

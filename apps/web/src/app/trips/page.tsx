@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { authFetch } from '@/lib/auth';
 import { formatDate, formatMoney, placeCode, tripDays } from '@/lib/format';
 
@@ -22,7 +22,7 @@ function BoardingPass({ itinerary }: { itinerary: Itinerary }) {
   return (
     <Link
       href={`/trips/detail?id=${itinerary.id}`}
-      className="grid grid-cols-[1fr_auto] overflow-hidden rounded-xl border border-rule bg-card transition hover:border-teal focus-visible:outline-2 focus-visible:outline-teal"
+      className="grid grid-cols-[1fr_auto] overflow-hidden rounded-xl border border-rule bg-card transition hover:border-teal focus-visible:outline-2 focus-visible:outline-(--focus)"
     >
       <div className="relative border-r-2 border-dashed border-rule p-4 before:absolute before:-top-2 before:-right-2 before:size-4 before:rounded-full before:border before:border-rule before:bg-background after:absolute after:-right-2 after:-bottom-2 after:size-4 after:rounded-full after:border after:border-rule after:bg-background">
         <div className="font-mono text-3xl font-semibold leading-none tracking-wider">
@@ -35,7 +35,7 @@ function BoardingPass({ itinerary }: { itinerary: Itinerary }) {
         </div>
       </div>
       <div className="flex min-w-24 flex-col justify-center p-4 text-right">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-dim">Budget</span>
+        <span className="font-mono text-[11px] uppercase tracking-wider text-dim">Budget</span>
         <span className="font-mono font-semibold tabular-nums">
           {formatMoney(itinerary.budgetCents, itinerary.currency)}
         </span>
@@ -68,8 +68,8 @@ export default function TripsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
 
-  useEffect(() => {
-    authFetch(`${API_URL}/itineraries`, { cache: 'no-store' })
+  const load = useCallback(() => {
+    return authFetch(`${API_URL}/itineraries`, { cache: 'no-store' })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -78,11 +78,22 @@ export default function TripsPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  function retry() {
+    setLoadFailed(false);
+    setIsLoading(true);
+    load();
+  }
+
   return (
     <div className="mx-auto w-full max-w-2xl p-4">
       <h1 className="text-2xl font-extrabold">Meine Reisen</h1>
-      <p className="mb-5 font-mono text-[11px] uppercase tracking-widest text-dim">
-        Nur für dich sichtbar · an diesen Browser gebunden
+      <p className="mb-5 mt-1 text-sm text-dim">
+        Nur für dich sichtbar. Deine Reisen hängen an diesem Browser: Löschst du seine
+        Website-Daten, sind sie nicht mehr erreichbar.
       </p>
       {isLoading ? (
         <div className="flex flex-col gap-3" role="status" aria-label="Reisen werden geladen">
@@ -91,16 +102,25 @@ export default function TripsPage() {
           ))}
         </div>
       ) : loadFailed ? (
-        <p className="text-sm text-dim">
-          Deine Reisen konnten gerade nicht geladen werden. Versuch es bitte gleich noch einmal.
-        </p>
+        <div>
+          <p role="alert" className="text-sm text-dim">
+            Deine Reisen konnten gerade nicht geladen werden.
+          </p>
+          <button
+            type="button"
+            onClick={retry}
+            className="mt-3 min-h-10 rounded-lg bg-navy px-4 text-sm font-semibold text-white dark:bg-foreground dark:text-background"
+          >
+            Erneut laden
+          </button>
+        </div>
       ) : itineraries.length === 0 ? (
         <div className="rounded-xl border border-dashed border-rule p-6 text-center">
           <p className="font-semibold">Noch keine Reise gespeichert</p>
           <p className="mt-1 text-sm text-dim">Plane im Chat deine erste Reise.</p>
           <Link
             href="/"
-            className="mt-4 inline-block rounded-lg bg-stamp px-4 py-2 text-sm font-semibold text-white"
+            className="mt-4 inline-block rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white dark:bg-foreground dark:text-background"
           >
             Reise planen
           </Link>

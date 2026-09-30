@@ -19,7 +19,7 @@ function priceLabel(kind: LodgingKind, min: number, max: number) {
 
 // Wie die Quellen-Chips im Chat
 const LINK_CLASS =
-  'block rounded border border-dashed border-teal bg-teal/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-teal hover:bg-teal/15 dark:border-teal-300 dark:text-teal-300';
+  'block rounded border border-dashed border-teal bg-teal/5 px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide text-teal hover:bg-teal/15 dark:border-teal-300 dark:text-teal-300';
 
 // Die Links baut das Backend; hier nur noch sicherstellen, dass es wirklich
 // die beiden Buchungsseiten sind
@@ -59,7 +59,7 @@ export default function LodgingList({ report }: { report: LodgingReport }) {
   const visible = report.items.slice(0, MAX_VISIBLE);
   return (
     <section aria-label={`Unterkünfte ${report.place.name}`} className="mt-3">
-      <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-dim">
+      <p className="mb-1 font-mono text-[11px] uppercase tracking-widest text-dim">
         Unterkünfte · {report.place.name}
         {visible.length > 0 && (
           <span
@@ -79,7 +79,7 @@ export default function LodgingList({ report }: { report: LodgingReport }) {
             >
               <span className="min-w-0">
                 <span className="font-semibold">{item.name}</span>
-                <span className="ml-1.5 font-mono text-[10px] uppercase tracking-wide text-teal dark:text-teal-300">
+                <span className="ml-1.5 font-mono text-[11px] uppercase tracking-wide text-teal dark:text-teal-300">
                   {KIND_LABELS[item.kind] ?? item.kind}
                 </span>
               </span>
@@ -91,13 +91,13 @@ export default function LodgingList({ report }: { report: LodgingReport }) {
         </ul>
       )}
       {report.items.length > MAX_VISIBLE && (
-        <p className="mt-1 text-[10px] text-dim">
+        <p className="mt-1 text-[11px] text-dim">
           + {report.items.length - MAX_VISIBLE} weitere auf dem Globus
         </p>
       )}
       {report.searchLinks && <SearchLinks links={report.searchLinks} />}
       {visible.length > 0 && (
-        <p className="mt-1 text-[10px] text-dim">Unterkünfte: Daten © OpenStreetMap-Mitwirkende</p>
+        <p className="mt-1 text-[11px] text-dim">Unterkünfte: Daten © OpenStreetMap-Mitwirkende</p>
       )}
     </section>
   );

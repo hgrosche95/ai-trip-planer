@@ -14,13 +14,13 @@ export default function CritiquePanel({ critiques }: { critiques: CritiqueRound[
       ? 'text-stamp'
       : allClear || fixed
         ? 'text-teal dark:text-teal-300'
-        : 'text-amber-600 dark:text-amber-400';
+        : 'text-amber-700 dark:text-amber-400';
   const changes = critiques.flatMap((round) =>
     round.changes.map((change) => ({ ...change, round: round.round })),
   );
   return (
     <section aria-label="Prüfung" className="mt-3">
-      <p className="mb-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[10px] uppercase tracking-widest text-dim">
+      <p className="mb-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[11px] uppercase tracking-widest text-dim">
         <span>Prüfung</span>
         <span className={`normal-case tracking-normal ${tone}`}>{critiqueBadge(overview)}</span>
       </p>
@@ -65,7 +65,7 @@ export default function CritiquePanel({ critiques }: { critiques: CritiqueRound[
             >
               <span
                 aria-hidden="true"
-                className={`w-3 ${violation.severity === 'error' ? '' : 'text-amber-600 dark:text-amber-400'}`}
+                className={`w-3 ${violation.severity === 'error' ? '' : 'text-amber-700 dark:text-amber-400'}`}
               >
                 {violation.severity === 'error' ? '✗' : '!'}
               </span>

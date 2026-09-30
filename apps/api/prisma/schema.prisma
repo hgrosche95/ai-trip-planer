@@ -47,6 +47,11 @@ model Itinerary {
   budgetCents Int
   currency    String   @default("EUR")
   preferences String[]
+  // Budgetbericht und Annahmen aus dem Entwurf (Multi-Agent), damit die
+  // gespeicherte Reise dieselben Zahlen zeigt wie der Entwurf. Fehlen bei
+  // Plänen aus dem Klassik-Modus und älteren Plänen.
+  budgetReport Json?
+  assumptions  String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -20,6 +20,15 @@ export interface CreateItineraryInput {
     lat?: number;
     lng?: number;
   }[];
+  // Nur beim Speichern eines Entwurfs aus dem Chat
+  budgetReport?: {
+    currency: string;
+    limitCents: number | null;
+    totalCents: number;
+    status: 'ok' | 'tight' | 'over';
+    items: { category: string; cents: number }[];
+  };
+  assumptions?: string[];
 }
 
 @Injectable()
@@ -40,6 +49,8 @@ export class ItinerariesService {
         budgetCents: input.budgetCents,
         currency: input.currency ?? 'EUR',
         preferences: input.preferences ?? [],
+        budgetReport: input.budgetReport,
+        assumptions: input.assumptions ?? [],
         userId,
         stops: {
           create: input.stops.map((s) => ({

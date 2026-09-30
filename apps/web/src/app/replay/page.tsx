@@ -139,7 +139,7 @@ function Replay() {
             <button
               type="button"
               onClick={restart}
-              className="rounded-lg border border-rule bg-card px-3 py-1.5 font-semibold hover:border-teal focus-visible:outline-2 focus-visible:outline-teal"
+              className="rounded-lg border border-rule bg-card px-3 py-1.5 font-semibold hover:border-teal focus-visible:outline-2 focus-visible:outline-(--focus)"
             >
               Noch einmal abspielen
             </button>
@@ -147,7 +147,7 @@ function Replay() {
             <button
               type="button"
               onClick={showAll}
-              className="rounded-lg border border-rule bg-card px-3 py-1.5 font-semibold hover:border-teal focus-visible:outline-2 focus-visible:outline-teal"
+              className="rounded-lg border border-rule bg-card px-3 py-1.5 font-semibold hover:border-teal focus-visible:outline-2 focus-visible:outline-(--focus)"
             >
               Sofort alles zeigen
             </button>
@@ -191,7 +191,7 @@ function Replay() {
           </>
         ) : (
           <div>
-            <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-dim">
+            <p className="mb-1 font-mono text-[11px] uppercase tracking-widest text-dim">
               KI-Planer
             </p>
             <div className="rounded-2xl rounded-tl-sm border border-rule bg-card px-4 py-3">

@@ -10,7 +10,7 @@ const CATEGORY_LABELS: Record<BudgetItem['category'], string> = {
 // Grün, gelb, rot: im Rahmen, knapp (ab 90 %), überschritten
 const STATUS_STYLES: Record<BudgetReport['status'], { bar: string; text: string; label: string }> = {
   ok: { bar: 'bg-teal dark:bg-teal-300', text: 'text-teal dark:text-teal-300', label: 'im Rahmen' },
-  tight: { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400', label: 'knapp' },
+  tight: { bar: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-400', label: 'knapp' },
   over: { bar: 'bg-stamp', text: 'text-stamp', label: 'überschritten' },
 };
 
@@ -34,7 +34,7 @@ export default function BudgetBar({ report }: { report: BudgetReport }) {
   const share = limit ? report.totalCents / limit : 1;
   return (
     <section aria-label="Budget" className="mt-3">
-      <p className="mb-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[10px] uppercase tracking-widest text-dim">
+      <p className="mb-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[11px] uppercase tracking-widest text-dim">
         <span>Budget</span>
         <span className="normal-case tracking-normal">
           {limit ? (
