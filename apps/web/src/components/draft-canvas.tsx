@@ -3,11 +3,12 @@
 import { useId, useRef, useState } from 'react';
 import BudgetBar from '@/components/budget-bar';
 import CityMap from '@/components/city-map';
+import DayTicket, { dayColor, StopNumber } from '@/components/day-ticket';
 import CritiquePanel from '@/components/critique-panel';
 import LodgingList from '@/components/lodging-list';
 import SaveDraftButton from '@/components/save-draft-button';
 import TracePanel from '@/components/trace-panel';
-import WeatherStrip, { weatherEmoji } from '@/components/weather-strip';
+import WeatherStrip from '@/components/weather-strip';
 import { dayNumbers } from '@/lib/city-map';
 import { critiqueOverview } from '@/lib/critique';
 import { draftDays, type DraftDay } from '@/lib/draft-days';
@@ -40,14 +41,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: 'Sonstiges',
 };
 
-const weekdayLabel = new Intl.DateTimeFormat('de-DE', { weekday: 'short', timeZone: 'UTC' });
-const dateLabel = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
-
-// Vier Tagesfarben, danach von vorn
-function dayColor(dayNumber: number) {
-  return `var(--day-${((dayNumber - 1) % 4) + 1})`;
-}
-
 function DayCard({
   day,
   currency,
@@ -60,44 +53,16 @@ function DayCard({
   onHover: (dayNumber: number | null) => void;
 }) {
   const changed = day.removed.length > 0 || day.stops.some((stop) => stop.isNew);
-  const rainy = (day.weather?.precipMm ?? 0) > 1;
-  const color = dayColor(day.dayNumber);
-  const date = new Date(`${day.date}T00:00:00Z`);
-  // Ticket-Abschnitt wie die Bordkarten unter "Meine Reisen": links ein
-  // Abriss mit Tag, Datum und Wetter, rechts die Programmpunkte
   return (
-    <section
-      aria-label={`Tag ${day.dayNumber}${changed ? ', geändert' : ''}`}
-      onMouseEnter={() => onHover(day.dayNumber)}
-      onMouseLeave={() => onHover(null)}
-      className={
-        'relative grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] rounded-xl bg-card shadow-[0_1px_2px_rgb(20_33_61/0.08),0_4px_14px_-6px_rgb(20_33_61/0.18)] transition-opacity duration-150 motion-reduce:transition-none dark:shadow-none dark:ring-1 dark:ring-rule ' +
-        (changed ? 'ring-2 ring-teal dark:ring-2 dark:ring-teal-300 ' : '') +
-        (dimmed ? 'opacity-45' : '')
-      }
+    <DayTicket
+      dayNumber={day.dayNumber}
+      date={day.date}
+      weather={day.weather}
+      label={`Tag ${day.dayNumber}${changed ? ', geändert' : ''}`}
+      highlighted={changed}
+      dimmed={dimmed}
+      onHover={onHover}
     >
-      <div
-        className="relative flex flex-col items-center justify-center gap-0.5 rounded-l-xl border-r-2 border-dashed border-rule px-1 py-3 text-center before:absolute before:-top-2 before:-right-[9px] before:size-4 before:rounded-full before:bg-background after:absolute after:-right-[9px] after:-bottom-2 after:size-4 after:rounded-full after:bg-background"
-        style={{ background: `color-mix(in srgb, ${color} 9%, transparent)` }}
-      >
-        <span className="font-mono text-[11px] font-semibold tracking-widest text-dim">TAG</span>
-        <span className="text-3xl font-extrabold leading-none" style={{ color }}>
-          {day.dayNumber}
-        </span>
-        <span className="font-mono text-[11px] font-semibold">
-          {weekdayLabel.format(date).replace('.', '').toUpperCase()} {dateLabel.format(date)}
-        </span>
-        {day.weather && (
-          <span title={day.weather.label} className={'mt-1.5 text-[11px] leading-snug ' + (rainy ? 'text-day-1' : 'text-dim')}>
-            <span aria-hidden="true" className="block text-sm">
-              {weatherEmoji(day.weather.code)}
-            </span>
-            <span className="sr-only">{day.weather.label}, </span>
-            {Math.round(day.weather.tMax)}°/{Math.round(day.weather.tMin)}°
-            {rainy && <span className="block">{Math.round(day.weather.precipMm)} mm</span>}
-          </span>
-        )}
-      </div>
       <ol className="flex min-w-0 flex-col px-3.5 py-1">
         {day.stops.map((stop, index) => (
           <li
@@ -107,14 +72,7 @@ function DayCard({
               (stop.isNew ? '-mx-3.5 bg-teal/10 px-3.5' : '')
             }
           >
-            <span
-              aria-hidden="true"
-              className="grid size-5 shrink-0 translate-y-0.5 place-items-center self-start rounded-full font-mono text-[11px] font-semibold text-white"
-              style={{ background: dayColor(day.dayNumber) }}
-            >
-              {/* Nummer innerhalb des Tages, wie auf der Karte */}
-              {index + 1}
-            </span>
+            <StopNumber dayNumber={day.dayNumber} index={index} />
             <span className="min-w-0 flex-1">
               <span className="text-sm font-semibold">{stop.title}</span>
               {stop.isNew && (
@@ -143,7 +101,7 @@ function DayCard({
           </li>
         ))}
       </ol>
-    </section>
+    </DayTicket>
   );
 }
 
