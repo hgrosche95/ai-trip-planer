@@ -4,10 +4,10 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { authFetch } from '@/lib/auth';
 import BudgetBar from '@/components/budget-bar';
 import CritiquePanel from '@/components/critique-panel';
+import DraftCanvas, { type CanvasDraft } from '@/components/draft-canvas';
 import LodgingList from '@/components/lodging-list';
 import ModeToggle from '@/components/mode-toggle';
 import ReplyMarkdown from '@/components/reply-markdown';
-import SaveDraftButton from '@/components/save-draft-button';
 import TracePanel from '@/components/trace-panel';
 import TripGlobe, { type GlobeArc, type GlobeFocus } from '@/components/trip-globe';
 import WeatherStrip from '@/components/weather-strip';
@@ -139,6 +139,11 @@ export default function ChatWindow() {
   const [globePois, setGlobePois] = useState<GlobeFocus[]>([]);
   // Befunde des Kritikers als Ringe an den Programmpunkten
   const [globeIssues, setGlobeIssues] = useState<IssueMarker[]>([]);
+  // Auf der Arbeitsfläche gezeigter Entwurf (Index seiner Antwort im Chat),
+  // null = immer der neueste
+  const [shownDraft, setShownDraft] = useState<number | null>(null);
+  // Schmale Bildschirme zeigen Chat oder Plan, breite beides nebeneinander
+  const [view, setView] = useState<'chat' | 'plan'>('chat');
   // Gewählter Modus aus localStorage; beim statischen Vorrendern und vor dem
   // Hydrieren gilt der Default, damit das HTML übereinstimmt.
   const agentMode = useSyncExternalStore(
@@ -221,6 +226,8 @@ export default function ChatWindow() {
         throw new Error('Stream ohne Antwort beendet');
       }
       const finished = run;
+      // Ein neuer Entwurf erscheint sofort auf der Arbeitsfläche
+      if (finished.draft) setShownDraft(null);
       setMessages((prev) => [
         ...prev,
         {
@@ -256,6 +263,183 @@ export default function ChatWindow() {
     }
   }
 
+  const hasStarted = messages.length > 0 || isLoading;
+  // Welche Antwort den neuesten Entwurf trägt ("Plan speichern")
+  const versions = draftVersions(messages.map((message) => message.trace));
+  // Alle abgeschlossenen Entwürfe der Session, in Reihenfolge des Chats
+  const drafts: CanvasDraft[] = messages.flatMap((message, index) =>
+    versions[index] && message.trace?.draft
+      ? [{ messageIndex: index, run: message.trace as CanvasDraft['run'] }]
+      : [],
+  );
+  const hasCanvas = drafts.length > 0;
+  const shownPosition = drafts.findIndex((draft) => draft.messageIndex === shownDraft);
+  const selectedDraft = shownPosition === -1 ? drafts.length - 1 : shownPosition;
+
+  function showDraft(messageIndex: number) {
+    setShownDraft(messageIndex);
+    setView('plan');
+  }
+
+  const globe = (
+    <TripGlobe
+      focus={globeFocus}
+      route={globeRoute}
+      places={globePlaces}
+      arcs={globeArcs}
+      pois={globePois}
+      issues={globeIssues}
+    />
+  );
+
+  const conversation = (
+    <div className="mb-4 flex flex-1 flex-col gap-4">
+      {messages.length === 0 && !isLoading && <EmptyState onPick={setInput} />}
+
+      {messages.map((message, index) => {
+        if (message.role === 'user') {
+          return (
+            <div key={index} className="flex justify-end">
+              <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-navy px-4 py-2 text-white dark:bg-teal">
+                {message.content}
+              </p>
+            </div>
+          );
+        }
+        // Antworten mit Entwurf bleiben im Chat kurz: Plan, Wetter, Budget
+        // und Ablauf stehen auf der Arbeitsfläche daneben
+        const draft = versions[index] ? message.trace?.draft : undefined;
+        return (
+          <div key={index} className="max-w-[92%]">
+            <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-dim">
+              KI-Planer
+            </p>
+            <div className="rounded-2xl rounded-tl-sm border border-rule bg-card px-4 py-3">
+              <ReplyMarkdown text={message.content} />
+              {!draft && (
+                <>
+                  {message.trace?.weather.map((report) => (
+                    <WeatherStrip key={report.place.name} report={report} />
+                  ))}
+                  {message.trace?.lodging.map((report) => (
+                    <LodgingList key={report.place.name} report={report} />
+                  ))}
+                  {message.trace?.budget && <BudgetBar report={message.trace.budget} />}
+                  {message.trace && <CritiquePanel critiques={message.trace.critiques} />}
+                </>
+              )}
+              <SourcesPanel sources={message.sources} searchAttempted={message.searchAttempted} />
+              {message.trace && !draft && <TracePanel run={message.trace} />}
+            </div>
+            {draft && (
+              <button
+                type="button"
+                onClick={() => showDraft(index)}
+                aria-pressed={drafts[selectedDraft]?.messageIndex === index}
+                className={
+                  'mt-2 rounded-md border border-dashed px-2 py-1 font-mono text-[11px] focus-visible:outline-2 focus-visible:outline-teal ' +
+                  (drafts[selectedDraft]?.messageIndex === index
+                    ? 'border-teal text-teal dark:border-teal-300 dark:text-teal-300'
+                    : 'border-rule text-dim hover:border-teal hover:text-teal')
+                }
+              >
+                Fassung {draft.revision}
+                {versions[index] === 'superseded' && ' (älter)'} · im Plan ansehen
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      {liveRun && (
+        <div className="max-w-[92%]">
+          <TracePanel run={liveRun} live />
+          {/* Wetter schon während des Laufs, sobald get_weather fertig ist */}
+          {liveRun.weather.map((report) => (
+            <WeatherStrip key={report.place.name} report={report} />
+          ))}
+          {liveRun.lodging.map((report) => (
+            <LodgingList key={report.place.name} report={report} />
+          ))}
+          {liveRun.budget && <BudgetBar report={liveRun.budget} />}
+          <CritiquePanel critiques={liveRun.critiques} />
+        </div>
+      )}
+    </div>
+  );
+
+  const composer = (
+    <>
+      <ModeToggle mode={agentMode} onChange={storeAgentMode} />
+      <form
+        onSubmit={handleSubmit}
+        className="flex gap-2 rounded-xl border border-rule bg-card p-2 focus-within:border-teal"
+      >
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Beschreib deine Reisewünsche..."
+          aria-label="Nachricht"
+          className="min-w-0 flex-1 bg-transparent px-2 py-1.5 outline-none placeholder:text-dim"
+        />
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="rounded-lg bg-navy px-4 py-2 font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-teal dark:bg-foreground dark:text-background"
+        >
+          Senden
+        </button>
+      </form>
+    </>
+  );
+
+  if (hasCanvas) {
+    // Chat links, Arbeitsfläche mit dem Entwurf rechts. Die Seite scrollt mit
+    // dem Chat, die Arbeitsfläche bleibt dabei stehen (sticky) und scrollt für
+    // sich. Unter lg zeigt ein Umschalter entweder Chat oder Plan.
+    const tabClass = (active: boolean) =>
+      'py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-teal ' +
+      (active ? 'bg-navy text-white dark:bg-foreground dark:text-background' : 'bg-card text-dim');
+    return (
+      <div className="flex flex-1 flex-col lg:grid lg:grid-cols-[minmax(22rem,28rem)_minmax(0,1fr)]">
+        <div
+          role="tablist"
+          aria-label="Ansicht"
+          className="sticky top-0 z-10 grid grid-cols-2 overflow-hidden border-b border-rule lg:hidden"
+        >
+          <button type="button" role="tab" aria-selected={view === 'chat'} onClick={() => setView('chat')} className={tabClass(view === 'chat')}>
+            Chat
+          </button>
+          <button type="button" role="tab" aria-selected={view === 'plan'} onClick={() => setView('plan')} className={tabClass(view === 'plan')}>
+            Plan · Fassung {drafts[selectedDraft].run.draft.revision}
+          </button>
+        </div>
+        <div
+          className={
+            (view === 'chat' ? 'flex' : 'hidden') +
+            ' min-w-0 flex-1 flex-col p-4 lg:flex lg:border-r lg:border-rule'
+          }
+        >
+          {conversation}
+          <div className="sticky bottom-0 bg-background pb-1 pt-2">{composer}</div>
+        </div>
+        <div
+          className={
+            (view === 'plan' ? 'block' : 'hidden') +
+            ' min-w-0 flex-1 lg:sticky lg:top-0 lg:block lg:h-dvh lg:self-start lg:overflow-y-auto'
+          }
+        >
+          <DraftCanvas
+            drafts={drafts}
+            selected={selectedDraft}
+            onSelect={(position) => setShownDraft(drafts[position].messageIndex)}
+            map={globe}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // Vor der ersten Nachricht steht der Globus mittig hinter dem Startbildschirm,
   // danach rückt er ganz sichtbar an den rechten Rand, damit der Chat lesbar bleibt.
   // Nur Position und Deckkraft animieren: eine Größenänderung würde die
@@ -264,10 +448,7 @@ export default function ChatWindow() {
   // Antwort, ein daran zentrierter Globus rutschte sonst nach unten und
   // verschwand beim Scrollen aus dem Blick. Die Mitte liegt 1,5rem unter der
   // Fenstermitte, also in der Mitte der Fläche unter der Navigationsleiste.
-  const hasStarted = messages.length > 0 || isLoading;
-  // Welche Antwort den neuesten Entwurf trägt ("Plan speichern")
-  const versions = draftVersions(messages.map((message) => message.trace));
-
+  // Sobald es einen Entwurf gibt, wandert der Globus in die Arbeitsfläche (Karte).
   return (
     <>
       <div
@@ -279,95 +460,11 @@ export default function ChatWindow() {
             : 'left-1/2 -translate-x-1/2 opacity-40 dark:opacity-60')
         }
       >
-        <TripGlobe
-          focus={globeFocus}
-          route={globeRoute}
-          places={globePlaces}
-          arcs={globeArcs}
-          pois={globePois}
-          issues={globeIssues}
-        />
+        {globe}
       </div>
       <div className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col p-4">
-        <div className="mb-4 flex flex-1 flex-col gap-4 overflow-y-auto">
-          {messages.length === 0 && !isLoading && <EmptyState onPick={setInput} />}
-
-          {messages.map((message, index) =>
-            message.role === 'user' ? (
-              <div key={index} className="flex justify-end">
-                <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-navy px-4 py-2 text-white dark:bg-teal">
-                  {message.content}
-                </p>
-              </div>
-            ) : (
-              <div key={index} className="max-w-[92%]">
-                <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-dim">
-                  KI-Planer
-                </p>
-                <div className="rounded-2xl rounded-tl-sm border border-rule bg-card px-4 py-3">
-                  <ReplyMarkdown text={message.content} />
-                  {message.trace?.weather.map((report) => (
-                    <WeatherStrip key={report.place.name} report={report} />
-                  ))}
-                  {message.trace?.lodging.map((report) => (
-                    <LodgingList key={report.place.name} report={report} />
-                  ))}
-                  {message.trace?.budget && <BudgetBar report={message.trace.budget} />}
-                  {message.trace && <CritiquePanel critiques={message.trace.critiques} />}
-                  <SourcesPanel
-                    sources={message.sources}
-                    searchAttempted={message.searchAttempted}
-                  />
-                  {message.trace && <TracePanel run={message.trace} />}
-                </div>
-                {/* Multi-Modus: Der Plan ist ein Entwurf, gespeichert wird erst
-                    hier, und nur der neueste; ältere Fassungen sind überholt */}
-                {message.trace?.draft && versions[index] && (
-                  <SaveDraftButton
-                    itinerary={message.trace.draft.itinerary}
-                    revision={message.trace.draft.revision}
-                    superseded={versions[index] === 'superseded'}
-                  />
-                )}
-              </div>
-            ),
-          )}
-
-          {liveRun && (
-            <div className="max-w-[92%]">
-              <TracePanel run={liveRun} live />
-              {/* Wetter schon während des Laufs, sobald get_weather fertig ist */}
-              {liveRun.weather.map((report) => (
-                <WeatherStrip key={report.place.name} report={report} />
-              ))}
-              {liveRun.lodging.map((report) => (
-                <LodgingList key={report.place.name} report={report} />
-              ))}
-              {liveRun.budget && <BudgetBar report={liveRun.budget} />}
-              <CritiquePanel critiques={liveRun.critiques} />
-            </div>
-          )}
-        </div>
-
-        <ModeToggle mode={agentMode} onChange={storeAgentMode} />
-        <form
-          onSubmit={handleSubmit}
-          className="flex gap-2 rounded-xl border border-rule bg-card p-2 focus-within:border-teal"
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Beschreib deine Reisewünsche..."
-            className="flex-1 bg-transparent px-2 py-1.5 outline-none placeholder:text-dim"
-          />
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="rounded-lg bg-stamp px-4 py-2 font-semibold text-white disabled:opacity-50"
-          >
-            Senden
-          </button>
-        </form>
+        {conversation}
+        {composer}
       </div>
     </>
   );

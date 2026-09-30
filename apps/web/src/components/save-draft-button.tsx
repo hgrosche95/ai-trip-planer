@@ -84,7 +84,7 @@ export default function SaveDraftButton({
         type="button"
         onClick={save}
         disabled={state.kind === 'saving' || saved}
-        className="rounded-lg bg-stamp px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-teal"
+        className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-teal dark:bg-foreground dark:text-background"
       >
         {state.kind === 'saving' ? 'Wird gespeichert …' : 'Plan speichern'}
       </button>
