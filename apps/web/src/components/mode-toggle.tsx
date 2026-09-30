@@ -36,7 +36,7 @@ export default function ModeToggle({
 
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2">
-      <span id="agent-mode-label" className="font-mono text-[10px] uppercase tracking-widest text-dim">
+      <span id="agent-mode-label" className="font-mono text-[11px] uppercase tracking-widest text-dim">
         Modus
       </span>
       <div
@@ -59,13 +59,13 @@ export default function ModeToggle({
               onClick={() => onChange(option.mode)}
               onKeyDown={(event) => handleKeyDown(event, index)}
               className={
-                'rounded-md px-2.5 py-1 text-left text-xs transition focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-teal ' +
+                'min-h-9 rounded-md px-2.5 py-1 text-left text-xs transition focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--focus) ' +
                 (selected
                   ? 'bg-teal/10 text-teal dark:bg-teal-300/10 dark:text-teal-300'
                   : 'text-dim hover:text-foreground')
               }
             >
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-widest">
+              <span className="font-mono text-[11px] font-semibold uppercase tracking-widest">
                 {option.label}
               </span>
               <span className="hidden sm:inline"> · {option.detail}</span>

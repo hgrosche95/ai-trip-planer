@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { authFetch } from '@/lib/auth';
-import type { ItineraryDraft } from '@/lib/run-events';
+import type { BudgetReport, ItineraryDraft } from '@/lib/run-events';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -19,16 +19,30 @@ type SaveState =
 // Button an; ältere (superseded) zeigen "Überholt durch neuere Version",
 // wurden sie schon gespeichert, bleibt der Link zur gespeicherten Reise.
 // revision: Fassung in der Session, ab 2 steht sie im Hinweis.
+// savedId/onSaved: Der Chat merkt sich gespeicherte Entwürfe über ein
+// Neuladen hinweg, damit nichts doppelt gespeichert wird und er beim
+// Verlassen der Seite nur bei wirklich ungespeichertem Plan warnt.
 export default function SaveDraftButton({
   itinerary,
   revision = 1,
   superseded = false,
+  savedId,
+  onSaved,
+  budgetReport,
+  assumptions,
 }: {
   itinerary: ItineraryDraft;
+  // Gehen mit, damit die gespeicherte Reise dieselben Zahlen zeigt
+  budgetReport?: BudgetReport;
+  assumptions?: string[];
   revision?: number;
   superseded?: boolean;
+  savedId?: string;
+  onSaved?: (id: string) => void;
 }) {
-  const [state, setState] = useState<SaveState>({ kind: 'idle' });
+  const [state, setState] = useState<SaveState>(
+    savedId ? { kind: 'saved', id: savedId } : { kind: 'idle' },
+  );
   // Sperre gegen Doppelklick: greift sofort, nicht erst nach dem nächsten Rendern
   const busy = useRef(false);
 
@@ -40,11 +54,12 @@ export default function SaveDraftButton({
       const response = await authFetch(`${API_URL}/itineraries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(itinerary),
+        body: JSON.stringify({ ...itinerary, budgetReport, assumptions }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const { id } = (await response.json()) as { id: string };
       setState({ kind: 'saved', id });
+      onSaved?.(id);
     } catch {
       setState({
         kind: 'error',
@@ -84,7 +99,7 @@ export default function SaveDraftButton({
         type="button"
         onClick={save}
         disabled={state.kind === 'saving' || saved}
-        className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-teal dark:bg-foreground dark:text-background"
+        className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-(--focus) dark:bg-foreground dark:text-background"
       >
         {state.kind === 'saving' ? 'Wird gespeichert …' : 'Plan speichern'}
       </button>

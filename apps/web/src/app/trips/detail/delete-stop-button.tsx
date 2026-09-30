@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import ConfirmButton from '@/components/confirm-button';
 import { authFetch } from '@/lib/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -8,34 +8,31 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 export default function DeleteStopButton({
   itineraryId,
   stopId,
+  stopTitle,
   onDeleted,
 }: {
   itineraryId: string;
   stopId: string;
+  stopTitle: string;
   onDeleted: () => void;
 }) {
-  const [failed, setFailed] = useState(false);
-
   async function handleDelete() {
-    setFailed(false);
-    try {
-      const response = await authFetch(`${API_URL}/itineraries/${itineraryId}/stops/${stopId}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    } catch {
-      setFailed(true);
-      return;
-    }
+    const response = await authFetch(`${API_URL}/itineraries/${itineraryId}/stops/${stopId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     onDeleted();
   }
 
   return (
-    <button
-      onClick={handleDelete}
-      className="font-mono text-[10px] uppercase tracking-widest text-dim hover:text-stamp"
-    >
-      {failed ? 'Fehlgeschlagen, nochmal?' : 'Entfernen'}
-    </button>
+    <ConfirmButton
+      label="Entfernen"
+      accessibleLabel={`${stopTitle} entfernen`}
+      question="Wirklich entfernen?"
+      confirmLabel="Ja, entfernen"
+      pendingLabel="Wird entfernt …"
+      onConfirm={handleDelete}
+      className="-my-1 -mr-2 min-h-9 rounded-lg px-2 text-xs font-semibold text-dim hover:bg-stamp/10 hover:text-stamp"
+    />
   );
 }

@@ -10,13 +10,13 @@ test('Wissensfrage zu einem Reiseziel zeigt eine Quellenanzeige', async ({ page 
   }
 
   await page.goto('/login');
-  await page.getByPlaceholder('Username').fill(username);
-  await page.getByPlaceholder('Passwort').fill(password);
-  await page.getByRole('button', { name: 'Einloggen' }).click();
+  await page.getByLabel('Benutzername').fill(username);
+  await page.getByLabel('Passwort').fill(password);
+  await page.getByRole('button', { name: 'Anmelden' }).click();
   await page.waitForURL('/');
 
   await page
-    .getByPlaceholder('Beschreib deine Reisewünsche...')
+    .getByRole('textbox', { name: 'Nachricht' })
     .fill('Was kann man in Lissabon essen und trinken?');
   await page.getByRole('button', { name: 'Senden' }).click();
 

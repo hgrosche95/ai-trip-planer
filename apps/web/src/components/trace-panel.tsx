@@ -135,7 +135,7 @@ function AgentLanes({
     <div className="space-y-2 py-1" aria-label="Agenten">
       {lanes.map((lane) => (
         <section key={lane.agent} aria-label={lane.label}>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-dim">{lane.label}</p>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-dim">{lane.label}</p>
           <ol className="space-y-0.5">
             {lane.bars.map((bar) => (
               <li key={bar.step.id} className="text-xs">
@@ -328,7 +328,7 @@ export default function TracePanel({
   if (live) {
     return (
       <div className="rounded-xl border border-rule bg-card px-3 py-2 text-sm" aria-live="polite">
-        <p className="mb-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-teal dark:text-teal-300">
+        <p className="mb-1 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-teal dark:text-teal-300">
           {run.mode === 'multi' ? 'Agenten arbeiten' : 'Agent arbeitet'}
         </p>
         {run.steps.length === 0 && run.agentSteps.length === 0 ? (
@@ -343,7 +343,7 @@ export default function TracePanel({
   if (run.steps.length === 0 && run.agentSteps.length === 0) return null;
   return (
     <details className="mt-3 border-t border-rule pt-2 text-sm">
-      <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-dim">
+      <summary className="cursor-pointer font-mono text-[11px] uppercase tracking-widest text-dim">
         Ablauf · <TotalsLine run={run} />
       </summary>
       <div className="mt-1">
@@ -352,7 +352,7 @@ export default function TracePanel({
       {replayLink && run.runId && (
         <Link
           href={`/replay?run=${encodeURIComponent(run.runId)}`}
-          className="mt-1 inline-block font-mono text-[10px] uppercase tracking-widest text-teal hover:underline dark:text-teal-300"
+          className="mt-1 inline-block font-mono text-[11px] uppercase tracking-widest text-teal hover:underline dark:text-teal-300"
         >
           ▶ Lauf erneut abspielen
         </Link>

@@ -40,7 +40,7 @@ function DayChip({ day }: { day: WeatherDay }) {
       title={day.label}
       className="flex min-w-[4.5rem] shrink-0 flex-col items-center rounded-lg border border-rule bg-card px-2 py-1 text-xs"
     >
-      <span className="font-mono text-[10px] uppercase tracking-wide text-dim">
+      <span className="font-mono text-[11px] uppercase tracking-wide text-dim">
         {formatDay(day.date)}
       </span>
       <span aria-hidden="true" className="text-lg leading-tight">
@@ -52,7 +52,7 @@ function DayChip({ day }: { day: WeatherDay }) {
         <span className="text-dim"> / {day.tMin}°</span>
       </span>
       {rainy && (
-        <span className="font-mono text-[10px] text-teal dark:text-teal-300">
+        <span className="font-mono text-[11px] text-teal dark:text-teal-300">
           {day.precipMm.toLocaleString('de-DE')} mm
         </span>
       )}
@@ -66,7 +66,7 @@ export default function WeatherStrip({ report }: { report: WeatherReport }) {
   if (report.days.length === 0) return null;
   return (
     <section aria-label={`Wetter ${report.place.name}`} className="mt-3">
-      <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-dim">
+      <p className="mb-1 font-mono text-[11px] uppercase tracking-widest text-dim">
         Wetter · {report.place.name}
         {report.source === 'climate' && (
           <span

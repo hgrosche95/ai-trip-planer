@@ -1,8 +1,11 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import BudgetBar from '@/components/budget-bar';
 import { authFetch } from '@/lib/auth';
+import type { BudgetReport } from '@/lib/run-events';
 import TripGlobe, { type GlobeFocus } from '@/components/trip-globe';
 import { formatDate, formatMoney, placeCode, tripDays } from '@/lib/format';
 import DeleteTripButton from './delete-trip-button';
@@ -29,6 +32,9 @@ interface ItineraryDetail {
   currency: string;
   preferences: string[];
   stops: Stop[];
+  // Aus dem Entwurf mitgespeichert; fehlt bei älteren und Klassik-Plänen
+  budgetReport?: BudgetReport | null;
+  assumptions?: string[];
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -46,7 +52,7 @@ function CategoryStamp({ category }: { category: string }) {
   const stamp = CATEGORY_STAMPS[category] ?? CATEGORY_STAMPS.OTHER;
   return (
     <span
-      className={`shrink-0 -rotate-3 rounded-sm border-[1.5px] border-current px-1.5 py-px font-mono text-[9px] font-semibold uppercase tracking-widest ${stamp.className}`}
+      className={`shrink-0 -rotate-3 rounded-sm border-[1.5px] border-current px-1.5 py-px font-mono text-[11px] font-semibold uppercase tracking-wider ${stamp.className}`}
     >
       {stamp.label}
     </span>
@@ -66,10 +72,41 @@ function routeOf(stops: Stop[]): GlobeFocus[] {
   return route;
 }
 
+// In UTC wie im Entwurf: Das Startdatum kommt als Mitternacht UTC, in
+// lokaler Zeit westlich von Greenwich wäre das schon der Vortag
 function weekdayOf(startIso: string, dayNumber: number) {
   const date = new Date(startIso);
-  date.setDate(date.getDate() + dayNumber - 1);
-  return date.toLocaleDateString('de-DE', { weekday: 'short' });
+  date.setUTCDate(date.getUTCDate() + dayNumber - 1);
+  return date.toLocaleDateString('de-DE', { weekday: 'short', timeZone: 'UTC' });
+}
+
+// Ladefehler mit Ausweg: erneut versuchen oder zurück zur Liste
+function LoadError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="mx-auto w-full max-w-2xl p-4">
+      <h1 className="text-2xl font-extrabold">Reise</h1>
+      <p role="alert" className="mt-2 text-sm text-dim">
+        {message}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="min-h-10 rounded-lg bg-navy px-4 text-sm font-semibold text-white dark:bg-foreground dark:text-background"
+          >
+            Erneut laden
+          </button>
+        )}
+        <Link
+          href="/trips"
+          className="inline-flex min-h-10 items-center rounded-lg border border-rule px-4 text-sm font-semibold"
+        >
+          Zu Meine Reisen
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 async function fetchItinerary(id: string): Promise<ItineraryDetail> {
@@ -112,26 +149,44 @@ function TripDetail() {
 
   const [itinerary, setItinerary] = useState<ItineraryDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ message: string; retry: boolean } | null>(null);
+
+  const showLoadError = useCallback(
+    (error: unknown) =>
+      setLoadError({
+        message: loadErrorMessage(error),
+        retry: !(error instanceof Error && error.cause === 404),
+      }),
+    [],
+  );
 
   const loadItinerary = useCallback(() => {
     if (!id) return;
-    fetchItinerary(id).then(setItinerary, (error) => setLoadError(loadErrorMessage(error)));
-  }, [id]);
+    fetchItinerary(id).then(setItinerary, showLoadError);
+  }, [id, showLoadError]);
+
+  function retry() {
+    if (!id) return;
+    setLoadError(null);
+    setIsLoading(true);
+    fetchItinerary(id)
+      .then(setItinerary, showLoadError)
+      .finally(() => setIsLoading(false));
+  }
 
   useEffect(() => {
     if (!id) return;
     fetchItinerary(id)
-      .then(setItinerary, (error) => setLoadError(loadErrorMessage(error)))
+      .then(setItinerary, showLoadError)
       .finally(() => setIsLoading(false));
-  }, [id]);
+  }, [id, showLoadError]);
 
   if (!id) {
-    return <p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">Keine Reise ausgewählt.</p>;
+    return <LoadError message="Keine Reise ausgewählt." />;
   }
 
   if (loadError) {
-    return <p className="mx-auto max-w-2xl p-4 text-sm text-zinc-500">{loadError}</p>;
+    return <LoadError message={loadError.message} onRetry={loadError.retry ? retry : undefined} />;
   }
 
   if (isLoading || !itinerary) {
@@ -150,9 +205,12 @@ function TripDetail() {
   // Die API liefert die Stopps schon nach Tag und Reihenfolge sortiert
   const route = routeOf(itinerary.stops);
 
-    return (
+  const report = itinerary.budgetReport;
+  const assumptions = itinerary.assumptions ?? [];
+
+  return (
     <div className="mx-auto w-full max-w-2xl p-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div>
           <div className="flex items-baseline gap-3">
             <span className="font-mono text-3xl font-semibold tracking-wider">
@@ -165,30 +223,55 @@ function TripDetail() {
             {tripLength === 1 ? 'TAG' : 'TAGE'}
           </p>
         </div>
-        <DeleteTripButton itineraryId={itinerary.id} onDeleted={() => router.push('/trips')} />
+        <DeleteTripButton
+          itineraryId={itinerary.id}
+          destination={itinerary.destination}
+          onDeleted={() => router.push('/trips')}
+        />
       </div>
 
-      <div className="mt-4 rounded-xl border border-rule bg-card p-4">
-        <div className="flex justify-between font-mono text-xs">
-          <span className="uppercase tracking-widest text-dim">Verplant</span>
-          <span className={`font-semibold tabular-nums ${isOverBudget ? 'text-stamp' : ''}`}>
-            {formatMoney(plannedCents, itinerary.currency)} /{' '}
-            {formatMoney(itinerary.budgetCents, itinerary.currency)}
-          </span>
+      {report ? (
+        // Dieselbe Schätzung wie im Entwurf: Anreise, Unterkunft, Programm, Essen
+        <div className="mt-4 rounded-xl border border-rule bg-card px-4 pb-4 pt-1">
+          <BudgetBar report={report} />
+          {assumptions.length > 0 && (
+            <section aria-label="Annahmen" className="mt-3">
+              <h2 className="mb-1 font-mono text-[11px] uppercase tracking-wider text-dim">
+                Annahmen
+              </h2>
+              <ul className="list-disc space-y-0.5 pl-5 text-sm">
+                {assumptions.map((assumption) => (
+                  <li key={assumption}>{assumption}</li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rule">
-          <div
-            className={`h-full rounded-full ${isOverBudget ? 'bg-stamp' : 'bg-teal'}`}
-            style={{ width: `${Math.min(percent, 100)}%` }}
-          />
+      ) : (
+        <div className="mt-4 rounded-xl border border-rule bg-card p-4">
+          <div className="flex justify-between gap-3 font-mono text-xs">
+            <span className="uppercase tracking-wider text-dim">Programmpunkte</span>
+            <span className={`font-semibold tabular-nums ${isOverBudget ? 'text-stamp' : ''}`}>
+              {formatMoney(plannedCents, itinerary.currency)} /{' '}
+              {formatMoney(itinerary.budgetCents, itinerary.currency)}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rule">
+            <div
+              className={`h-full rounded-full ${isOverBudget ? 'bg-stamp' : 'bg-teal'}`}
+              style={{ width: `${Math.min(percent, 100)}%` }}
+            />
+          </div>
+          {isOverBudget ? (
+            <p className="mt-2 text-xs text-stamp">
+              Budget um {formatMoney(plannedCents - itinerary.budgetCents, itinerary.currency)}{' '}
+              überschritten.
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-dim">Nur die Programmpunkte, ohne Anreise und Unterkunft.</p>
+          )}
         </div>
-        {isOverBudget && (
-          <p className="mt-2 text-xs text-stamp">
-            Budget um {formatMoney(plannedCents - itinerary.budgetCents, itinerary.currency)}{' '}
-            überschritten.
-          </p>
-        )}
-      </div>
+      )}
 
       {route.length > 0 && (
         <div
@@ -203,7 +286,7 @@ function TripDetail() {
       <div className="mt-6 flex flex-col gap-6">
         {days.map((day) => (
           <section key={day} className="grid grid-cols-[3rem_1fr] gap-3">
-                        <div className="border-r-2 border-foreground pr-2 text-center font-mono text-[10px] uppercase text-dim">
+            <div className="border-r-2 border-foreground pr-2 text-center font-mono text-[11px] uppercase text-dim">
               <h2>
                 Tag{' '}
                 <span className="block text-2xl font-bold leading-none text-foreground">{day}</span>
@@ -224,13 +307,16 @@ function TripDetail() {
                     )}
                     <div className="mt-2 flex items-center justify-between">
                       <span className="font-mono text-sm tabular-nums">
-                        {stop.costCents != null
-                          ? formatMoney(stop.costCents, itinerary.currency)
-                          : '–'}
+                        {stop.costCents == null
+                          ? '–'
+                          : stop.costCents === 0
+                            ? 'frei'
+                            : formatMoney(stop.costCents, itinerary.currency)}
                       </span>
                       <DeleteStopButton
                         itineraryId={itinerary.id}
                         stopId={stop.id}
+                        stopTitle={stop.title}
                         onDeleted={loadItinerary}
                       />
                     </div>

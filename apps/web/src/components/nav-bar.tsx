@@ -24,6 +24,7 @@ export default function NavBar() {
             <Link
               key={link.href}
               href={link.href}
+              aria-current={isActive ? 'page' : undefined}
               className={
                 'pb-0.5 ' +
                 (isActive ? 'border-b-2 border-teal-300' : 'opacity-80 hover:opacity-100')

@@ -7,6 +7,9 @@ import Spinner from '@/components/spinner';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+const fieldClass =
+  'min-h-11 rounded-lg border border-rule bg-card px-3 text-base outline-none focus-visible:border-teal focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--focus)';
+
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState('');
@@ -27,13 +30,13 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       });
     } catch {
-      setError('Server nicht erreichbar.');
+      setError('Der Server ist gerade nicht erreichbar. Versuch es bitte gleich noch einmal.');
       setIsLoading(false);
       return;
     }
 
     if (!response.ok) {
-      setError('Login fehlgeschlagen.');
+      setError('Benutzername oder Passwort stimmt nicht.');
       setIsLoading(false);
       return;
     }
@@ -45,32 +48,44 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center p-4">
-      <h1 className="mb-4 text-xl font-semibold">Login</h1>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-          className="rounded-lg border px-4 py-2"
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Passwort"
-          className="rounded-lg border px-4 py-2"
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
+      <h1 className="mb-5 text-2xl font-extrabold">Anmelden</h1>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1 text-sm font-semibold">
+          Benutzername
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            required
+            className={fieldClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-semibold">
+          Passwort
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+            className={fieldClass}
+          />
+        </label>
+        {error && (
+          <p role="alert" className="text-sm text-stamp dark:text-red-400">
+            {error}
+          </p>
+        )}
         <button
           type="submit"
           disabled={isLoading}
-          className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+          className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-navy px-4 font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus) dark:bg-foreground dark:text-background"
         >
           {isLoading && <Spinner />}
-          {isLoading ? 'Melde an…' : 'Einloggen'}
+          {isLoading ? 'Melde an …' : 'Anmelden'}
         </button>
         {isLoading && (
-          <p className="text-center text-xs text-zinc-500">
+          <p role="status" className="text-center text-xs text-dim">
             Das kann nach einer Ruhephase der Demo etwas dauern (Server startet neu).
           </p>
         )}
