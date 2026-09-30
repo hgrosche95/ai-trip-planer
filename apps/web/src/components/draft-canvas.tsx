@@ -1,12 +1,14 @@
 'use client';
 
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState } from 'react';
 import BudgetBar from '@/components/budget-bar';
+import CityMap from '@/components/city-map';
 import CritiquePanel from '@/components/critique-panel';
 import LodgingList from '@/components/lodging-list';
 import SaveDraftButton from '@/components/save-draft-button';
 import TracePanel from '@/components/trace-panel';
 import WeatherStrip, { weatherEmoji } from '@/components/weather-strip';
+import { dayNumbers } from '@/lib/city-map';
 import { critiqueOverview } from '@/lib/critique';
 import { draftDays, type DraftDay } from '@/lib/draft-days';
 import { formatDate, formatMoney, placeCode, tripDays } from '@/lib/format';
@@ -21,11 +23,10 @@ export interface CanvasDraft {
   run: RunState & { draft: NonNullable<RunState['draft']> };
 }
 
-type Tab = 'plan' | 'map' | 'details' | 'trace';
+type Tab = 'plan' | 'details' | 'trace';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'plan', label: 'Plan' },
-  { id: 'map', label: 'Karte' },
   { id: 'details', label: 'Wetter & Budget' },
   { id: 'trace', label: 'Ablauf' },
 ];
@@ -51,15 +52,28 @@ function dayColor(dayNumber: number) {
   return `var(--day-${((dayNumber - 1) % 4) + 1})`;
 }
 
-function DayCard({ day, currency }: { day: DraftDay; currency: string }) {
+function DayCard({
+  day,
+  currency,
+  dimmed,
+  onHover,
+}: {
+  day: DraftDay;
+  currency: string;
+  dimmed: boolean;
+  onHover: (dayNumber: number | null) => void;
+}) {
   const changed = day.removed.length > 0 || day.stops.some((stop) => stop.isNew);
   const rainy = (day.weather?.precipMm ?? 0) > 1;
   return (
     <section
       aria-label={`Tag ${day.dayNumber}${changed ? ', geändert' : ''}`}
+      onMouseEnter={() => onHover(day.dayNumber)}
+      onMouseLeave={() => onHover(null)}
       className={
-        'flex min-w-0 flex-col rounded-xl border border-t-4 border-rule bg-card ' +
-        (changed ? 'ring-2 ring-teal dark:ring-teal-300' : '')
+        'flex min-w-0 flex-col rounded-xl border border-t-4 border-rule bg-card transition-opacity duration-150 motion-reduce:transition-none ' +
+        (changed ? 'ring-2 ring-teal dark:ring-teal-300 ' : '') +
+        (dimmed ? 'opacity-45' : '')
       }
       style={{ borderTopColor: dayColor(day.dayNumber) }}
     >
@@ -78,15 +92,23 @@ function DayCard({ day, currency }: { day: DraftDay; currency: string }) {
         )}
       </header>
       <ol className="flex flex-col px-3 py-1">
-        {day.stops.map((stop) => (
+        {day.stops.map((stop, index) => (
           <li
             key={`${stop.order}-${stop.title}`}
             className={
-              'flex items-baseline justify-between gap-2 border-b border-dashed border-rule py-2 last:border-b-0 ' +
+              'flex items-baseline gap-2 border-b border-dashed border-rule py-2 last:border-b-0 ' +
               (stop.isNew ? '-mx-3 bg-teal/10 px-3' : '')
             }
           >
-            <span className="min-w-0">
+            <span
+              aria-hidden="true"
+              className="grid size-5 shrink-0 translate-y-0.5 place-items-center self-start rounded-full font-mono text-[11px] font-semibold text-white"
+              style={{ background: dayColor(day.dayNumber) }}
+            >
+              {/* Nummer innerhalb des Tages, wie auf der Karte */}
+              {index + 1}
+            </span>
+            <span className="min-w-0 flex-1">
               <span className="text-sm font-semibold">{stop.title}</span>
               {stop.isNew && (
                 <span className="ml-1.5 font-mono text-[11px] uppercase tracking-widest text-teal dark:text-teal-300">
@@ -118,8 +140,52 @@ function DayCard({ day, currency }: { day: DraftDay; currency: string }) {
   );
 }
 
+// Tag-Auswahl über der Karte: alle Tage oder einer hervorgehoben
+function DayChips({
+  days,
+  pinned,
+  onPin,
+}: {
+  days: number[];
+  pinned: number | null;
+  onPin: (dayNumber: number | null) => void;
+}) {
+  const chip =
+    'inline-flex min-h-8 items-center gap-1.5 rounded-full border bg-card px-3 text-xs font-bold shadow-[0_2px_6px_-2px_rgb(20_33_61/0.15)] ';
+  return (
+    <div role="group" aria-label="Tag auf der Karte hervorheben" className="flex flex-wrap gap-1.5">
+      <button
+        type="button"
+        aria-pressed={pinned === null}
+        onClick={() => onPin(null)}
+        className={chip + (pinned === null ? 'border-foreground' : 'border-rule text-dim hover:text-foreground')}
+      >
+        Alle Tage
+      </button>
+      {days.map((dayNumber) => (
+        <button
+          key={dayNumber}
+          type="button"
+          aria-pressed={pinned === dayNumber}
+          onClick={() => onPin(pinned === dayNumber ? null : dayNumber)}
+          className={chip + (pinned === dayNumber ? '' : 'border-rule')}
+          style={pinned === dayNumber ? { borderColor: dayColor(dayNumber) } : undefined}
+        >
+          <span aria-hidden="true" className="size-2 rounded-full" style={{ background: dayColor(dayNumber) }} />
+          Tag {dayNumber}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function PlanView({ run, previous }: { run: CanvasDraft['run']; previous?: CanvasDraft['run'] }) {
   const { itinerary, change } = run.draft;
+  // Gewählter Tag (Chip oder Klick auf einen Marker) und Tag unter der Maus
+  const [pinnedDay, setPinnedDay] = useState<number | null>(null);
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
+  const activeDay = hoverDay ?? pinnedDay;
+  const hasMap = itinerary.stops.some((stop) => stop.lat != null && stop.lng != null);
   const weather = run.weather[0]?.days ?? [];
   const days = draftDays(itinerary, previous?.draft.itinerary, weather);
   const origin = run.places.find((place) => place.kind === 'origin');
@@ -176,10 +242,36 @@ function PlanView({ run, previous }: { run: CanvasDraft['run']; previous?: Canva
           </p>
         )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-        {days.map((day) => (
-          <DayCard key={day.dayNumber} day={day} currency={itinerary.currency} />
-        ))}
+      <div className={hasMap ? 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)]' : ''}>
+        {hasMap && (
+          // Unter xl über den Tagen, ab xl rechts daneben und beim Scrollen stehend
+          <div className="flex flex-col gap-2 xl:sticky xl:top-4 xl:order-2 xl:self-start">
+            <DayChips days={dayNumbers(itinerary.stops)} pinned={pinnedDay} onPin={setPinnedDay} />
+            <div className="h-64 overflow-hidden rounded-xl border border-rule bg-card sm:h-80 xl:h-[28rem]">
+              <CityMap
+                stops={itinerary.stops}
+                activeDay={activeDay}
+                onDayClick={(dayNumber) => setPinnedDay((current) => (current === dayNumber ? null : dayNumber))}
+              />
+            </div>
+          </div>
+        )}
+        <div
+          className={
+            'grid content-start gap-3 sm:grid-cols-2 ' +
+            (hasMap ? 'xl:grid-cols-1 2xl:grid-cols-2' : '2xl:grid-cols-3')
+          }
+        >
+          {days.map((day) => (
+            <DayCard
+              key={day.dayNumber}
+              day={day}
+              currency={itinerary.currency}
+              dimmed={activeDay !== null && activeDay !== day.dayNumber}
+              onHover={setHoverDay}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -274,19 +366,18 @@ function StatusTags({ run, onOpen }: { run: CanvasDraft['run']; onOpen: () => vo
 // umschaltbar zwischen allen Fassungen der Session. Folgenachrichten
 // überarbeiten den Entwurf, die neue Fassung erscheint hier an Ort und Stelle,
 // Änderungen gegenüber der vorigen Fassung sind markiert. Gespeichert wird nur
-// die neueste. map: der Globus, gerendert vom Chat (er hält dessen Zustand).
+// die neueste. Die Karte steht im Plan neben den Tagen (Stadtkarte), der
+// Globus bleibt dem Chat vor dem ersten Entwurf.
 export default function DraftCanvas({
   drafts,
   selected,
   onSelect,
-  map,
   saved,
   onSaved,
 }: {
   drafts: CanvasDraft[];
   selected: number;
   onSelect: (position: number) => void;
-  map: ReactNode;
   // Gespeicherte Entwürfe: Index der Antwort im Chat -> ID der Reise
   saved: Record<number, string>;
   onSaved: (messageIndex: number, id: string) => void;
@@ -385,15 +476,6 @@ export default function DraftCanvas({
             run={current.run}
             previous={current.run.draft.revision > 1 ? drafts[selected - 1]?.run : undefined}
           />
-        )}
-        {tab === 'map' && (
-          <div
-            role="img"
-            aria-label={`Karte: ${current.run.draft.itinerary.stops.map((stop) => stop.title).join(', ')}`}
-            className="mx-auto aspect-square w-full max-w-[36rem]"
-          >
-            {map}
-          </div>
         )}
         {tab === 'details' && <DetailsView run={current.run} />}
         {tab === 'trace' && (

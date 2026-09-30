@@ -68,3 +68,34 @@ body {
     background: color-mix(in srgb, var(--focus) 25%, transparent);
   }
 }
+
+/* Marker der Stadtkarte: Nummer im Kreis in der Tagesfarbe */
+.city-map-marker {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  border: 2.5px solid #fff;
+  color: #fff;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px -1px rgb(20 33 61 / 0.35);
+  cursor: pointer;
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+}
+
+.city-map-marker.is-dimmed {
+  opacity: 0.3;
+}
+
+.city-map-marker.is-active {
+  transform: scale(1.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .city-map-marker {
+    transition: none;
+  }
+}
