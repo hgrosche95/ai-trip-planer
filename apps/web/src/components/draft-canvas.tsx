@@ -3,11 +3,12 @@
 import { useId, useRef, useState } from 'react';
 import BudgetBar from '@/components/budget-bar';
 import CityMap from '@/components/city-map';
+import DayTicket, { dayColor, StopNumber } from '@/components/day-ticket';
 import CritiquePanel from '@/components/critique-panel';
 import LodgingList from '@/components/lodging-list';
 import SaveDraftButton from '@/components/save-draft-button';
 import TracePanel from '@/components/trace-panel';
-import WeatherStrip, { weatherEmoji } from '@/components/weather-strip';
+import WeatherStrip from '@/components/weather-strip';
 import { dayNumbers } from '@/lib/city-map';
 import { critiqueOverview } from '@/lib/critique';
 import { draftDays, type DraftDay } from '@/lib/draft-days';
@@ -40,18 +41,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: 'Sonstiges',
 };
 
-const dayLabel = new Intl.DateTimeFormat('de-DE', {
-  weekday: 'short',
-  day: 'numeric',
-  month: 'numeric',
-  timeZone: 'UTC',
-});
-
-// Vier Tagesfarben, danach von vorn
-function dayColor(dayNumber: number) {
-  return `var(--day-${((dayNumber - 1) % 4) + 1})`;
-}
-
 function DayCard({
   day,
   currency,
@@ -64,59 +53,35 @@ function DayCard({
   onHover: (dayNumber: number | null) => void;
 }) {
   const changed = day.removed.length > 0 || day.stops.some((stop) => stop.isNew);
-  const rainy = (day.weather?.precipMm ?? 0) > 1;
   return (
-    <section
-      aria-label={`Tag ${day.dayNumber}${changed ? ', geändert' : ''}`}
-      onMouseEnter={() => onHover(day.dayNumber)}
-      onMouseLeave={() => onHover(null)}
-      className={
-        'flex min-w-0 flex-col rounded-xl border border-t-4 border-rule bg-card transition-opacity duration-150 motion-reduce:transition-none ' +
-        (changed ? 'ring-2 ring-teal dark:ring-teal-300 ' : '') +
-        (dimmed ? 'opacity-45' : '')
-      }
-      style={{ borderTopColor: dayColor(day.dayNumber) }}
+    <DayTicket
+      dayNumber={day.dayNumber}
+      date={day.date}
+      weather={day.weather}
+      label={`Tag ${day.dayNumber}${changed ? ', geändert' : ''}`}
+      highlighted={changed}
+      dimmed={dimmed}
+      onHover={onHover}
     >
-      <header className="flex items-baseline justify-between gap-2 border-b border-rule px-3 py-2 font-mono text-xs">
-        <span className="font-semibold" style={{ color: dayColor(day.dayNumber) }}>
-          TAG {day.dayNumber} · {dayLabel.format(new Date(`${day.date}T00:00:00Z`))}
-        </span>
-        {day.weather && (
-          <span title={day.weather.label} className={rainy ? 'text-day-1' : 'text-dim'}>
-            <span aria-hidden="true">{weatherEmoji(day.weather.code)}</span>{' '}
-            <span className="sr-only">{day.weather.label}, </span>
-            {Math.round(day.weather.tMax)}° /{' '}
-            {Math.round(day.weather.tMin)}°
-            {rainy && ` · ${Math.round(day.weather.precipMm)} mm`}
-          </span>
-        )}
-      </header>
-      <ol className="flex flex-col px-3 py-1">
+      <ol className="flex min-w-0 flex-col px-3.5 py-1">
         {day.stops.map((stop, index) => (
           <li
             key={`${stop.order}-${stop.title}`}
             className={
-              'flex items-baseline gap-2 border-b border-dashed border-rule py-2 last:border-b-0 ' +
-              (stop.isNew ? '-mx-3 bg-teal/10 px-3' : '')
+              'flex items-baseline gap-2.5 border-b border-rule py-2.5 last:border-b-0 ' +
+              (stop.isNew ? '-mx-3.5 bg-teal/10 px-3.5' : '')
             }
           >
-            <span
-              aria-hidden="true"
-              className="grid size-5 shrink-0 translate-y-0.5 place-items-center self-start rounded-full font-mono text-[11px] font-semibold text-white"
-              style={{ background: dayColor(day.dayNumber) }}
-            >
-              {/* Nummer innerhalb des Tages, wie auf der Karte */}
-              {index + 1}
-            </span>
+            <StopNumber dayNumber={day.dayNumber} index={index} />
             <span className="min-w-0 flex-1">
               <span className="text-sm font-semibold">{stop.title}</span>
               {stop.isNew && (
-                <span className="ml-1.5 font-mono text-[11px] uppercase tracking-widest text-teal dark:text-teal-300">
+                <span className="ml-1.5 rounded-sm bg-teal/10 px-1 align-[1px] font-mono text-[11px] font-semibold uppercase tracking-wider text-teal dark:text-teal-300">
                   neu
                 </span>
               )}
               {stop.category && (
-                <span className="block font-mono text-[11px] uppercase tracking-widest text-dim">
+                <span className="block text-xs text-dim">
                   {CATEGORY_LABELS[stop.category] ?? stop.category}
                 </span>
               )}
@@ -136,7 +101,7 @@ function DayCard({
           </li>
         ))}
       </ol>
-    </section>
+    </DayTicket>
   );
 }
 

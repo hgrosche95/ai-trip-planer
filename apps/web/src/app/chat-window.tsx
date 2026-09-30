@@ -13,6 +13,7 @@ import TracePanel from '@/components/trace-panel';
 import TripGlobe, { type GlobeArc, type GlobeFocus } from '@/components/trip-globe';
 import WeatherStrip from '@/components/weather-strip';
 import {
+  AGENT_MODE_LABELS,
   DEFAULT_AGENT_MODE,
   readStoredAgentMode,
   storeAgentMode,
@@ -139,6 +140,8 @@ export default function ChatWindow() {
   // Für Screenreader: was sich nach einem Lauf geändert hat
   const [announcement, setAnnouncement] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  // Laufende Anfrage, damit "Abbrechen" sie beenden kann
+  const runAbort = useRef<AbortController | null>(null);
   const viewTabs = useRef<(HTMLButtonElement | null)[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -215,12 +218,15 @@ export default function ChatWindow() {
     setIsLoading(true);
     let run = initialRunState();
     setLiveRun(run);
+    const abort = new AbortController();
+    runAbort.current = abort;
 
     try {
       const response = await authFetch(`${API_URL}/agent/runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
         body: JSON.stringify({ sessionId, message: userMessage, mode: agentMode }),
+        signal: abort.signal,
       });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`, { cause: response.status });
@@ -290,6 +296,16 @@ export default function ChatWindow() {
         },
       ]);
     } catch (error) {
+      if (abort.signal.aborted) {
+        // Vom Nutzer abgebrochen: kein Fehler, der Entwurf bleibt wie er war,
+        // die Nachricht lässt sich erneut senden
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: 'Abgebrochen. Der bisherige Plan bleibt unverändert.', retry: userMessage },
+        ]);
+        setAnnouncement('Abgebrochen.');
+        return;
+      }
       // Kein Absturz und kein ewiger Spinner, wenn die API nicht erreichbar
       // ist oder mit einem Fehler antwortet: der Chat sagt es stattdessen.
       // Ein run.error bringt seine eigene, verständliche Meldung mit.
@@ -311,9 +327,14 @@ export default function ChatWindow() {
       ]);
       setAnnouncement('Die Anfrage hat nicht geklappt. Du kannst sie erneut senden.');
     } finally {
+      runAbort.current = null;
       setLiveRun(null);
       setIsLoading(false);
     }
+  }
+
+  function cancelRun() {
+    runAbort.current?.abort();
   }
 
   const hasStarted = messages.length > 0 || isLoading;
@@ -469,12 +490,58 @@ export default function ChatWindow() {
 
   const newTripClass =
     'min-h-8 rounded-lg px-2 text-xs font-semibold text-dim hover:bg-card hover:text-foreground';
+  // Eingabefeld: im Chat und (schmal) unter dem Plan, damit man auf dem Handy
+  // überarbeiten kann, ohne zwischen den Ansichten zu springen. Während eines
+  // Laufs wird aus "Senden" "Abbrechen".
+  const messageForm = (withRef: boolean) => (
+    <form
+      onSubmit={handleSubmit}
+      className="flex gap-2 rounded-xl border border-rule bg-card p-2 focus-within:border-teal"
+    >
+      <input
+        ref={withRef ? inputRef : undefined}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        placeholder={withRef ? 'Ziel, Zeitraum, Budget …' : 'Plan ändern …'}
+        aria-label="Nachricht"
+        className="min-w-0 flex-1 bg-transparent px-2 py-1.5 outline-none placeholder:text-dim"
+      />
+      {isLoading ? (
+        <button
+          type="button"
+          onClick={cancelRun}
+          className="rounded-lg border border-rule px-4 py-2 font-semibold hover:border-stamp hover:text-stamp focus-visible:outline-2 focus-visible:outline-(--focus)"
+        >
+          Abbrechen
+        </button>
+      ) : (
+        <button
+          type="submit"
+          className="rounded-lg bg-navy px-4 py-2 font-semibold text-white focus-visible:outline-2 focus-visible:outline-(--focus) dark:bg-foreground dark:text-background"
+        >
+          Senden
+        </button>
+      )}
+    </form>
+  );
   const composer = (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <ModeToggle mode={agentMode} onChange={storeAgentMode} />
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        {/* Modus ist eine Einstellung für Neugierige, keine Frage vor der
+            ersten Nachricht: eingeklappt, der Default gilt */}
+        <details className="group">
+          <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1 rounded-lg px-2 text-xs font-semibold text-dim hover:text-foreground [&::-webkit-details-marker]:hidden">
+            <span aria-hidden="true" className="transition-transform group-open:rotate-90 motion-reduce:transition-none">
+              ›
+            </span>
+            Modus: {AGENT_MODE_LABELS[agentMode]}
+          </summary>
+          <div className="mt-2">
+            <ModeToggle mode={agentMode} onChange={storeAgentMode} />
+          </div>
+        </details>
         {messages.length > 0 && !isLoading && (
-          <div className="mb-2">
+          <div>
             {hasUnsavedDraft ? (
               <ConfirmButton
                 label="Neue Reise"
@@ -491,26 +558,7 @@ export default function ChatWindow() {
           </div>
         )}
       </div>
-      <form
-        onSubmit={handleSubmit}
-        className="flex gap-2 rounded-xl border border-rule bg-card p-2 focus-within:border-teal"
-      >
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ziel, Zeitraum, Budget …"
-          aria-label="Nachricht"
-          className="min-w-0 flex-1 bg-transparent px-2 py-1.5 outline-none placeholder:text-dim"
-        />
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="rounded-lg bg-navy px-4 py-2 font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-(--focus) dark:bg-foreground dark:text-background"
-        >
-          Senden
-        </button>
-      </form>
+      {messageForm(true)}
     </>
   );
 
@@ -587,6 +635,20 @@ export default function ChatWindow() {
             saved={saved}
             onSaved={(messageIndex, id) => setSaved((prev) => ({ ...prev, [messageIndex]: id }))}
           />
+          {/* Nur schmal: Überarbeiten direkt unter dem Plan. Die neue Fassung
+              erscheint hier an Ort und Stelle, der Ablauf steht im Chat. */}
+          <div className="sticky bottom-0 border-t border-rule bg-background p-3 lg:hidden">
+            {isLoading && (
+              <p role="status" className="mb-2 flex items-center gap-2 text-xs text-dim">
+                <span aria-hidden="true" className="size-2 rounded-full bg-teal motion-safe:animate-pulse" />
+                Plan wird überarbeitet …
+                <button type="button" onClick={() => setView('chat')} className="ml-auto font-semibold underline decoration-dotted underline-offset-2">
+                  Ablauf ansehen
+                </button>
+              </p>
+            )}
+            {messageForm(false)}
+          </div>
         </div>
       </div>
     );
