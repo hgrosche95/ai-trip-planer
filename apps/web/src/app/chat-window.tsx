@@ -584,7 +584,6 @@ export default function ChatWindow() {
             drafts={drafts}
             selected={selectedDraft}
             onSelect={(position) => setShownDraft(drafts[position].messageIndex)}
-            map={globe}
             saved={saved}
             onSaved={(messageIndex, id) => setSaved((prev) => ({ ...prev, [messageIndex]: id }))}
           />
@@ -601,7 +600,7 @@ export default function ChatWindow() {
   // Antwort, ein daran zentrierter Globus rutschte sonst nach unten und
   // verschwand beim Scrollen aus dem Blick. Die Mitte liegt 1,5rem unter der
   // Fenstermitte, also in der Mitte der Fläche unter der Navigationsleiste.
-  // Sobald es einen Entwurf gibt, wandert der Globus in die Arbeitsfläche (Karte).
+  // Sobald es einen Entwurf gibt, zeigt die Arbeitsfläche eine Stadtkarte statt des Globus.
   return (
     <>
       {announcer}

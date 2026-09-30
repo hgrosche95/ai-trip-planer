@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import BudgetBar from '@/components/budget-bar';
 import { authFetch } from '@/lib/auth';
 import type { BudgetReport } from '@/lib/run-events';
-import TripGlobe, { type GlobeFocus } from '@/components/trip-globe';
+import CityMap from '@/components/city-map';
 import { formatDate, formatMoney, placeCode, tripDays } from '@/lib/format';
 import DeleteTripButton from './delete-trip-button';
 import DeleteStopButton from './delete-stop-button';
@@ -59,17 +59,9 @@ function CategoryStamp({ category }: { category: string }) {
   );
 }
 
-// Stationen mit Ort in Reiseablauf-Reihenfolge; direkt wiederholte Orte
-// (z.B. dasselbe Hotel) nur einmal, sonst entstünde ein Bogen der Länge null.
-function routeOf(stops: Stop[]): GlobeFocus[] {
-  const route: GlobeFocus[] = [];
-  for (const stop of stops) {
-    if (stop.lat == null || stop.lng == null) continue;
-    const previous = route.at(-1);
-    if (previous?.lat === stop.lat && previous.lng === stop.lng) continue;
-    route.push({ name: stop.title, lat: stop.lat, lng: stop.lng });
-  }
-  return route;
+// Tagesfarbe wie im Entwurf und auf der Karte
+function dayColor(dayNumber: number) {
+  return `var(--day-${((dayNumber - 1) % 4) + 1})`;
 }
 
 // In UTC wie im Entwurf: Das Startdatum kommt als Mitternacht UTC, in
@@ -150,6 +142,8 @@ function TripDetail() {
   const [itinerary, setItinerary] = useState<ItineraryDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<{ message: string; retry: boolean } | null>(null);
+  // Tag unter der Maus: auf der Karte hervorgehoben
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
 
   const showLoadError = useCallback(
     (error: unknown) =>
@@ -202,8 +196,7 @@ function TripDetail() {
     itinerary.budgetCents > 0 ? (plannedCents / itinerary.budgetCents) * 100 : 0;
   const isOverBudget = percent > 100;
   const tripLength = tripDays(itinerary.startDate, itinerary.endDate);
-  // Die API liefert die Stopps schon nach Tag und Reihenfolge sortiert
-  const route = routeOf(itinerary.stops);
+  const hasMap = itinerary.stops.some((stop) => stop.lat != null && stop.lng != null);
 
   const report = itinerary.budgetReport;
   const assumptions = itinerary.assumptions ?? [];
@@ -273,33 +266,49 @@ function TripDetail() {
         </div>
       )}
 
-      {route.length > 0 && (
-        <div
-          aria-label={`Route: ${route.map((stop) => stop.name).join(' → ')}`}
-          role="img"
-          className="mx-auto mt-4 aspect-square w-full max-w-[22rem]"
-        >
-          <TripGlobe route={route} autoRotate={false} />
+      {hasMap && (
+        <div className="mt-4 h-64 overflow-hidden rounded-xl border border-rule bg-card sm:h-80">
+          <CityMap stops={itinerary.stops} activeDay={hoverDay} />
         </div>
       )}
 
       <div className="mt-6 flex flex-col gap-6">
         {days.map((day) => (
-          <section key={day} className="grid grid-cols-[3rem_1fr] gap-3">
-            <div className="border-r-2 border-foreground pr-2 text-center font-mono text-[11px] uppercase text-dim">
+          <section
+            key={day}
+            onMouseEnter={() => setHoverDay(day)}
+            onMouseLeave={() => setHoverDay(null)}
+            className="grid grid-cols-[3rem_1fr] gap-3"
+          >
+            <div
+              className="border-r-2 pr-2 text-center font-mono text-[11px] uppercase text-dim"
+              style={{ borderColor: dayColor(day) }}
+            >
               <h2>
                 Tag{' '}
-                <span className="block text-2xl font-bold leading-none text-foreground">{day}</span>
+                <span className="block text-2xl font-bold leading-none" style={{ color: dayColor(day) }}>
+                  {day}
+                </span>
               </h2>
               {weekdayOf(itinerary.startDate, day)}
             </div>
             <ul className="flex flex-col gap-2">
               {itinerary.stops
                 .filter((stop) => stop.dayNumber === day)
-                .map((stop) => (
+                .map((stop, index) => (
                   <li key={stop.id} className="rounded-lg border border-rule bg-card p-3">
                     <div className="flex items-start justify-between gap-3">
-                      <span className="font-bold">{stop.title}</span>
+                      <span className="flex items-start gap-2 font-bold">
+                        {/* Nummer innerhalb des Tages, wie auf der Karte */}
+                        <span
+                          aria-hidden="true"
+                          className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full font-mono text-[11px] font-semibold text-white"
+                          style={{ background: dayColor(day) }}
+                        >
+                          {index + 1}
+                        </span>
+                        {stop.title}
+                      </span>
                       <CategoryStamp category={stop.category} />
                     </div>
                     {stop.description && (
