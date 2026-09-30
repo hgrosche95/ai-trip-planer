@@ -485,6 +485,36 @@ describe('AgentController AGENT_MODE', () => {
     ]);
   });
 
+  it('bricht den Multi-Lauf ab, wenn der Client geht, und speichert ABORTED', async () => {
+    process.env.AGENT_MODE = 'multi';
+    const store = new InMemoryAgentRunStore();
+    const res = fakeResponse();
+    let seen: AbortSignal | undefined;
+    const orchestrator = {
+      run: jest.fn((_input: unknown, _emit: unknown, signal: AbortSignal) => {
+        seen = signal;
+        res.emit('close');
+        // Wie der Orchestrator vor dem nächsten Schritt
+        signal.throwIfAborted();
+        return Promise.resolve({
+          reply: 'nie',
+          sources: [],
+          searchAttempted: false,
+        });
+      }),
+    };
+
+    await controller({ sendMessage: jest.fn() }, store, orchestrator).run(
+      user,
+      body,
+      res as unknown as Response,
+    );
+
+    expect(seen?.aborted).toBe(true);
+    const [saved] = [...store.runs.values()];
+    expect(saved.status).toBe('ABORTED');
+  });
+
   it('POST /agent/chat bleibt auch mit AGENT_MODE=multi beim Classic-Agenten', async () => {
     process.env.AGENT_MODE = 'multi';
     const service = {

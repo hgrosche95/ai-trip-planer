@@ -35,7 +35,7 @@ export default function ModeToggle({
   }
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <span id="agent-mode-label" className="font-mono text-[11px] uppercase tracking-widest text-dim">
         Modus
       </span>

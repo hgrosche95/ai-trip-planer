@@ -157,11 +157,15 @@ export class AgentController {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    // Schließt der Nutzer den Tab, läuft der Agent zu Ende (der Verlauf wird
-    // trotzdem gespeichert), es wird nur nichts mehr geschrieben.
+    // Geht der Client (Tab zu, "Abbrechen" im Chat), stoppt der Multi-Agenten-
+    // Lauf beim nächsten Schritt: keine weiteren LLM-Aufrufe für eine Antwort,
+    // die niemand liest. Der Classic-Agent läuft zu Ende, es wird nur nichts
+    // mehr geschrieben. Gespeichert wird der Verlauf in beiden Fällen.
     let open = true;
+    const clientGone = new AbortController();
     res.on('close', () => {
       open = false;
+      clientGone.abort();
     });
     const write = (chunk: string) => {
       if (open) res.write(chunk);
@@ -194,7 +198,10 @@ export class AgentController {
           ? await this.orchestrator.run(
               { runId, userId: user.userId, sessionId, message },
               (type, data) => events.emit(type, data),
-              AbortSignal.timeout(RUN_TIMEOUT_MS),
+              AbortSignal.any([
+                AbortSignal.timeout(RUN_TIMEOUT_MS),
+                clientGone.signal,
+              ]),
             )
           : await this.agentService.sendMessage(
               user.userId,
@@ -214,17 +221,19 @@ export class AgentController {
     } catch (error) {
       // Der Status 200 ist schon raus, Fehler gehen deshalb als Ereignis
       // an den Client statt als HTTP-Status.
-      if (error instanceof GuestQuotaExceededError) {
+      if (clientGone.signal.aborted) {
+        this.logger.log(`Lauf ${runId}: vom Client abgebrochen`);
+      } else if (error instanceof GuestQuotaExceededError) {
         this.logger.warn(`Gast ${user.userId}: Tageskontingent aufgebraucht`);
       } else {
         this.logger.error('Agentenlauf fehlgeschlagen', error);
       }
       events.emit('run.error', toRunError(error));
-      status = 'ERROR';
+      status = clientGone.signal.aborted ? 'ABORTED' : 'ERROR';
     } finally {
       clearInterval(heartbeat);
-      // Hat der Client die Verbindung vorher geschlossen, lief der Agent
-      // trotzdem zu Ende; ABORTED heißt nur: niemand hat das Ende gesehen.
+      // Classic-Lauf, dessen Client vorher gegangen ist: Er lief zu Ende,
+      // ABORTED heißt hier nur, dass niemand das Ende gesehen hat.
       if (status === 'OK' && !open) status = 'ABORTED';
       res.end();
     }
