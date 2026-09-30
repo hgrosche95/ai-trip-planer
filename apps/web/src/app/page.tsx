@@ -2,7 +2,7 @@ import ChatWindow from './chat-window';
 
 export default function Home() {
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden">
+    <div className="relative flex flex-1 flex-col overflow-x-clip">
       <ChatWindow />
     </div>
   );
