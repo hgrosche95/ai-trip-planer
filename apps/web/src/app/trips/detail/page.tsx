@@ -6,10 +6,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import BudgetBar from '@/components/budget-bar';
 import { authFetch } from '@/lib/auth';
 import type { BudgetReport } from '@/lib/run-events';
-import CityMap from '@/components/city-map';
 import DayTicket, { StopNumber } from '@/components/day-ticket';
 import { dayDate } from '@/lib/draft-days';
-import { formatDate, formatMoney, placeCode, tripDays } from '@/lib/format';
+import { formatMoney } from '@/lib/format';
+import { TripMapLayout, TripSummary } from '@/components/trip-plan';
 import DeleteTripButton from './delete-trip-button';
 import EditTripButton from './edit-trip-button';
 import DeleteStopButton from './delete-stop-button';
@@ -38,6 +38,8 @@ interface ItineraryDetail {
   // Aus dem Entwurf mitgespeichert; fehlt bei älteren und Klassik-Plänen
   budgetReport?: BudgetReport | null;
   assumptions?: string[];
+  // Abreiseort aus dem Entwurf; fehlt bei älteren und Klassik-Plänen
+  origin?: string | null;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -106,7 +108,7 @@ function loadErrorMessage(error: unknown) {
 function TripDetailSkeleton() {
   return (
     <div
-      className="mx-auto w-full max-w-2xl p-4 motion-safe:animate-pulse"
+      className="mx-auto w-full max-w-2xl p-4 motion-safe:animate-pulse lg:max-w-7xl"
       role="status"
       aria-label="Reise wird geladen"
     >
@@ -132,7 +134,9 @@ function TripDetail() {
   const [itinerary, setItinerary] = useState<ItineraryDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<{ message: string; retry: boolean } | null>(null);
-  // Tag unter der Maus: auf der Karte hervorgehoben
+  // Gewählter Tag (Chip oder Klick auf einen Marker) und Tag unter der Maus:
+  // auf der Karte hervorgehoben
+  const [pinnedDay, setPinnedDay] = useState<number | null>(null);
   const [hoverDay, setHoverDay] = useState<number | null>(null);
 
   const showLoadError = useCallback(
@@ -180,102 +184,89 @@ function TripDetail() {
   const days = Array.from(new Set(itinerary.stops.map((s) => s.dayNumber))).sort(
     (a, b) => a - b,
   );
+  const activeDay = hoverDay ?? pinnedDay;
 
   const plannedCents = itinerary.stops.reduce((sum, stop) => sum + (stop.costCents ?? 0), 0);
   const percent =
     itinerary.budgetCents > 0 ? (plannedCents / itinerary.budgetCents) * 100 : 0;
   const isOverBudget = percent > 100;
-  const tripLength = tripDays(itinerary.startDate, itinerary.endDate);
-  const hasMap = itinerary.stops.some((stop) => stop.lat != null && stop.lng != null);
 
   const report = itinerary.budgetReport;
   const assumptions = itinerary.assumptions ?? [];
 
+  // Gleiches Layout wie der Entwurf im Chat: Kopfkarte, darunter die Tage,
+  // ab xl die Karte rechts daneben
   return (
-    <div className="mx-auto w-full max-w-2xl p-4">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div>
-          <div className="flex items-baseline gap-3">
-            <span className="font-mono text-3xl font-semibold tracking-wider">
-              {placeCode(itinerary.destination)}
-            </span>
-            <h1 className="text-2xl font-extrabold">{itinerary.destination}</h1>
-          </div>
-          <p className="mt-1 font-mono text-xs text-dim">
-            {formatDate(itinerary.startDate)} – {formatDate(itinerary.endDate)} · {tripLength}{' '}
-            {tripLength === 1 ? 'TAG' : 'TAGE'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-start justify-end gap-2">
-          <EditTripButton itineraryId={itinerary.id} />
-          <DeleteTripButton
-            itineraryId={itinerary.id}
-            destination={itinerary.destination}
-            onDeleted={() => router.push('/trips')}
-          />
-        </div>
-      </div>
-
-      {report ? (
-        // Dieselbe Schätzung wie im Entwurf: Anreise, Unterkunft, Programm, Essen
-        <div className="mt-4 rounded-xl border border-rule bg-card px-4 pb-4 pt-1">
-          <BudgetBar report={report} />
-          {assumptions.length > 0 && (
-            <section aria-label="Annahmen" className="mt-3">
-              <h2 className="mb-1 font-mono text-[11px] uppercase tracking-wider text-dim">
-                Annahmen
-              </h2>
-              <ul className="list-disc space-y-0.5 pl-5 text-sm">
-                {assumptions.map((assumption) => (
-                  <li key={assumption}>{assumption}</li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
-      ) : (
-        <div className="mt-4 rounded-xl border border-rule bg-card p-4">
-          <div className="flex justify-between gap-3 font-mono text-xs">
-            <span className="uppercase tracking-wider text-dim">Programmpunkte</span>
-            <span className={`font-semibold tabular-nums ${isOverBudget ? 'text-stamp' : ''}`}>
-              {formatMoney(plannedCents, itinerary.currency)} /{' '}
-              {formatMoney(itinerary.budgetCents, itinerary.currency)}
-            </span>
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rule">
-            <div
-              className={`h-full rounded-full ${isOverBudget ? 'bg-stamp' : 'bg-teal'}`}
-              style={{ width: `${Math.min(percent, 100)}%` }}
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 lg:max-w-7xl">
+      <TripSummary
+        heading
+        destination={itinerary.destination}
+        origin={itinerary.origin ?? undefined}
+        startDate={itinerary.startDate}
+        endDate={itinerary.endDate}
+        budget={report}
+        budgetCents={itinerary.budgetCents}
+        currency={itinerary.currency}
+        actions={
+          <div className="flex flex-wrap items-start justify-end gap-2">
+            <EditTripButton itineraryId={itinerary.id} />
+            <DeleteTripButton
+              itineraryId={itinerary.id}
+              destination={itinerary.destination}
+              onDeleted={() => router.push('/trips')}
             />
           </div>
-          {isOverBudget ? (
-            <p className="mt-2 text-xs text-stamp">
-              Budget um {formatMoney(plannedCents - itinerary.budgetCents, itinerary.currency)}{' '}
-              überschritten.
+        }
+      >
+        {/* Budget und Annahmen in der Kopfkarte statt in eigenen Karten: Die
+            Summe steht schon oben, hier nur Balken und Aufteilung */}
+        {report ? (
+          <BudgetBar report={report} compact />
+        ) : (
+          // Ältere und Klassik-Pläne: nur die Programmpunkte gegen das Budget
+          <section aria-label="Programmpunkte gegen das Budget" className="mt-3">
+            <div className="h-2 overflow-hidden rounded-full border border-rule bg-card">
+              <div
+                className={`h-full ${isOverBudget ? 'bg-stamp' : 'bg-teal'}`}
+                style={{ width: `${Math.min(percent, 100)}%` }}
+              />
+            </div>
+            <p className={`mt-1 font-mono text-[11px] ${isOverBudget ? 'text-stamp' : 'text-dim'}`}>
+              Programmpunkte {formatMoney(plannedCents, itinerary.currency)}
+              {isOverBudget
+                ? ` · Budget um ${formatMoney(plannedCents - itinerary.budgetCents, itinerary.currency)} überschritten`
+                : ' · ohne Anreise und Unterkunft'}
             </p>
-          ) : (
-            <p className="mt-2 text-xs text-dim">Nur die Programmpunkte, ohne Anreise und Unterkunft.</p>
-          )}
-        </div>
-      )}
+          </section>
+        )}
+        {assumptions.length > 0 && (
+          <details className="group mt-3 text-sm">
+            <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-dim hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <span aria-hidden="true" className="transition-transform group-open:rotate-90 motion-reduce:transition-none">
+                ›
+              </span>
+              Annahmen ({assumptions.length})
+            </summary>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {assumptions.map((assumption) => (
+                <li key={assumption}>{assumption}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </TripSummary>
 
-      {hasMap && (
-        <div className="mt-4 h-64 overflow-hidden rounded-xl border border-rule bg-card sm:h-80">
-          <CityMap stops={itinerary.stops} activeDay={hoverDay} />
-        </div>
-      )}
-
-      <div className="mt-6 flex flex-col gap-4">
+      <TripMapLayout stops={itinerary.stops} activeDay={activeDay} pinnedDay={pinnedDay} onPin={setPinnedDay}>
         {days.map((day) => (
           <DayTicket
             key={day}
             dayNumber={day}
             date={dayDate(itinerary.startDate, day)}
-            dimmed={hoverDay !== null && hoverDay !== day}
+            dimmed={activeDay !== null && activeDay !== day}
             onHover={setHoverDay}
             headingLevel={2}
           >
-            <ol className="flex flex-col px-3.5 py-1">
+            <ol className="flex min-w-0 flex-col px-3.5 py-1">
               {itinerary.stops
                 .filter((stop) => stop.dayNumber === day)
                 .map((stop, index) => (
@@ -308,7 +299,7 @@ function TripDetail() {
             </ol>
           </DayTicket>
         ))}
-      </div>
+      </TripMapLayout>
     </div>
   );
 }

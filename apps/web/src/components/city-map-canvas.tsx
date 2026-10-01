@@ -1,6 +1,7 @@
 'use client';
 
 import 'maplibre-gl/dist/maplibre-gl.css';
+import type { FeatureCollection } from 'geojson';
 import * as maplibregl from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
 import { dayRoutes, mapStops, stopBounds, type MapStopInput } from '@/lib/city-map';
@@ -108,7 +109,7 @@ export default function CityMapCanvas({ stops, activeDay, onDayClick }: CityMapP
       return new maplibregl.Marker({ element }).setLngLat([stop.lng, stop.lat]).addTo(instance);
     });
 
-    const data: GeoJSON.FeatureCollection = {
+    const data: FeatureCollection = {
       type: 'FeatureCollection',
       features: dayRoutes(current).map((route) => ({
         type: 'Feature',
