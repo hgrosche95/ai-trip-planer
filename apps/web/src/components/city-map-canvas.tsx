@@ -10,6 +10,10 @@ import { dayRoutes, mapStops, stopBounds, type MapStopInput } from '@/lib/city-m
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 const FIT = { padding: 48, maxZoom: 15, duration: 0 };
 
+// Worker aus public/ (scripts/copy-maplibre-worker.mjs): Neben dem
+// gebündelten Modul, wo MapLibre ihn sonst sucht, liegt er nicht
+maplibregl.setWorkerUrl('/maplibre/maplibre-gl-worker.mjs');
+
 export interface CityMapProps {
   stops: MapStopInput[];
   // Hervorgehobener Tag, die anderen treten zurück; null = alle gleich
