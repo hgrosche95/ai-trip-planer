@@ -20,6 +20,9 @@
 # production
 /build
 
+# MapLibre-Worker, kopiert von scripts/copy-maplibre-worker.mjs
+/public/maplibre/
+
 # misc
 .DS_Store
 *.pem
