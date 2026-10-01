@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import { StopCategory } from '../generated/prisma/client';
+import { Prisma, StopCategory } from '../generated/prisma/client';
 import * as appInsights from 'applicationinsights';
 
 export interface CreateItineraryInput {
@@ -10,6 +10,10 @@ export interface CreateItineraryInput {
   budgetCents: number;
   currency?: string;
   preferences?: string[];
+  // Eckdaten aus dem Entwurf, für "Im Chat bearbeiten"
+  travelers?: number;
+  origin?: string;
+  lodging?: 'budget' | 'mid' | 'upscale';
   stops: {
     dayNumber: number;
     order: number;
@@ -43,33 +47,52 @@ export class ItinerariesService {
   async create(userId: string, input: CreateItineraryInput) {
     const itinerary = await this.prisma.itinerary.create({
       data: {
-        destination: input.destination,
-        startDate: new Date(input.startDate),
-        endDate: new Date(input.endDate),
-        budgetCents: input.budgetCents,
-        currency: input.currency ?? 'EUR',
-        preferences: input.preferences ?? [],
-        budgetReport: input.budgetReport,
-        assumptions: input.assumptions ?? [],
+        ...itineraryFields(input),
         userId,
-        stops: {
-          create: input.stops.map((s) => ({
-            dayNumber: s.dayNumber,
-            order: s.order,
-            title: s.title,
-            description: s.description,
-            category: s.category ?? 'OTHER',
-            costCents: s.costCents,
-            lat: s.lat,
-            lng: s.lng,
-          })),
-        },
+        stops: { create: stopRows(input) },
       },
       include: { stops: true },
     });
 
     appInsights.defaultClient?.trackEvent({
       name: 'ItinerarySaved',
+      properties: {
+        destination: input.destination,
+        stopCount: String(input.stops.length),
+      },
+    });
+
+    return itinerary;
+  }
+
+  // Ersetzt eine Reise vollständig durch einen überarbeiteten Entwurf
+  // ("Im Chat bearbeiten" → "Änderungen speichern"). Alle Stopps werden neu
+  // angelegt: Ein Entwurf kennt keine Stop-IDs, und Tage können wegfallen.
+  // Besitzprüfung, Löschen und Anlegen in einer Transaktion, damit nie eine
+  // halb ersetzte Reise stehen bleibt.
+  async update(userId: string, id: string, input: CreateItineraryInput) {
+    const itinerary = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.itinerary.updateMany({
+        where: { id, userId },
+        data: itineraryFields(input),
+      });
+      if (count === 0) {
+        throw new NotFoundException(`Reiseplan ${id} nicht gefunden`);
+      }
+      await tx.itineraryStop.deleteMany({ where: { itineraryId: id } });
+      await tx.itineraryStop.createMany({
+        data: stopRows(input).map((stop) => ({ ...stop, itineraryId: id })),
+      });
+      return tx.itinerary.findUniqueOrThrow({
+        where: { id },
+        include: {
+          stops: { orderBy: [{ dayNumber: 'asc' }, { order: 'asc' }] },
+        },
+      });
+    });
+
+    appInsights.defaultClient?.trackEvent({
+      name: 'ItineraryUpdated',
       properties: {
         destination: input.destination,
         stopCount: String(input.stops.length),
@@ -122,4 +145,35 @@ export class ItinerariesService {
     }
     return { deleted: true };
   }
+}
+
+// Spalten einer Reise aus dem Body, gleich für Anlegen und Ersetzen. Beim
+// Ersetzen werden fehlende Eckdaten zu null statt stehen zu bleiben.
+function itineraryFields(input: CreateItineraryInput) {
+  return {
+    destination: input.destination,
+    startDate: new Date(input.startDate),
+    endDate: new Date(input.endDate),
+    budgetCents: input.budgetCents,
+    currency: input.currency ?? 'EUR',
+    preferences: input.preferences ?? [],
+    budgetReport: input.budgetReport ?? Prisma.DbNull,
+    assumptions: input.assumptions ?? [],
+    travelers: input.travelers ?? null,
+    origin: input.origin ?? null,
+    lodging: input.lodging ?? null,
+  };
+}
+
+function stopRows(input: CreateItineraryInput) {
+  return input.stops.map((s) => ({
+    dayNumber: s.dayNumber,
+    order: s.order,
+    title: s.title,
+    description: s.description,
+    category: s.category ?? 'OTHER',
+    costCents: s.costCents,
+    lat: s.lat,
+    lng: s.lng,
+  }));
 }

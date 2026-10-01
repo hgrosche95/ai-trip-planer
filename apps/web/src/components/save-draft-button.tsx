@@ -30,8 +30,11 @@ export default function SaveDraftButton({
   onSaved,
   budgetReport,
   assumptions,
+  itineraryId,
 }: {
   itinerary: ItineraryDraft;
+  // Überarbeitung einer gespeicherten Reise: Speichern ersetzt sie (PUT)
+  itineraryId?: string;
   // Gehen mit, damit die gespeicherte Reise dieselben Zahlen zeigt
   budgetReport?: BudgetReport;
   assumptions?: string[];
@@ -51,8 +54,12 @@ export default function SaveDraftButton({
     busy.current = true;
     setState({ kind: 'saving' });
     try {
-      const response = await authFetch(`${API_URL}/itineraries`, {
-        method: 'POST',
+      // Überarbeitung einer gespeicherten Reise ersetzt diese, sonst neu
+      const url = itineraryId
+        ? `${API_URL}/itineraries/${encodeURIComponent(itineraryId)}`
+        : `${API_URL}/itineraries`;
+      const response = await authFetch(url, {
+        method: itineraryId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...itinerary, budgetReport, assumptions }),
       });
@@ -101,7 +108,7 @@ export default function SaveDraftButton({
         disabled={state.kind === 'saving' || saved}
         className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-(--focus) dark:bg-foreground dark:text-background"
       >
-        {state.kind === 'saving' ? 'Wird gespeichert …' : 'Plan speichern'}
+        {state.kind === 'saving' ? 'Wird gespeichert …' : itineraryId ? 'Änderungen speichern' : 'Plan speichern'}
       </button>
       {saved ? (
         savedLink
@@ -110,7 +117,9 @@ export default function SaveDraftButton({
           {state.message}
         </p>
       ) : (
-        <p className="text-xs text-dim">Entwurf, {version}noch nicht gespeichert</p>
+        <p className="text-xs text-dim">
+          {itineraryId ? `Geänderte Reise, ${version}noch nicht gespeichert` : `Entwurf, ${version}noch nicht gespeichert`}
+        </p>
       )}
     </div>
   );

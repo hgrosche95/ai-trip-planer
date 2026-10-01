@@ -219,6 +219,67 @@ die viel kürzere Ausgabe (ein Tag statt drei, Antwort nur zu den Änderungen), 
 - **Nicht live geprüft:** triage mit Entwurf (Erkennen von Tagen, `intent`) und revise nur mit Mocks;
   vor allem, ob das Modell „günstiger“ als `lodging` und nicht als Tagesänderung liest.
 
+## Gespeicherte Reise im Chat bearbeiten
+
+![Chat mit der gespeicherten Reise nach Lissabon, darunter „Mach Tag 2 entspannter“ und „Geändert: Tag 2 ruhiger“; auf der Arbeitsfläche Fassung 2 mit neuem Programmpunkt an Tag 2, oben „Änderungen speichern“](trip-edit.png)
+
+Screenshot aus dem echten Frontend, das Backend war ein Mock mit Beispieldaten.
+
+**Warum:** Eine gespeicherte Reise ließ sich bisher nur ansehen und einzelne Programmpunkte löschen.
+Jetzt öffnet „Im Chat bearbeiten“ auf `/trips/detail` die Reise als Entwurf im Chat. Danach geht
+alles wie oben (Tage ändern, Aktivitäten tauschen, länger bleiben), und „Änderungen speichern“
+ersetzt die Reise, statt eine neue anzulegen.
+
+**Ablauf:**
+
+1. **`POST /agent/drafts`** `{ sessionId, itineraryId }` (neue `sessionId` aus dem Browser) lädt die
+   Reise des Nutzers (fremde sind 404) und legt sie als `TripDraft` der Session an
+   (`seedFromItinerary`, [`orchestrator/itinerary-seed.ts`](../../apps/api/src/orchestrator/itinerary-seed.ts)).
+   Das kostet keine Tokens. Die Antwort hat die Form von `itinerary.draft` plus Budgetbericht. Das
+   Frontend legt daraus einen Chat im `sessionStorage` an: eine Antwort des Planers mit dem Entwurf
+   als Fassung 1, die schon als gespeichert gilt
+   ([`lib/edit-trip.ts`](../../apps/web/src/lib/edit-trip.ts)). Danach geht es zum Chat. Läuft im
+   Tab schon ein Chat, fragt der Knopf vorher nach.
+2. **Was die Reise nicht kennt**, ergänzt der Code. Neu am `Itinerary` sind `travelers`, `origin`
+   und `lodging` (Migration `20261001120000_edit_saved_trips`); „Plan speichern“ schickt sie mit,
+   weil `itinerary.draft` sie jetzt trägt. Fehlen sie (ältere Pläne, Klassik-Modus), gilt 1 Person
+   und das steht als Annahme da. Das Budget kommt aus `budgetReport.limitCents`, sonst aus
+   `budgetCents`.
+3. **Erste Änderung:** Die Recherche ist nicht gespeichert, deshalb steht am `TripDraft`
+   `seeded: true`. Der Orchestrator ergänzt die Überarbeitung dann um die volle Recherche (wie bei
+   einem neuen Plan) und um Tage ohne Programmpunkte, die in „Meine Reisen“ gelöscht wurden
+   (`completeSeededRevision`). Punkte ohne Koordinaten bekommen die des Ziels. Danach schreibt revise
+   wie gewohnt nur die betroffenen Tage neu, die übrigen bleiben Stop für Stop gleich. Ab der zweiten
+   Änderung gilt die gespeicherte Recherche wie oben.
+4. **Verknüpfung:** `TripDraft.itineraryId` bleibt über alle Überarbeitungen erhalten,
+   `itinerary.draft` trägt sie mit. Wählt der Nutzer im selben Chat ein anderes Ziel, ist das eine
+   neue Reise ohne Verknüpfung, und es gibt wieder „Plan speichern“.
+5. **„Änderungen speichern“** schickt `PUT /itineraries/:id` mit demselben Body wie `POST`. Der
+   Service ersetzt Eckdaten und alle Programmpunkte in einer Transaktion. Die Besitzprüfung läuft
+   über `updateMany` mit `userId`, eine fremde Reise ist 404.
+
+Solange der Chat an einer gespeicherten Reise arbeitet, läuft jede Nachricht im Multi-Modus, denn
+nur der Orchestrator kennt den Entwurf der Session. Statt des Modus-Umschalters steht dann
+„Gespeicherte Reise bearbeiten“ da.
+
+**Tests:** `orchestrator.spec.ts` (erste Änderung an einer gespeicherten Reise: volle Recherche,
+revise statt compose, leerer Tag 3 wird mitgeschrieben, Koordinaten ergänzt, `itineraryId` und
+Eckdaten im Entwurf; anderes Ziel löst die Verknüpfung), `itinerary-seed.spec.ts`,
+`draft-revision.spec.ts` (`completeSeededRevision`), `itineraries.service.spec.ts` (`update`:
+Besitzprüfung, Transaktion, Stopps ersetzt), `agent.controller.spec.ts` (`POST /agent/drafts`),
+`apps/web/src/lib/edit-trip.test.ts`. Außerdem habe ich den ganzen Ablauf im Browser gegen eine
+Mock-API geprüft (Öffnen, Ändern, Speichern, geänderte Reise in „Meine Reisen“).
+
+**Bewusst offen:**
+
+- **Vergangene oder lange Reisen:** Liegt der Zeitraum in der Vergangenheit oder dauert die Reise
+  länger als 14 Tage (Klassik-Modus), fragt triage bei der ersten Änderung nach neuen Daten, wie bei
+  einem neuen Plan.
+- **`AGENT_MODE_LOCKED=true` mit `AGENT_MODE=classic`:** Dann ignoriert der Server den Multi-Modus
+  und Änderungen landen beim Classic-Agenten, der den Entwurf nicht kennt.
+- **Nicht live geprüft:** nur mit Mocks und gegen keine echte Datenbank. Die Migration ist von Hand
+  geschrieben (nur neue, optionale Spalten).
+
 ## Die Idee in einem Satz
 
 Nur wo Sprache verstanden oder geschrieben werden muss, fragt der Orchestrator ein LLM; alles

@@ -17,6 +17,16 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { AgentService } from './agent.service';
+import { ItinerariesService } from './itineraries.service';
+import {
+  seedFromItinerary,
+  seededDraftView,
+} from './orchestrator/itinerary-seed';
+import type { SavedItinerary } from './orchestrator/itinerary-seed';
+import {
+  TRIP_DRAFT_STORE,
+  type TripDraftStore,
+} from './orchestrator/trip-draft-store';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from './auth/current-user';
 import { MAX_RETRY_AFTER_S } from './llm/retrying-llm-provider';
@@ -96,6 +106,8 @@ export class AgentController {
     private readonly agentService: AgentService,
     @Inject(AGENT_RUN_STORE) private readonly runStore: AgentRunStore,
     private readonly orchestrator: Orchestrator,
+    private readonly itinerariesService: ItinerariesService,
+    @Inject(TRIP_DRAFT_STORE) private readonly tripDraftStore: TripDraftStore,
   ) {
     // Einmal beim Start ins Log, damit man lokal wie in Azure sofort sieht,
     // welcher Agent die Chats beantwortet (AGENT_MODE in apps/api/.env) und
@@ -249,6 +261,37 @@ export class AgentController {
       createdAt,
       finishedAt: new Date(),
     });
+  }
+
+  // "Im Chat bearbeiten": Die gespeicherte Reise wird zum Entwurf der
+  // (neuen) Session. Folgenachrichten an POST /agent/runs mit mode 'multi'
+  // überarbeiten ihn wie jeden anderen Entwurf; die Antwort enthält ihn in
+  // der Form von itinerary.draft, damit das Frontend ihn sofort zeigt.
+  // Kostet keine Tokens. Fremde Reisen sind 404 (findOne filtert nach
+  // userId).
+  @Post('drafts')
+  async draftFromItinerary(
+    @CurrentUser() user: AuthUser,
+    @Body() body: { sessionId?: unknown; itineraryId?: unknown },
+  ) {
+    const { sessionId, itineraryId } = body ?? {};
+    if (
+      typeof sessionId !== 'string' ||
+      sessionId.length === 0 ||
+      sessionId.length > MAX_SESSION_ID_LENGTH
+    ) {
+      throw new BadRequestException('sessionId fehlt oder ist zu lang');
+    }
+    if (typeof itineraryId !== 'string' || itineraryId.length === 0) {
+      throw new BadRequestException('itineraryId fehlt');
+    }
+    const itinerary = (await this.itinerariesService.findOne(
+      user.userId,
+      itineraryId,
+    )) as SavedItinerary;
+    const seeded = seedFromItinerary(itinerary);
+    await this.tripDraftStore.save(user.userId, sessionId, seeded);
+    return seededDraftView(seeded);
   }
 
   // Ein gespeicherter Lauf zum erneuten Abspielen (/replay?run=<id>). Nur

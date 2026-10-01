@@ -17,6 +17,10 @@ export interface StoredTripDraft {
   draft: TripDraft;
   findings: ResearchFindings;
   budget?: BudgetReport;
+  // Entwurf einer gespeicherten Reise ("Im Chat bearbeiten")
+  itineraryId?: string;
+  // true: aus der gespeicherten Reise erzeugt, die Recherche fehlt noch
+  seeded?: boolean;
 }
 
 // Wo die Entwürfe liegen. Eigene Schnittstelle wie beim ConversationStore:
@@ -60,6 +64,8 @@ export class PrismaTripDraftStore implements TripDraftStore {
       ...(row.budget !== null && {
         budget: row.budget as unknown as BudgetReport,
       }),
+      ...(row.itineraryId !== null && { itineraryId: row.itineraryId }),
+      ...(row.seeded && { seeded: true }),
     };
   }
 
@@ -74,6 +80,8 @@ export class PrismaTripDraftStore implements TripDraftStore {
       draft: json(value.draft),
       findings: json(value.findings),
       budget: value.budget ? json(value.budget) : undefined,
+      itineraryId: value.itineraryId ?? null,
+      seeded: value.seeded ?? false,
     };
     await this.prisma.tripDraft.upsert({
       where: { userId_sessionId: { userId, sessionId } },
