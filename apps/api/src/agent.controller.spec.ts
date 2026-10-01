@@ -3,7 +3,12 @@ import type { Response } from 'express';
 import { HttpException, NotFoundException } from '@nestjs/common';
 import { AgentController, toRunError } from './agent.controller';
 import type { AgentService } from './agent.service';
+import type { ItinerariesService } from './itineraries.service';
 import type { Orchestrator } from './orchestrator/orchestrator';
+import {
+  InMemoryTripDraftStore,
+  type TripDraftStore,
+} from './orchestrator/trip-draft-store';
 import { InMemoryAgentRunStore } from './runs/agent-run-store';
 import type { RunEventEmitter } from './runs/run-event-emitter';
 
@@ -12,11 +17,15 @@ function controller(
   service: object,
   store = new InMemoryAgentRunStore(),
   orchestrator: object = {},
+  itineraries: object = {},
+  drafts: TripDraftStore = new InMemoryTripDraftStore(),
 ) {
   return new AgentController(
     service as unknown as AgentService,
     store,
     orchestrator as unknown as Orchestrator,
+    itineraries as unknown as ItinerariesService,
+    drafts,
   );
 }
 
@@ -485,6 +494,36 @@ describe('AgentController AGENT_MODE', () => {
     ]);
   });
 
+  it('bricht den Multi-Lauf ab, wenn der Client geht, und speichert ABORTED', async () => {
+    process.env.AGENT_MODE = 'multi';
+    const store = new InMemoryAgentRunStore();
+    const res = fakeResponse();
+    let seen: AbortSignal | undefined;
+    const orchestrator = {
+      run: jest.fn((_input: unknown, _emit: unknown, signal: AbortSignal) => {
+        seen = signal;
+        res.emit('close');
+        // Wie der Orchestrator vor dem nächsten Schritt
+        signal.throwIfAborted();
+        return Promise.resolve({
+          reply: 'nie',
+          sources: [],
+          searchAttempted: false,
+        });
+      }),
+    };
+
+    await controller({ sendMessage: jest.fn() }, store, orchestrator).run(
+      user,
+      body,
+      res as unknown as Response,
+    );
+
+    expect(seen?.aborted).toBe(true);
+    const [saved] = [...store.runs.values()];
+    expect(saved.status).toBe('ABORTED');
+  });
+
   it('POST /agent/chat bleibt auch mit AGENT_MODE=multi beim Classic-Agenten', async () => {
     process.env.AGENT_MODE = 'multi';
     const service = {
@@ -690,5 +729,81 @@ describe('AgentController: Tageskontingent für Gäste', () => {
       controller(agent, storeWith('guest-1', 12_000)).chat(guest, body),
     ).rejects.toMatchObject({ status: 429 });
     expect(agent.sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('AgentController POST /agent/drafts', () => {
+  const user = { userId: 'user-a', role: 'guest' } as const;
+  const trip = {
+    id: 'trip-1',
+    destination: 'Lissabon',
+    startDate: new Date('2026-10-14T00:00:00Z'),
+    endDate: new Date('2026-10-15T00:00:00Z'),
+    budgetCents: 0,
+    currency: 'EUR',
+    preferences: [],
+    budgetReport: null,
+    assumptions: [],
+    travelers: 2,
+    origin: null,
+    lodging: null,
+    stops: [
+      {
+        dayNumber: 1,
+        order: 1,
+        title: 'Alfama',
+        description: null,
+        category: 'SIGHTSEEING',
+        costCents: null,
+        lat: 38.71,
+        lng: -9.13,
+      },
+    ],
+  };
+
+  it('legt die gespeicherte Reise als Entwurf der Session an und liefert ihn zurück', async () => {
+    const itineraries = { findOne: jest.fn().mockResolvedValue(trip) };
+    const drafts = new InMemoryTripDraftStore();
+
+    const result = await controller(
+      {},
+      undefined,
+      {},
+      itineraries,
+      drafts,
+    ).draftFromItinerary(user, { sessionId: 's-edit', itineraryId: 'trip-1' });
+
+    expect(itineraries.findOne).toHaveBeenCalledWith('user-a', 'trip-1');
+    expect(result).toMatchObject({
+      itineraryId: 'trip-1',
+      revision: 1,
+      itinerary: { destination: 'Lissabon', travelers: 2 },
+    });
+    const stored = await drafts.load('user-a', 's-edit');
+    expect(stored).toMatchObject({ itineraryId: 'trip-1', seeded: true });
+  });
+
+  it('eine fremde Reise ist 404, es entsteht kein Entwurf', async () => {
+    const itineraries = {
+      findOne: jest.fn().mockRejectedValue(new NotFoundException()),
+    };
+    const drafts = new InMemoryTripDraftStore();
+    await expect(
+      controller({}, undefined, {}, itineraries, drafts).draftFromItinerary(
+        user,
+        { sessionId: 's-edit', itineraryId: 'trip-x' },
+      ),
+    ).rejects.toThrow(NotFoundException);
+    expect(drafts.drafts.size).toBe(0);
+  });
+
+  it('prüft sessionId und itineraryId', async () => {
+    const c = controller({});
+    await expect(
+      c.draftFromItinerary(user, { itineraryId: 'trip-1' }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      c.draftFromItinerary(user, { sessionId: 's', itineraryId: 42 }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 });

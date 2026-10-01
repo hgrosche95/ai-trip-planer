@@ -10,6 +10,8 @@ import { PlannerAgent } from './agents/planner.agent';
 import { ResearchAgent } from './agents/research.agent';
 import { Orchestrator } from './orchestrator';
 import { TODAY, researchTools } from './testing.fixtures';
+import { seedFromItinerary } from './itinerary-seed';
+import type { SavedItinerary } from './itinerary-seed';
 import { InMemoryTripDraftStore } from './trip-draft-store';
 import { searchTravelKnowledge } from '../rag-client';
 
@@ -753,6 +755,160 @@ describe('Orchestrator: Entwurf per Folgenachricht anpassen', () => {
     expect(
       lastPlanOf(ctx.events).tasks.find((t) => t.id === 'revise')?.status,
     ).toBe('error');
+  });
+});
+
+describe('Orchestrator: gespeicherte Reise im Chat bearbeiten', () => {
+  // Gespeicherte Reise wie aus "Plan speichern", aber Tag 3 im Plan
+  // gelöscht und ein Punkt ohne Koordinaten (älterer Plan)
+  function savedTrip(): SavedItinerary {
+    const composed = JSON.parse(COMPOSE) as {
+      stops: Omit<SavedItinerary['stops'][number], 'description'>[];
+    };
+    const stops = composed.stops
+      .filter((stop) => stop.dayNumber !== 3)
+      .map((stop) => ({
+        ...stop,
+        description: null,
+        costCents: stop.costCents ?? null,
+        ...(stop.title === 'Time Out Market' && { lat: null, lng: null }),
+      }));
+    return {
+      id: 'trip-1',
+      destination: 'Lissabon',
+      startDate: new Date('2026-10-14T00:00:00Z'),
+      endDate: new Date('2026-10-16T00:00:00Z'),
+      budgetCents: 80_000,
+      currency: 'EUR',
+      preferences: [],
+      budgetReport: {
+        currency: 'EUR',
+        limitCents: 80_000,
+        totalCents: 70_000,
+        status: 'ok',
+        items: [],
+      },
+      assumptions: ['Unterkunft: Mittelklasse'],
+      travelers: 2,
+      origin: 'Berlin',
+      lodging: 'mid',
+      stops,
+    };
+  }
+
+  const REVISE_DAYS_2_3 = JSON.stringify({
+    stops: [
+      {
+        dayNumber: 2,
+        order: 1,
+        title: 'Ausschlafen und Pastéis de Nata',
+        category: 'FOOD',
+        costCents: 500,
+        lat: 38.7,
+        lng: -9.2,
+      },
+      {
+        dayNumber: 3,
+        order: 1,
+        title: 'Belém',
+        category: 'SIGHTSEEING',
+        costCents: 1000,
+        lat: 38.7,
+        lng: -9.21,
+      },
+    ],
+  });
+
+  it('erste Änderung holt die Recherche nach, füllt leere Tage und bleibt mit der Reise verknüpft', async () => {
+    const ctx = setup();
+    await ctx.drafts.save('user-a', 's1', seedFromItinerary(savedTrip()));
+    ctx.llm.chat
+      .mockResolvedValueOnce(
+        reply(
+          JSON.stringify({
+            status: 'ready',
+            intent: 'revise',
+            days: [2],
+            changes: {},
+            summary: 'Tag 2 ruhiger',
+          }),
+          1000,
+          60,
+        ),
+      )
+      .mockResolvedValueOnce(reply(REVISE_DAYS_2_3, 700, 250))
+      .mockResolvedValueOnce(reply('### Tag 2\n- Ausschlafen', 900, 300));
+
+    await ctx.run('Mach Tag 2 entspannter');
+
+    const labels = ctx.events.map(label);
+    // Volle Recherche wie bei einem neuen Plan, aber revise statt compose
+    expect(
+      labels.filter((l) => l.startsWith('agent.started research')),
+    ).toEqual([
+      'agent.started research/research:weather',
+      'agent.started research/research:lodging',
+      'agent.started research/research:transport',
+      'agent.started research/research:knowledge',
+      'agent.started research/research:holidays',
+    ]);
+    expect(labels).toContain('agent.started planner/revise');
+    expect(labels).not.toContain('agent.started planner/compose');
+
+    // Der leere Tag 3 gehört zur Überarbeitung, Tag 1 bleibt
+    const [reviseMessages] = ctx.llm.chat.mock.calls[1];
+    expect(reviseMessages[0].content).toContain('nur die Tage 2, 3');
+    const facts = JSON.parse(reviseMessages[1].content!) as {
+      Reise: { Tage: { dayNumber: number }[] };
+    };
+    expect(new Set(facts.Reise.Tage.map((s) => s.dayNumber))).toEqual(
+      new Set([2]),
+    );
+    const draft = draftOf(ctx.events);
+    expect(draft.itinerary.stops.map((s) => [s.dayNumber, s.title])).toEqual([
+      [1, 'Ankunft'],
+      [1, 'Alfama und Tram 28'],
+      [2, 'Ausschlafen und Pastéis de Nata'],
+      [3, 'Belém'],
+    ]);
+    expect(draft).toMatchObject({ revision: 2, itineraryId: 'trip-1' });
+    // Eckdaten der gespeicherten Reise gehen mit
+    expect(draft.itinerary).toMatchObject({
+      travelers: 2,
+      origin: 'Berlin',
+      lodging: 'mid',
+    });
+
+    const stored = await ctx.drafts.load('user-a', 's1');
+    expect(stored?.itineraryId).toBe('trip-1');
+    expect(stored?.seeded).toBeUndefined();
+    expect(stored?.findings.destination?.name).toBe('Lissabon');
+    expect(stored?.findings.weather).toBeDefined();
+  });
+
+  it('ein anderes Ziel ist eine neue Reise, nicht mehr mit der gespeicherten verknüpft', async () => {
+    const ctx = setup();
+    await ctx.drafts.save('user-a', 's1', seedFromItinerary(savedTrip()));
+    const brief = JSON.parse(TRIAGE) as Record<string, unknown>;
+    ctx.llm.chat
+      .mockResolvedValueOnce(
+        reply(
+          JSON.stringify({ ...brief, intent: 'new', destination: 'Porto' }),
+          1000,
+          250,
+        ),
+      )
+      .mockResolvedValueOnce(reply(COMPOSE_PORTO, 1400, 900))
+      .mockResolvedValueOnce(reply('## 3 Tage Porto', 1300, 700));
+
+    await ctx.run('Lieber nach Porto');
+
+    const draft = draftOf(ctx.events);
+    expect(draft.itinerary.destination).toBe('Porto');
+    expect(draft.itineraryId).toBeUndefined();
+    expect((await ctx.drafts.load('user-a', 's1'))?.itineraryId).toBe(
+      undefined,
+    );
   });
 });
 

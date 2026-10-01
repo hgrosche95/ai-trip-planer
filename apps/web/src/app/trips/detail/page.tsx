@@ -7,8 +7,11 @@ import BudgetBar from '@/components/budget-bar';
 import { authFetch } from '@/lib/auth';
 import type { BudgetReport } from '@/lib/run-events';
 import CityMap from '@/components/city-map';
+import DayTicket, { StopNumber } from '@/components/day-ticket';
+import { dayDate } from '@/lib/draft-days';
 import { formatDate, formatMoney, placeCode, tripDays } from '@/lib/format';
 import DeleteTripButton from './delete-trip-button';
+import EditTripButton from './edit-trip-button';
 import DeleteStopButton from './delete-stop-button';
 
 interface Stop {
@@ -57,19 +60,6 @@ function CategoryStamp({ category }: { category: string }) {
       {stamp.label}
     </span>
   );
-}
-
-// Tagesfarbe wie im Entwurf und auf der Karte
-function dayColor(dayNumber: number) {
-  return `var(--day-${((dayNumber - 1) % 4) + 1})`;
-}
-
-// In UTC wie im Entwurf: Das Startdatum kommt als Mitternacht UTC, in
-// lokaler Zeit westlich von Greenwich wäre das schon der Vortag
-function weekdayOf(startIso: string, dayNumber: number) {
-  const date = new Date(startIso);
-  date.setUTCDate(date.getUTCDate() + dayNumber - 1);
-  return date.toLocaleDateString('de-DE', { weekday: 'short', timeZone: 'UTC' });
 }
 
 // Ladefehler mit Ausweg: erneut versuchen oder zurück zur Liste
@@ -123,12 +113,12 @@ function TripDetailSkeleton() {
       <div className="h-8 w-48 rounded bg-rule" />
       <div className="mt-2 h-3 w-56 rounded bg-rule" />
       <div className="mt-4 h-16 rounded-xl border border-rule bg-card" />
-      <div className="mt-6 grid grid-cols-[3rem_1fr] gap-3">
-        <div className="min-h-32 border-r-2 border-rule" />
-        <div className="flex flex-col gap-2">
-          <div className="h-20 rounded-lg border border-rule bg-card" />
-          <div className="h-20 rounded-lg border border-rule bg-card" />
-        </div>
+      <div className="mt-6 flex flex-col gap-4">
+        {[0, 1].map((i) => (
+          <div key={i} className="grid h-36 grid-cols-[5rem_1fr] rounded-xl bg-card">
+            <div className="rounded-l-xl border-r-2 border-dashed border-rule bg-rule/40" />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -216,11 +206,14 @@ function TripDetail() {
             {tripLength === 1 ? 'TAG' : 'TAGE'}
           </p>
         </div>
-        <DeleteTripButton
-          itineraryId={itinerary.id}
-          destination={itinerary.destination}
-          onDeleted={() => router.push('/trips')}
-        />
+        <div className="flex flex-wrap items-start justify-end gap-2">
+          <EditTripButton itineraryId={itinerary.id} />
+          <DeleteTripButton
+            itineraryId={itinerary.id}
+            destination={itinerary.destination}
+            onDeleted={() => router.push('/trips')}
+          />
+        </div>
       </div>
 
       {report ? (
@@ -272,67 +265,48 @@ function TripDetail() {
         </div>
       )}
 
-      <div className="mt-6 flex flex-col gap-6">
+      <div className="mt-6 flex flex-col gap-4">
         {days.map((day) => (
-          <section
+          <DayTicket
             key={day}
-            onMouseEnter={() => setHoverDay(day)}
-            onMouseLeave={() => setHoverDay(null)}
-            className="grid grid-cols-[3rem_1fr] gap-3"
+            dayNumber={day}
+            date={dayDate(itinerary.startDate, day)}
+            dimmed={hoverDay !== null && hoverDay !== day}
+            onHover={setHoverDay}
+            headingLevel={2}
           >
-            <div
-              className="border-r-2 pr-2 text-center font-mono text-[11px] uppercase text-dim"
-              style={{ borderColor: dayColor(day) }}
-            >
-              <h2>
-                Tag{' '}
-                <span className="block text-2xl font-bold leading-none" style={{ color: dayColor(day) }}>
-                  {day}
-                </span>
-              </h2>
-              {weekdayOf(itinerary.startDate, day)}
-            </div>
-            <ul className="flex flex-col gap-2">
+            <ol className="flex flex-col px-3.5 py-1">
               {itinerary.stops
                 .filter((stop) => stop.dayNumber === day)
                 .map((stop, index) => (
-                  <li key={stop.id} className="rounded-lg border border-rule bg-card p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="flex items-start gap-2 font-bold">
-                        {/* Nummer innerhalb des Tages, wie auf der Karte */}
-                        <span
-                          aria-hidden="true"
-                          className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full font-mono text-[11px] font-semibold text-white"
-                          style={{ background: dayColor(day) }}
-                        >
-                          {index + 1}
+                  <li key={stop.id} className="flex gap-2.5 border-b border-rule py-3 last:border-b-0">
+                    <StopNumber dayNumber={day} index={index} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="font-bold leading-snug">{stop.title}</span>
+                        <CategoryStamp category={stop.category} />
+                      </div>
+                      {stop.description && <p className="mt-0.5 text-sm text-dim">{stop.description}</p>}
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <span className="font-mono text-sm tabular-nums text-dim">
+                          {stop.costCents == null
+                            ? '–'
+                            : stop.costCents === 0
+                              ? 'frei'
+                              : formatMoney(stop.costCents, itinerary.currency)}
                         </span>
-                        {stop.title}
-                      </span>
-                      <CategoryStamp category={stop.category} />
-                    </div>
-                    {stop.description && (
-                      <p className="mt-0.5 text-sm text-dim">{stop.description}</p>
-                    )}
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="font-mono text-sm tabular-nums">
-                        {stop.costCents == null
-                          ? '–'
-                          : stop.costCents === 0
-                            ? 'frei'
-                            : formatMoney(stop.costCents, itinerary.currency)}
-                      </span>
-                      <DeleteStopButton
-                        itineraryId={itinerary.id}
-                        stopId={stop.id}
-                        stopTitle={stop.title}
-                        onDeleted={loadItinerary}
-                      />
+                        <DeleteStopButton
+                          itineraryId={itinerary.id}
+                          stopId={stop.id}
+                          stopTitle={stop.title}
+                          onDeleted={loadItinerary}
+                        />
+                      </div>
                     </div>
                   </li>
                 ))}
-            </ul>
-          </section>
+            </ol>
+          </DayTicket>
         ))}
       </div>
     </div>
