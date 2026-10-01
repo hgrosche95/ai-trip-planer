@@ -27,29 +27,32 @@ function formatEur(cents: number) {
 // Budgetbericht des Budget-Agenten unter der Antwort: Balken bis zum Budget,
 // darunter die Posten. Alle Beträge sind Schätzungen aus der Recherche und
 // werden so beschriftet. Ohne genanntes Budget zeigt der Balken nur die
-// Aufteilung der geschätzten Summe.
-export default function BudgetBar({ report }: { report: BudgetReport }) {
+// Aufteilung der geschätzten Summe. compact: ohne eigene Kopfzeile, wenn
+// Summe und Ampel schon daneben stehen (Kopfkarte der gespeicherten Reise).
+export default function BudgetBar({ report, compact = false }: { report: BudgetReport; compact?: boolean }) {
   const style = STATUS_STYLES[report.status];
   const limit = report.limitCents;
   const share = limit ? report.totalCents / limit : 1;
   return (
     <section aria-label="Budget" className="mt-3">
-      <p className="mb-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[11px] uppercase tracking-widest text-dim">
-        <span>Budget</span>
-        <span className="normal-case tracking-normal">
-          {limit ? (
-            <>
-              ca. {formatEur(report.totalCents)} von {formatEur(limit)} ·{' '}
-              <span className={`font-semibold ${style.text}`}>{style.label}</span>
-            </>
-          ) : (
-            <>ca. {formatEur(report.totalCents)} · kein Budget genannt</>
-          )}
-        </span>
-        <span className="rounded border border-dashed border-rule px-1 normal-case tracking-normal">
-          geschätzt
-        </span>
-      </p>
+      {!compact && (
+        <p className="mb-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[11px] uppercase tracking-widest text-dim">
+          <span>Budget</span>
+          <span className="normal-case tracking-normal">
+            {limit ? (
+              <>
+                ca. {formatEur(report.totalCents)} von {formatEur(limit)} ·{' '}
+                <span className={`font-semibold ${style.text}`}>{style.label}</span>
+              </>
+            ) : (
+              <>ca. {formatEur(report.totalCents)} · kein Budget genannt</>
+            )}
+          </span>
+          <span className="rounded border border-dashed border-rule px-1 normal-case tracking-normal">
+            geschätzt
+          </span>
+        </p>
+      )}
       <div
         role="meter"
         aria-valuemin={0}
@@ -69,6 +72,7 @@ export default function BudgetBar({ report }: { report: BudgetReport }) {
             {CATEGORY_LABELS[item.category]} {formatEur(item.cents)}
           </li>
         ))}
+        {compact && <li>· geschätzt</li>}
       </ul>
     </section>
   );

@@ -217,50 +217,44 @@ function TripDetail() {
             />
           </div>
         }
-      />
-
-      {report ? (
-        // Dieselbe Schätzung wie im Entwurf: Anreise, Unterkunft, Programm, Essen
-        <div className="rounded-xl border border-rule bg-card px-4 pb-4 pt-1">
-          <BudgetBar report={report} />
-          {assumptions.length > 0 && (
-            <section aria-label="Annahmen" className="mt-3">
-              <h2 className="mb-1 font-mono text-[11px] uppercase tracking-wider text-dim">
-                Annahmen
-              </h2>
-              <ul className="list-disc space-y-0.5 pl-5 text-sm">
-                {assumptions.map((assumption) => (
-                  <li key={assumption}>{assumption}</li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-rule bg-card p-4">
-          <div className="flex justify-between gap-3 font-mono text-xs">
-            <span className="uppercase tracking-wider text-dim">Programmpunkte</span>
-            <span className={`font-semibold tabular-nums ${isOverBudget ? 'text-stamp' : ''}`}>
-              {formatMoney(plannedCents, itinerary.currency)} /{' '}
-              {formatMoney(itinerary.budgetCents, itinerary.currency)}
-            </span>
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rule">
-            <div
-              className={`h-full rounded-full ${isOverBudget ? 'bg-stamp' : 'bg-teal'}`}
-              style={{ width: `${Math.min(percent, 100)}%` }}
-            />
-          </div>
-          {isOverBudget ? (
-            <p className="mt-2 text-xs text-stamp">
-              Budget um {formatMoney(plannedCents - itinerary.budgetCents, itinerary.currency)}{' '}
-              überschritten.
+      >
+        {/* Budget und Annahmen in der Kopfkarte statt in eigenen Karten: Die
+            Summe steht schon oben, hier nur Balken und Aufteilung */}
+        {report ? (
+          <BudgetBar report={report} compact />
+        ) : (
+          // Ältere und Klassik-Pläne: nur die Programmpunkte gegen das Budget
+          <section aria-label="Programmpunkte gegen das Budget" className="mt-3">
+            <div className="h-2 overflow-hidden rounded-full border border-rule bg-card">
+              <div
+                className={`h-full ${isOverBudget ? 'bg-stamp' : 'bg-teal'}`}
+                style={{ width: `${Math.min(percent, 100)}%` }}
+              />
+            </div>
+            <p className={`mt-1 font-mono text-[11px] ${isOverBudget ? 'text-stamp' : 'text-dim'}`}>
+              Programmpunkte {formatMoney(plannedCents, itinerary.currency)}
+              {isOverBudget
+                ? ` · Budget um ${formatMoney(plannedCents - itinerary.budgetCents, itinerary.currency)} überschritten`
+                : ' · ohne Anreise und Unterkunft'}
             </p>
-          ) : (
-            <p className="mt-2 text-xs text-dim">Nur die Programmpunkte, ohne Anreise und Unterkunft.</p>
-          )}
-        </div>
-      )}
+          </section>
+        )}
+        {assumptions.length > 0 && (
+          <details className="group mt-3 text-sm">
+            <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-dim hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <span aria-hidden="true" className="transition-transform group-open:rotate-90 motion-reduce:transition-none">
+                ›
+              </span>
+              Annahmen ({assumptions.length})
+            </summary>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {assumptions.map((assumption) => (
+                <li key={assumption}>{assumption}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </TripSummary>
 
       <TripMapLayout stops={itinerary.stops} activeDay={activeDay} pinnedDay={pinnedDay} onPin={setPinnedDay}>
         {days.map((day) => (

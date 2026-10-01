@@ -260,12 +260,16 @@ ersetzt die Reise, statt eine neue anzulegen.
 
 **Gleiche Ansicht für gespeicherte Reisen:** `/trips/detail` hat jetzt das Layout der
 Arbeitsfläche: Kopfkarte mit Ortskürzeln (mit Abreiseort), Datum, Dauer und Budget, darunter die
-Tage, ab `xl` die Stadtkarte rechts daneben, die beim Scrollen stehen bleibt, mit Tag-Auswahl. Beide
+Tage, ab `xl` die Stadtkarte rechts daneben, die beim Scrollen stehen bleibt, mit Tag-Auswahl.
+Budgetbalken mit Aufteilung (`BudgetBar` mit `compact`, ohne die Summe ein zweites Mal) und die
+Annahmen (aufklappbar) stehen in der Kopfkarte statt in einer eigenen Karte, damit die Tage weiter
+oben beginnen. Reiter wie im Chat gibt es hier nicht: Ohne Wetter, Kritik und Ablauf bliebe für
+einen eigenen Reiter nur eine Zeile. Beide
 nutzen dieselben Bausteine
 ([`components/trip-plan.tsx`](../../apps/web/src/components/trip-plan.tsx): `TripSummary`,
 `DayChips`, `TripMapLayout`).
 
-![Gespeicherte Reise am Desktop: Kopfkarte BER → LIS mit „Im Chat bearbeiten“, Budget und Annahmen, Tage links, Karte mit Tag-Auswahl rechts](trip-detail.png)
+![Gespeicherte Reise am Desktop: Kopfkarte BER → LIS mit „Im Chat bearbeiten“, Budgetbalken und aufgeklappten Annahmen, Tage links, Karte mit Tag-Auswahl rechts](trip-detail.png)
 
 Solange der Chat an einer gespeicherten Reise arbeitet, läuft jede Nachricht im Multi-Modus, denn
 nur der Orchestrator kennt den Entwurf der Session. Statt des Modus-Umschalters steht dann
