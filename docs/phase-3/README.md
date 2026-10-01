@@ -258,6 +258,15 @@ ersetzt die Reise, statt eine neue anzulegen.
    Service ersetzt Eckdaten und alle Programmpunkte in einer Transaktion. Die Besitzprüfung läuft
    über `updateMany` mit `userId`, eine fremde Reise ist 404.
 
+**Gleiche Ansicht für gespeicherte Reisen:** `/trips/detail` hat jetzt das Layout der
+Arbeitsfläche: Kopfkarte mit Ortskürzeln (mit Abreiseort), Datum, Dauer und Budget, darunter die
+Tage, ab `xl` die Stadtkarte rechts daneben, die beim Scrollen stehen bleibt, mit Tag-Auswahl. Beide
+nutzen dieselben Bausteine
+([`components/trip-plan.tsx`](../../apps/web/src/components/trip-plan.tsx): `TripSummary`,
+`DayChips`, `TripMapLayout`).
+
+![Gespeicherte Reise am Desktop: Kopfkarte BER → LIS mit „Im Chat bearbeiten“, Budget und Annahmen, Tage links, Karte mit Tag-Auswahl rechts](trip-detail.png)
+
 Solange der Chat an einer gespeicherten Reise arbeitet, läuft jede Nachricht im Multi-Modus, denn
 nur der Orchestrator kennt den Entwurf der Session. Statt des Modus-Umschalters steht dann
 „Gespeicherte Reise bearbeiten“ da.
