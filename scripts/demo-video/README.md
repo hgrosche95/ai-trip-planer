@@ -59,6 +59,9 @@ python3 scripts/demo-video/trailer.py       # out/trailer.mp4, .webm, .webp
   Die Einstellungen hängen an den Marken der Aufnahmen (`mark(...)`), passen
   sich also an andere Laufzeiten an. Gerendert wird mit Pillow (Zoom per
   Float-Ausschnitt, ruckelfrei) und per Pipe an ffmpeg. Braucht `pip install pillow`.
+- Kodiert wird aus einem verlustfreien Master per 2-Pass auf `TARGET_KB`
+  (Standard 2400, die Portfolio-Grenze für MP4 liegt bei 2,5 MB). Am Ende
+  druckt das Skript die Kapitelzeiten fürs Frontmatter der Portfolio-Seite.
 - `overlays.cjs` rendert die Texte als HTML per Playwright zu transparenten
   PNGs, im Stil der Portfolio-Seite (Bricolage Grotesque, IBM Plex, Kupfer).
   Die Schriften kommen von Google Fonts.

@@ -86,37 +86,38 @@ OVERLAYS = [
 # --- Schnitt ------------------------------------------------------------------
 # Jede Einstellung: Quelle, von/bis (Marke + Versatz in Sekunden Echtzeit),
 # Länge im Trailer, Zoom (z, cx, cy) am Anfang und Ende, Text.
-def shot(src, a, b, dur, z0=(1, 640, 400), z1=None, text=None, blur=0, card=None):
-    return dict(src=src, a=a, b=b, dur=dur, z0=z0, z1=z1 or z0, text=text, blur=blur, card=card)
+def shot(src, a, b, dur, z0=(1, 640, 400), z1=None, text=None, blur=0, card=None, chapter=None):
+    return dict(src=src, a=a, b=b, dur=dur, z0=z0, z1=z1 or z0, text=text, blur=blur, card=card, chapter=chapter)
 
 R, X = 'raw', 'extras'
 SHOTS = [
     # Titel über dem drehenden Globus
-    shot(R, at(R, 'Eingabe'), at(R, 'Eingabe', 1.4), 3.8, (1.0, 640, 400), (1.12, 640, 380), blur=7, card='title'),
+    shot(R, at(R, 'Eingabe'), at(R, 'Eingabe', 1.4), 3.8, (1.0, 640, 400), (1.12, 640, 380), blur=7, card='title', chapter='Eingabe'),
     # Eingabe: Zoom auf das Eingabefeld
     shot(R, at(R, 'Eingabe', 1.4), at(R, 'Agenten', -0.3), 4.2, (1.35, 420, 700), (1.55, 420, 700), 'eingabe'),
     # Agenten bei der Arbeit, beschleunigt
-    shot(R, at(R, 'Agenten'), at(R, 'Agenten', 0.4) + (at(R, 'Antwort') - at(R, 'Agenten')) * 0.35, 3.6, (1.0, 640, 400), (1.25, 560, 380), 'planer'),
+    shot(R, at(R, 'Agenten'), at(R, 'Agenten', 0.4) + (at(R, 'Antwort') - at(R, 'Agenten')) * 0.35, 3.6, (1.0, 640, 400), (1.25, 560, 380), 'planer', chapter='Agenten'),
     shot(R, at(R, 'Agenten') + (at(R, 'Antwort') - at(R, 'Agenten')) * 0.35, at(R, 'Agenten') + (at(R, 'Antwort') - at(R, 'Agenten')) * 0.7, 3.4, (1.3, 900, 380), (1.15, 760, 400), 'recherche'),
     shot(R, at(R, 'Agenten') + (at(R, 'Antwort') - at(R, 'Agenten')) * 0.7, at(R, 'Antwort'), 3.6, (1.15, 640, 400), (1.0, 640, 400), 'kritiker'),
     # Antwort: Ticket-Tage und Karte
-    shot(R, at(R, 'Antwort'), at(R, 'Wetter', -1.5), 6.5, (1.0, 640, 400), (1.22, 900, 440), 'tage'),
+    shot(R, at(R, 'Antwort'), at(R, 'Wetter', -1.5), 6.5, (1.0, 640, 400), (1.22, 900, 440), 'tage', chapter='Antwort'),
     shot(R, at(R, 'Wetter', -0.2), at(R, 'Ablauf', -0.2), 3.6, (1.32, 860, 450), (1.4, 860, 480), 'wetter'),
     shot(R, at(R, 'Ablauf'), at(R, 'Speichern', -1.2), 4.4, (1.0, 640, 400), (1.28, 900, 400), 'ablauf'),
     # Quellen aus der Wissensbasis (klassischer Modus)
-    shot(X, at(X, 'Klassisch', 0.5), at(X, 'Quellen', -0.5), 3.0, (1.25, 420, 650), (1.25, 420, 600), 'quellen'),
+    shot(X, at(X, 'Klassisch', 0.5), at(X, 'Quellen', -0.5), 3.0, (1.25, 420, 650), (1.25, 420, 600), 'quellen', chapter='Quellen'),
     shot(X, at(X, 'Quellen', -0.3), at(X, 'Reise', -0.2), 3.6, (1.15, 620, 560), (1.5, 600, 650), 'quellen'),
     # Speichern und gespeicherte Reise
-    shot(R, at(R, 'Speichern'), at(R, 'Gespeichert', 1.0), 2.6, (1.25, 900, 250), (1.35, 1000, 160), 'speichern'),
+    shot(R, at(R, 'Speichern'), at(R, 'Gespeichert', 1.0), 2.6, (1.25, 900, 250), (1.35, 1000, 160), 'speichern', chapter='Speichern'),
     shot(R, at(R, 'Reise', 0.3), at(R, 'Ende'), 5.0, (1.0, 640, 400), (1.12, 520, 300), 'speichern'),
     # Bearbeiten: Fassung 2
-    shot(X, at(X, 'Bearbeiten', 0.3), at(X, 'Fassung 2', 0.5), 4.2, (1.0, 640, 400), (1.15, 420, 600), 'bearbeiten'),
+    shot(X, at(X, 'Bearbeiten', 0.3), at(X, 'Fassung 2', 0.5), 4.2, (1.0, 640, 400), (1.15, 420, 600), 'bearbeiten', chapter='Bearbeiten'),
     shot(X, at(X, 'Fassung 2', 0.5), at(X, 'Ende'), 4.2, (1.15, 900, 300), (1.0, 640, 400), 'bearbeiten'),
     # Schluss mit Live-Link
     shot(R, at(R, 'Ende', -0.1), at(R, 'Ende'), 4.5, (1.05, 640, 400), (1.12, 640, 400), blur=8, card='ende'),
 ]
 
 FADE = 0.28  # Ein-/Ausblenden der Texte
+TARGET_KB = int(os.environ.get('TARGET_KB', 2400))  # Portfolio: MP4 ≤ 2,5 MB
 
 def main():
     specs = os.path.join(out, 'overlays.json')
@@ -138,10 +139,16 @@ def main():
         start += s['dur']
     total = start
     print('Trailer', round(total, 2), 's')
+    # Kapitel für das Frontmatter der Portfolio-Seite
+    for s in SHOTS:
+        if s['chapter']:
+            print(f"    - {{ t: {round(s['start'], 1)}, label: \"{s['chapter']}\" }}")
 
+    # Erst ein verlustfreier Master, daraus 2-Pass auf Zielgröße: Die Zooms
+    # kosten Bitrate, mit fester Qualität (CRF) wurde die Datei zu groß
+    master = os.path.join(out, 'trailer-master.mkv')
     enc = [ff, '-hide_banner', '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}',
-           '-r', str(FPS), '-i', '-', '-vf', 'format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '27',
-           '-movflags', '+faststart', os.path.join(out, 'trailer.mp4')]
+           '-r', str(FPS), '-i', '-', '-vf', 'format=yuv420p', '-c:v', 'libx264', '-preset', 'ultrafast', '-qp', '0', master]
     proc = subprocess.Popen(enc, stdin=subprocess.PIPE)
     n = round(total * FPS)
     poster = None
@@ -185,8 +192,15 @@ def main():
     if proc.wait():
         sys.exit('ffmpeg fehlgeschlagen')
     poster.save(os.path.join(out, 'trailer-poster.png'))
-    subprocess.run([ff, '-hide_banner', '-loglevel', 'error', '-y', '-i', os.path.join(out, 'trailer.mp4'), '-c:v', 'libvpx-vp9',
-                    '-crf', '42', '-b:v', '0', '-row-mt', '1', '-deadline', 'good', os.path.join(out, 'trailer.webm')], check=True)
+    kbps = int(TARGET_KB * 8 * 1.024 / total * 0.97)  # etwas Luft für Container und Ratenschwankung
+    log = os.path.join(out, 'pass')
+    q = [ff, '-hide_banner', '-loglevel', 'error', '-y', '-i', master]
+    for n_pass, dest in ((1, os.devnull), (2, os.path.join(out, 'trailer.mp4'))):
+        subprocess.run([*q, '-c:v', 'libx264', '-preset', 'slow', '-b:v', f'{kbps}k', '-pass', str(n_pass), '-passlogfile', log,
+                        '-movflags', '+faststart', '-f', 'mp4', dest], check=True)
+    for n_pass, dest in ((1, os.devnull), (2, os.path.join(out, 'trailer.webm'))):
+        subprocess.run([*q, '-c:v', 'libvpx-vp9', '-b:v', f'{kbps}k', '-pass', str(n_pass), '-passlogfile', log,
+                        '-row-mt', '1', '-deadline', 'good', '-f', 'webm', dest], check=True)
     subprocess.run([ff, '-hide_banner', '-loglevel', 'error', '-y', '-i', os.path.join(out, 'trailer-poster.png'),
                     '-c:v', 'libwebp', '-quality', '82', os.path.join(out, 'trailer.webp')], check=True)
     for f in ('trailer.mp4', 'trailer.webm', 'trailer.webp'):
