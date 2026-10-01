@@ -44,6 +44,11 @@ export interface ItineraryDraft {
   budgetCents: number;
   currency: string;
   preferences: string[];
+  // Eckdaten aus dem Brief, damit die gespeicherte Reise sie kennt
+  // ("Im Chat bearbeiten")
+  travelers?: number;
+  origin?: string;
+  lodging?: 'budget' | 'mid' | 'upscale';
   stops: {
     dayNumber: number;
     order: number;
@@ -155,6 +160,9 @@ export interface RunEventPayloads {
     assumptions: string[];
     revision?: number;
     change?: string;
+    // Entwurf aus einer gespeicherten Reise: "Änderungen speichern" ersetzt
+    // diese Reise (PUT /itineraries/:id) statt eine neue anzulegen
+    itineraryId?: string;
   };
   // LLM-Aufruf beginnt: das Frontend zeigt sofort eine laufende Zeile.
   // agent und parentStepId (Schritt aus agent.started) nur im Multi-Modus.

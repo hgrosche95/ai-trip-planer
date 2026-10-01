@@ -52,6 +52,12 @@ model Itinerary {
   // Plänen aus dem Klassik-Modus und älteren Plänen.
   budgetReport Json?
   assumptions  String[] @default([])
+  // Eckdaten aus dem Entwurf, die der Plan sonst nicht kennt. Damit lässt
+  // sich die Reise später im Chat bearbeiten, ohne neu nachzufragen. Fehlen
+  // wie budgetReport bei älteren und Klassik-Plänen.
+  travelers   Int?
+  origin      String?
+  lodging     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -219,6 +225,12 @@ model TripDraft {
   draft     Json
   findings  Json
   budget    Json?
+  // Entwurf aus einer gespeicherten Reise ("Im Chat bearbeiten"): Beim
+  // Speichern wird diese Reise ersetzt statt eine neue angelegt.
+  itineraryId String?
+  // true: Die Recherche fehlt noch (gespeicherte Reisen haben keine), die
+  // erste Änderung holt sie vollständig nach.
+  seeded    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

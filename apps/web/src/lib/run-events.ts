@@ -104,6 +104,10 @@ export interface ItineraryDraft {
   budgetCents: number;
   currency: string;
   preferences: string[];
+  // Eckdaten aus dem Brief, gehen beim Speichern mit ("Im Chat bearbeiten")
+  travelers?: number;
+  origin?: string;
+  lodging?: 'budget' | 'mid' | 'upscale';
   stops: {
     dayNumber: number;
     order: number;
@@ -193,6 +197,8 @@ export interface RunEventPayloads {
     assumptions: string[];
     revision?: number;
     change?: string;
+    // Überarbeitung einer gespeicherten Reise: Speichern ersetzt diese
+    itineraryId?: string;
   };
   'llm.started': { stepId: string; agent?: AgentName; parentStepId?: string };
   // Der laufende LLM-Aufruf wartet auf das Groq-Limit (Minutenbudget an

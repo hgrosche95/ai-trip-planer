@@ -14,11 +14,17 @@ import type { BudgetReport } from './agents/budget.agent';
 import { CriticAgent } from './agents/critic.agent';
 import type { Critique } from './agents/critic.agent';
 import { PlannerOutputError } from './agents/planner.schema';
-import { PlannerAgent, draftFor } from './agents/planner.agent';
+import {
+  PlannerAgent,
+  buildTaskPlan,
+  draftFor,
+  withCoordinates,
+} from './agents/planner.agent';
 import type { FinalizeResult } from './agents/planner.agent';
 import { ResearchAgent } from './agents/research.agent';
-import { mergeFindings } from './draft-revision';
+import { completeSeededRevision, mergeFindings } from './draft-revision';
 import type { DraftRevision } from './draft-revision';
+import { tripDays } from './trip-draft';
 import type {
   ResearchFindings,
   TaskPlan,
@@ -169,13 +175,17 @@ export class Orchestrator {
     );
     // Der neue Entwurf ersetzt den alten, auch bei einer neuen Reise. Nach
     // einer Rückfrage bleibt der alte stehen.
+    // Eine Überarbeitung bleibt mit der gespeicherten Reise verknüpft, aus
+    // der sie stammt; eine neue Reise (anderes Ziel) nicht.
     if (data.final && data.brief && data.draft && data.findings) {
+      const itineraryId = linkedItinerary(data);
       await this.deps.tripDraftStore.save(input.userId, input.sessionId, {
         revision: version(data),
         brief: data.brief,
         draft: data.draft,
         findings: data.findings,
         ...(data.budget && { budget: data.budget }),
+        ...(itineraryId && { itineraryId }),
       });
     }
 
@@ -223,6 +233,19 @@ export class Orchestrator {
         return 'plan';
       }
       case 'plan': {
+        const { base } = data;
+        if (data.revision && base?.seeded) {
+          // Gespeicherte Reise: Recherche vollständig nachholen
+          const research = buildTaskPlan(data.brief!)
+            .tasks.filter((task) => task.agent === 'research')
+            .map((task) => task.type);
+          data.revision = completeSeededRevision(
+            data.revision,
+            research,
+            base.draft.stops,
+            tripDays(data.brief!),
+          );
+        }
         data.plan = await planner.plan(data.brief!, ctx, data.revision);
         board.load(data.plan);
         return 'research';
@@ -255,11 +278,26 @@ export class Orchestrator {
               tasks.map((task) => task.type),
             )
           : base.findings;
+        if (base.seeded) {
+          // Ältere und Klassik-Pläne haben nicht an jedem Punkt Koordinaten,
+          // der Entwurf braucht sie (Karte, Prüfung)
+          data.base = {
+            ...base,
+            draft: {
+              ...base.draft,
+              stops: withCoordinates(base.draft.stops, data.findings),
+            },
+          };
+        }
         if (revision.recompose) return 'compose';
         if (revision.days.length > 0) return 'revise';
         // Nur Eckdaten geändert (Unterkunft, Budget, Personen): Programm
         // bleibt, Daten und Budget des Entwurfs kommen aus dem neuen Brief
-        data.draft = draftFor(data.brief!, data.findings, base.draft.stops);
+        data.draft = draftFor(
+          data.brief!,
+          data.findings,
+          data.base!.draft.stops,
+        );
         return 'budget';
       }
       case 'revise': {
@@ -371,6 +409,7 @@ export class Orchestrator {
               budget: data.budget!,
               version: version(data),
               ...(data.revision && { revision: data.revision }),
+              itineraryId: linkedItinerary(data),
               issues: data.critique?.violations ?? [],
             },
             ctx,
@@ -389,6 +428,12 @@ export class Orchestrator {
 // eine neue Reise beginnt wieder bei 1
 function version(data: RunData): number {
   return data.revision && data.base ? data.base.revision + 1 : 1;
+}
+
+// Gespeicherte Reise, die dieser Entwurf überarbeitet (nur bei einer
+// Überarbeitung, nicht bei einer neuen Reise in derselben Session)
+function linkedItinerary(data: RunData): string | undefined {
+  return data.revision ? data.base?.itineraryId : undefined;
 }
 
 // Hält den Stand der Aufgaben und meldet jede Änderung als plan.updated

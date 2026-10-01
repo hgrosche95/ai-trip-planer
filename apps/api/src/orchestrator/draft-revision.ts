@@ -168,6 +168,30 @@ export function revisionResearch(
   return RESEARCH_ORDER.filter((task) => tasks.has(task));
 }
 
+// Erste Änderung an einer gespeicherten Reise ("Im Chat bearbeiten"): Die
+// Reise hat keine Recherche gespeichert, also läuft sie vollständig (wie bei
+// einem neuen Plan). Tage ohne Programmpunkte (im Plan gelöscht) schreibt
+// der Planer mit neu, sonst bestünde der Entwurf die Prüfung nicht.
+export function completeSeededRevision(
+  revision: DraftRevision,
+  research: TaskType[],
+  stops: DraftStop[],
+  days: number,
+): DraftRevision {
+  const emptyDays = revision.recompose
+    ? []
+    : Array.from({ length: days }, (_, index) => index + 1).filter(
+        (day) => !stops.some((stop) => stop.dayNumber === day),
+      );
+  return {
+    ...revision,
+    research: RESEARCH_ORDER.filter(
+      (task) => research.includes(task) || revision.research.includes(task),
+    ),
+    days: [...new Set([...revision.days, ...emptyDays])].sort((a, b) => a - b),
+  };
+}
+
 // Übernimmt aus der neuen Recherche genau die Teile, die neu gelaufen sind.
 // Ist eine Aufgabe fehlgeschlagen, fehlt ihr Teil danach: Die alten Werte
 // gehörten zu anderen Eckdaten (anderer Zeitraum, andere Preisgrenze).

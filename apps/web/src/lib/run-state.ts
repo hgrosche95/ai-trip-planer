@@ -75,12 +75,14 @@ export interface RunState {
   // Entwurf des Plans (Multi-Modus), noch nicht gespeichert: Der Chat zeigt
   // dafür "Plan speichern" (nur beim neuesten, siehe draft-versions.ts).
   // revision: Fassung in der Session, 1 bei älteren Läufen ohne Angabe;
-  // change: was eine Überarbeitung geändert hat
+  // change: was eine Überarbeitung geändert hat; itineraryId: Entwurf einer
+  // gespeicherten Reise ("Im Chat bearbeiten"), Speichern ersetzt diese
   draft?: {
     itinerary: ItineraryDraft;
     assumptions: string[];
     revision: number;
     change?: string;
+    itineraryId?: string;
   };
   // Spätester Zeitpunkt aller Ereignisse bisher: Ende laufender Balken im
   // Wasserfall (live wie im Replay, ohne Uhr im Browser)
