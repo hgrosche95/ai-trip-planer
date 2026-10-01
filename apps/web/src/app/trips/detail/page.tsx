@@ -11,6 +11,7 @@ import DayTicket, { StopNumber } from '@/components/day-ticket';
 import { dayDate } from '@/lib/draft-days';
 import { formatDate, formatMoney, placeCode, tripDays } from '@/lib/format';
 import DeleteTripButton from './delete-trip-button';
+import EditTripButton from './edit-trip-button';
 import DeleteStopButton from './delete-stop-button';
 
 interface Stop {
@@ -205,11 +206,14 @@ function TripDetail() {
             {tripLength === 1 ? 'TAG' : 'TAGE'}
           </p>
         </div>
-        <DeleteTripButton
-          itineraryId={itinerary.id}
-          destination={itinerary.destination}
-          onDeleted={() => router.push('/trips')}
-        />
+        <div className="flex flex-wrap items-start justify-end gap-2">
+          <EditTripButton itineraryId={itinerary.id} />
+          <DeleteTripButton
+            itineraryId={itinerary.id}
+            destination={itinerary.destination}
+            onDeleted={() => router.push('/trips')}
+          />
+        </div>
       </div>
 
       {report ? (

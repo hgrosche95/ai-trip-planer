@@ -160,6 +160,23 @@ export class CreateItineraryDto {
   @MaxLength(100, { each: true })
   preferences?: string[];
 
+  // Eckdaten aus dem Entwurf (Multi-Modus), damit sich die Reise später im
+  // Chat bearbeiten lässt
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(16)
+  travelers?: number;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  origin?: string;
+
+  @IsOptional()
+  @IsIn(['budget', 'mid', 'upscale'])
+  lodging?: 'budget' | 'mid' | 'upscale';
+
   @IsArray()
   @ArrayMaxSize(MAX_STOPS)
   @ValidateNested({ each: true })

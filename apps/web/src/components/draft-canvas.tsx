@@ -397,6 +397,7 @@ export default function DraftCanvas({
               superseded={position !== latest}
               budgetReport={draft.run.budget}
               assumptions={draft.run.draft.assumptions}
+              itineraryId={draft.run.draft.itineraryId}
               savedId={saved[draft.messageIndex]}
               onSaved={(id) => onSaved(draft.messageIndex, id)}
             />

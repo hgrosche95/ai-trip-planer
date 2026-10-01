@@ -22,6 +22,7 @@ import {
 import { clearChatSession, readChatSession, writeChatSession } from '@/lib/chat-session';
 import { issueMarkers, type IssueMarker } from '@/lib/critique';
 import { draftVersions } from '@/lib/draft-versions';
+import { editedItinerary } from '@/lib/edit-trip';
 import type { ChatSource } from '@/lib/run-events';
 import { globeView, lodgingPoints } from '@/lib/replay';
 import { applyRunEvent, initialRunState, type RunState } from '@/lib/run-state';
@@ -168,6 +169,11 @@ export default function ChatWindow() {
     () => DEFAULT_AGENT_MODE,
   );
 
+  // Gespeicherte Reise im Chat: Nur der Multi-Modus kennt den Entwurf der
+  // Session, der Umschalter gilt erst wieder für eine neue Reise
+  const editing = editedItinerary(messages.map((message) => message.trace)) !== undefined;
+  const runMode = editing ? 'multi' : agentMode;
+
   // Weckt den RAG-Service beim Öffnen des Chats, damit sein Kaltstart läuft,
   // während der Nutzer noch tippt, statt während der ersten Frage. Ohne Token
   // und ohne Warten auf die Antwort; schlägt es fehl, ändert sich nichts.
@@ -225,7 +231,7 @@ export default function ChatWindow() {
       const response = await authFetch(`${API_URL}/agent/runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ sessionId, message: userMessage, mode: agentMode }),
+        body: JSON.stringify({ sessionId, message: userMessage, mode: runMode }),
         signal: abort.signal,
       });
       if (!response.ok) {
@@ -502,7 +508,7 @@ export default function ChatWindow() {
         ref={withRef ? inputRef : undefined}
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        placeholder={withRef ? 'Ziel, Zeitraum, Budget …' : 'Plan ändern …'}
+        placeholder={withRef && !editing ? 'Ziel, Zeitraum, Budget …' : 'Plan ändern …'}
         aria-label="Nachricht"
         className="min-w-0 flex-1 bg-transparent px-2 py-1.5 outline-none placeholder:text-dim"
       />
@@ -529,17 +535,23 @@ export default function ChatWindow() {
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         {/* Modus ist eine Einstellung für Neugierige, keine Frage vor der
             ersten Nachricht: eingeklappt, der Default gilt */}
-        <details className="group">
-          <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1 rounded-lg px-2 text-xs font-semibold text-dim hover:text-foreground [&::-webkit-details-marker]:hidden">
-            <span aria-hidden="true" className="transition-transform group-open:rotate-90 motion-reduce:transition-none">
-              ›
-            </span>
-            Modus: {AGENT_MODE_LABELS[agentMode]}
-          </summary>
-          <div className="mt-2">
-            <ModeToggle mode={agentMode} onChange={storeAgentMode} />
-          </div>
-        </details>
+        {editing ? (
+          <p className="flex min-h-8 items-center px-2 text-xs font-semibold text-dim">
+            Gespeicherte Reise bearbeiten
+          </p>
+        ) : (
+          <details className="group">
+            <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1 rounded-lg px-2 text-xs font-semibold text-dim hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <span aria-hidden="true" className="transition-transform group-open:rotate-90 motion-reduce:transition-none">
+                ›
+              </span>
+              Modus: {AGENT_MODE_LABELS[agentMode]}
+            </summary>
+            <div className="mt-2">
+              <ModeToggle mode={agentMode} onChange={storeAgentMode} />
+            </div>
+          </details>
+        )}
         {messages.length > 0 && !isLoading && (
           <div>
             {hasUnsavedDraft ? (

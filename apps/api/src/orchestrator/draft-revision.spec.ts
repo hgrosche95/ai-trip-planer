@@ -1,5 +1,6 @@
 import {
   changeSummary,
+  completeSeededRevision,
   lodgingNightCapEur,
   mergeFindings,
   parseRevision,
@@ -267,5 +268,45 @@ describe('lodgingNightCapEur und changeSummary', () => {
     expect(changeSummary(LISBON_BRIEF, LISBON_BRIEF, [])).toBe(
       'Entwurf angepasst',
     );
+  });
+});
+
+describe('completeSeededRevision', () => {
+  const stop = (dayNumber: number): DraftStop => ({
+    dayNumber,
+    order: 1,
+    title: `Tag ${dayNumber}`,
+  });
+  const revision = {
+    days: [2],
+    research: ['research:lodging' as const],
+    recompose: false,
+    summary: 'Tag 2 ruhiger',
+  };
+
+  it('ergänzt die volle Recherche in fester Reihenfolge und leere Tage', () => {
+    const result = completeSeededRevision(
+      revision,
+      ['research:weather', 'research:knowledge'],
+      [stop(1), stop(2)],
+      4,
+    );
+    expect(result.research).toEqual([
+      'research:weather',
+      'research:lodging',
+      'research:knowledge',
+    ]);
+    expect(result.days).toEqual([2, 3, 4]);
+    expect(result.summary).toBe('Tag 2 ruhiger');
+  });
+
+  it('bei neuer Reisedauer schreibt compose ohnehin alles neu: keine Tage dazu', () => {
+    const result = completeSeededRevision(
+      { ...revision, recompose: true },
+      [],
+      [stop(1)],
+      3,
+    );
+    expect(result.days).toEqual([2]);
   });
 });

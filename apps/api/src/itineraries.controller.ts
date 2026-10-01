@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Delete,
   UseGuards,
 } from '@nestjs/common';
@@ -32,6 +33,17 @@ export class ItinerariesController {
   @Get(':id')
   findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.itinerariesService.findOne(user.userId, id);
+  }
+
+  // Ersetzt die Reise durch einen im Chat überarbeiteten Entwurf
+  // ("Im Chat bearbeiten" → "Änderungen speichern"), Body wie bei POST
+  @Put(':id')
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: CreateItineraryDto,
+  ) {
+    return this.itinerariesService.update(user.userId, id, body);
   }
 
   @Delete(':id')

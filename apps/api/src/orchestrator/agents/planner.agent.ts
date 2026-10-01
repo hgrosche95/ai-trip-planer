@@ -105,6 +105,8 @@ export interface FinalizeInput {
   version?: number;
   // Nur bei einer Überarbeitung
   revision?: DraftRevision;
+  // Überarbeitung einer gespeicherten Reise ("Im Chat bearbeiten")
+  itineraryId?: string;
   // Offene Befunde des Kritikers (Warnungen, nach der letzten Nachbesserung
   // auch Fehler): Die Antwort nennt sie, statt sie zu verschweigen
   issues?: Violation[];
@@ -398,6 +400,7 @@ export class PlannerAgent {
         assumptions: [...input.brief.assumptions],
         revision: input.version ?? 1,
         ...(revision && { change: revision.summary }),
+        ...(input.itineraryId && { itineraryId: input.itineraryId }),
       });
       const route = routeFromStops(itinerary.stops);
       const text = result.content?.trim() || 'Dein Reiseplan ist fertig.';
@@ -496,7 +499,7 @@ export function buildRevisionPlan(
 // Der Entwurf in genau der Form von CreateItineraryDto. Budget ist das
 // genannte oder die geschätzte Summe des Budget-Agenten.
 export function itineraryDraft(input: FinalizeInput): ItineraryDraft {
-  const { draft, budget } = input;
+  const { draft, budget, brief } = input;
   return {
     destination: draft.destination,
     startDate: draft.startDate,
@@ -504,6 +507,9 @@ export function itineraryDraft(input: FinalizeInput): ItineraryDraft {
     budgetCents: budget.limitCents ?? budget.totalCents,
     currency: draft.currency,
     preferences: [...(draft.preferences ?? [])],
+    travelers: brief.travelers,
+    ...(brief.origin && { origin: brief.origin }),
+    ...(brief.lodging && { lodging: brief.lodging }),
     stops: draft.stops.map((stop) => ({
       dayNumber: stop.dayNumber,
       order: stop.order,
@@ -578,7 +584,7 @@ function checkRevision(
 
 // Fehlende Koordinaten ergänzt der Code mit denen des Ziels, statt einen
 // Reparaturversuch zu verbrauchen
-function withCoordinates(
+export function withCoordinates(
   stops: DraftStop[],
   findings: ResearchFindings,
 ): DraftStop[] {
