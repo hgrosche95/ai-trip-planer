@@ -10,11 +10,11 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.3.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^25",
+    "@types/node": "^25.9.9",
     "typescript": "^6.0.3"
   }
 }
