@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import type { RunMeta } from './ci-meta.js';
 
 export interface EvalCaseRow {
   id: string;
@@ -11,8 +12,9 @@ export interface EvalCaseRow {
   grounded: string;
 }
 
-export interface EvalSummary {
+export interface EvalSummary extends RunMeta {
   timestamp: string;
+  provider: string;
   model: string;
   topK: number;
   recall: number;
@@ -91,10 +93,18 @@ export function renderReport(summary: EvalSummary): string {
   return lines.join('\n');
 }
 
-export function writeReport(content: string, fileTimestamp: string): string {
+// Markdown für Menschen, JSON (knowledge-<Zeit>.json) für die Historie
+// hinter /evals und das Badge (publish.ts)
+export function writeReport(
+  content: string,
+  summary: EvalSummary,
+  fileTimestamp: string,
+): { markdown: string; json: string } {
   const dir = path.join(process.cwd(), 'reports');
   mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, `${fileTimestamp}.md`);
-  writeFileSync(filePath, content, 'utf-8');
-  return filePath;
+  const markdown = path.join(dir, `${fileTimestamp}.md`);
+  const json = path.join(dir, `knowledge-${fileTimestamp}.json`);
+  writeFileSync(markdown, content, 'utf-8');
+  writeFileSync(json, `${JSON.stringify(summary, null, 2)}\n`, 'utf-8');
+  return { markdown, json };
 }

@@ -188,8 +188,67 @@ Feiertage fehlen in den Ereignissen, die Feiertagsregel ist aber nur ein
 Hinweis.
 
 Ergebnis: `reports/scenarios-<Zeit>.md` und `.json`. Das JSON ist die
-Grundlage für die Seite `/evals` (Phase 5b). Exit-Code 1, wenn eine
+Grundlage für die Seite `/evals` (siehe unten). Exit-Code 1, wenn eine
 Schwelle verfehlt ist.
 
 Tests ohne Netz: `npm test` rechnet die Kennzahlen auf zwei
 aufgezeichneten echten Orchestrator-Läufen nach (`fixtures/`, Fake-LLM).
+
+## Historie, `/evals` und Badge
+
+Beide Eval-Läufe schreiben neben dem Markdown ein JSON
+(`reports/knowledge-<Zeit>.json`, `reports/scenarios-<Zeit>.json`), in CI
+mit Lauf-ID, Link zum Lauf und Commit (`src/ci-meta.ts`). Der Job `publish`
+in `nightly-eval.yml` macht daraus eine öffentliche Historie:
+
+```
+nightly-eval (Matrix groq / anthropic)
+   └─ Artefakte eval-report-<Anbieter>/*.json
+publish
+   ├─ checkt den Orphan-Branch eval-data aus (legt ihn beim ersten Mal an)
+   ├─ npm run eval:publish -- <Reports> <eval-data>   (src/publish.ts)
+   │     history.json  += ein Eintrag pro Lauf und Anbieter
+   │     badge.json     = shields.io-Endpoint für das README
+   └─ committet und pusht eval-data
+```
+
+- **Ein Eintrag pro Lauf und Anbieter** (`src/history.ts`): Wissens- und
+  Szenario-Report desselben Laufs werden zusammengefasst. Nur Kennzahlen
+  und Gründe für Fehlschläge, keine Antworttexte; die vollständigen Reports
+  bleiben Artefakte am Lauf.
+- **Idempotent:** Ein Eintrag mit derselben ID ersetzt den alten, ein
+  wiederholter Publish verdoppelt nichts. Gehalten werden die letzten 420
+  Einträge (gut ein Jahr).
+- **Warum ein eigener Branch statt der API:** Die Seite `/evals` lädt
+  `history.json` direkt von `raw.githubusercontent.com` (CORS offen). Sie
+  funktioniert damit auch, wenn die API auf 0 skaliert ist, und das Badge
+  aktualisiert sich ohne Deploy. Ein Orphan-Branch hält die täglichen
+  Commits aus der Geschichte von `main` heraus.
+- **Nur `main` veröffentlicht:** Läufe von anderen Branches (per Hand
+  gestartet) füllen die öffentliche Historie nicht.
+- **Badge:** letzter Groq-Lauf (den sieht man in der Live-Demo). Grün =
+  alle Schwellen erfüllt, Gelb = Schwellen verfehlt, aber mindestens 75 %
+  der Szenarien bestanden, sonst Rot.
+
+### Modellvergleich Groq vs. Anthropic
+
+Groq läuft jede Nacht, Anthropic nur sonntags (jeder Lauf kostet echtes
+Geld, ein Punkt pro Woche reicht für den Vergleich) und nur, wenn das
+Secret `ANTHROPIC_API_KEY` gesetzt ist. Per Hand: *Actions → Nightly Eval →
+Run workflow* mit `provider` = `groq`, `anthropic` oder `beide`. Die Läufe
+gehen nacheinander (`max-parallel: 1`), weil beide den Groq-Judge fragen.
+
+Der **Judge ist immer dasselbe Groq-Modell**, auch wenn Anthropic geprüft
+wird. Würde jeder Anbieter sich selbst bewerten, wären die Zahlen nicht
+vergleichbar. Kosten erscheinen auf `/evals` pro Szenario, damit ein
+abgebrochener Lauf nicht billiger aussieht.
+
+### Lokal ausprobieren
+
+```bash
+cd evals
+npm run eval:scenarios                      # schreibt reports/*.json
+npm run eval:publish -- reports /tmp/eval-data
+# Seite gegen die lokale Datei: Datei nach apps/web/public kopieren und
+NEXT_PUBLIC_EVAL_HISTORY_URL=http://localhost:3001/history.json npm run dev --workspace=web
+```

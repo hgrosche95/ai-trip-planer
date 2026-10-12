@@ -12,6 +12,9 @@
   --day-2: #C07A12;
   --day-3: #7A4FB3;
   --day-4: #B5487A;
+  /* Anbieter auf /evals (Groq, Anthropic), geprüft auf Farbsehschwäche */
+  --series-1: #2F6FB0;
+  --series-2: #C07A12;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -26,6 +29,8 @@
     --day-2: #E6A646;
     --day-3: #A988DA;
     --day-4: #DB7FA8;
+    --series-1: #4F8AC9;
+    --series-2: #C2852A;
   }
 }
 

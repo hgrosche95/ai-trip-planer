@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "eval": "tsx src/run.ts",
-    "test": "tsx --test src/metrics.spec.ts src/scenario-metrics.spec.ts",
-    "eval:scenarios": "tsx src/run-scenarios.ts"
+    "test": "tsx --test src/metrics.spec.ts src/scenario-metrics.spec.ts src/history.spec.ts",
+    "eval:scenarios": "tsx src/run-scenarios.ts",
+    "eval:publish": "tsx src/publish.ts"
   },
   "devDependencies": {
     "@types/node": "^25",

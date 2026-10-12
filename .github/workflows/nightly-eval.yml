@@ -12,32 +12,69 @@ on:
     # erkennen.
     - cron: '0 3 * * *'
   workflow_dispatch:
+    inputs:
+      provider:
+        description: Anbieter des Agenten (der Judge ist immer Groq)
+        type: choice
+        options: [groq, anthropic, beide]
+        default: groq
+
+# Zwei Nachtläufe gleichzeitig würden sich das Groq-Limit teilen und beim
+# Schreiben in eval-data gegenseitig überholen
+concurrency:
+  group: nightly-eval
+  cancel-in-progress: false
 
 jobs:
   # secrets sind laut GitHub-Actions-Doku NICHT im Kontext von
   # jobs.<job_id>.if verfügbar (nur github/needs/vars/inputs) - dieser
-  # vorgeschaltete, billige Job liest das Secret stattdessen in einem
-  # run:-Schritt (dort ist secrets erlaubt) und gibt nur true/false weiter,
-  # nie den Wert selbst.
-  check-secret:
+  # vorgeschaltete, billige Job liest die Secrets stattdessen in einem
+  # run:-Schritt (dort ist secrets erlaubt) und gibt nur die Liste der
+  # Anbieter weiter, nie einen Wert selbst.
+  #
+  # Groq läuft jede Nacht, Anthropic nur sonntags (oder per Hand) - jeder
+  # Anthropic-Lauf kostet echtes Geld, für den Vergleich auf /evals reicht
+  # ein Punkt pro Woche. Ohne GROQ_API_KEY läuft gar nichts, weil der
+  # Judge immer Groq ist (gleicher Judge = vergleichbare Zahlen).
+  plan:
     runs-on: ubuntu-latest
     outputs:
-      has_groq_key: ${{ steps.check.outputs.has_groq_key }}
+      providers: ${{ steps.plan.outputs.providers }}
     steps:
-      - id: check
+      - id: plan
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EVENT: ${{ github.event_name }}
+          INPUT_PROVIDER: ${{ inputs.provider }}
         run: |
+          providers=()
           if [ -n "$GROQ_API_KEY" ]; then
-            echo "has_groq_key=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_groq_key=false" >> "$GITHUB_OUTPUT"
+            if [ "$INPUT_PROVIDER" != "anthropic" ]; then
+              providers+=('"groq"')
+            fi
+            sunday=$([ "$(date -u +%u)" = 7 ] && echo true || echo false)
+            if [ -n "$ANTHROPIC_API_KEY" ] && {
+              { [ "$EVENT" = schedule ] && [ "$sunday" = true ]; } ||
+              [ "$INPUT_PROVIDER" = anthropic ] || [ "$INPUT_PROVIDER" = beide ]
+            }; then
+              providers+=('"anthropic"')
+            fi
           fi
+          list=$(IFS=,; echo "[${providers[*]}]")
+          echo "Anbieter: $list"
+          echo "providers=$list" >> "$GITHUB_OUTPUT"
 
   nightly-eval:
-    needs: check-secret
-    if: needs.check-secret.outputs.has_groq_key == 'true'
+    needs: plan
+    if: needs.plan.outputs.providers != '[]'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # Nacheinander: Auch der Anthropic-Lauf fragt den Groq-Judge
+      max-parallel: 1
+      matrix:
+        provider: ${{ fromJSON(needs.plan.outputs.providers) }}
     services:
       postgres:
         image: pgvector/pgvector:0.8.6-pg16
@@ -54,8 +91,9 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://trip_planner:trip_planner@localhost:5432/trip_planner?schema=public
-      LLM_PROVIDER: groq
+      LLM_PROVIDER: ${{ matrix.provider }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       RAG_SERVICE_URL: http://localhost:8001
       TRIP_PLANNER_API_URL: http://localhost:3000
       # Ephemere Postgres-Instanz dieses CI-Laufs, kein echter Nutzer -
@@ -134,8 +172,67 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: eval-report
+          name: eval-report-${{ matrix.provider }}
           path: |
             evals/reports/*.md
             evals/reports/*.json
           if-no-files-found: warn
+
+  # Hängt die JSON-Reports an history.json im Orphan-Branch eval-data an und
+  # schreibt badge.json. Die Seite /evals und das README-Badge lesen beides
+  # über raw.githubusercontent.com - ohne Deploy und auch dann, wenn die API
+  # gerade auf 0 skaliert ist. Läuft auch nach verfehlten Schwellen (genau
+  # die sollen sichtbar werden), aber nur für main: Probeläufe von anderen
+  # Branches sollen die öffentliche Historie nicht füllen.
+  publish:
+    needs: [plan, nightly-eval]
+    if: always() && needs.plan.outputs.providers != '[]' && needs.nightly-eval.result != 'skipped' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --workspace=evals
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: eval-report-*
+          path: eval-reports
+
+      - name: Branch eval-data auschecken
+        run: |
+          if git ls-remote --exit-code --heads origin eval-data > /dev/null; then
+            git fetch --depth=1 origin +refs/heads/eval-data:refs/remotes/origin/eval-data
+            git worktree add -B eval-data eval-data origin/eval-data
+          else
+            git worktree add --orphan -b eval-data eval-data
+          fi
+
+      - name: Historie und Badge schreiben
+        run: npm run eval:publish --workspace=evals -- ../eval-reports ../eval-data
+
+      - name: eval-data pushen
+        working-directory: eval-data
+        run: |
+          if [ ! -f README.md ]; then
+            printf '%s\n' \
+              '# eval-data' '' \
+              'Automatisch geschrieben von `.github/workflows/nightly-eval.yml` (Job `publish`).' \
+              'Nicht von Hand bearbeiten. `history.json` speist die Seite `/evals`, `badge.json` das README-Badge.' \
+              > README.md
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Keine Änderung'
+            exit 0
+          fi
+          git commit -m "evals: Lauf ${GITHUB_RUN_ID}"
+          git push origin eval-data
