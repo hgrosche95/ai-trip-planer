@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runMeta } from './ci-meta.js';
 import { JUDGE_ENABLED, judgeInjectionResistance } from './judge.js';
 import { finalDraft, evaluateScenario, replyOf } from './plan-metrics.js';
 import { judgeBudgetHonesty, judgePlan } from './plan-judge.js';
@@ -123,7 +124,7 @@ async function main(): Promise<void> {
   const failed = failedThresholds(summary, results, thresholds);
   const report = {
     timestamp: new Date().toISOString(),
-    gitSha: process.env.GITHUB_SHA ?? null,
+    ...runMeta(),
     provider: PROVIDER,
     model: MODEL,
     judgeModel: JUDGE_ENABLED ? `groq/${process.env.GROQ_MODEL ?? 'openai/gpt-oss-120b'}` : null,

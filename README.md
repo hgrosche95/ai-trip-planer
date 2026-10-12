@@ -1,5 +1,7 @@
 # AI Trip Planner
 
+[![Evals](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hgrosche95/ai-trip-planer/eval-data/badge.json)](https://witty-pond-0504bdc0f.7.azurestaticapps.net/evals)
+
 Ein Chat-Agent, der einen Reiseplan im Dialog erarbeitet, Faktenfragen zu
 Reisezielen mit belegten Quellen statt Vermutungen beantwortet und das
 Ergebnis speichert. Gebaut als Lernprojekt für produktionsnahe LLM-Anwendungen:
@@ -7,7 +9,8 @@ Tool-Use-Agenten, Retrieval-Augmented Generation, austauschbare LLM-Anbieter,
 ein eigener MCP-Server, automatisierte Qualitätsmessung und ein
 Cloud-Deployment, das bei Nichtnutzung nichts kostet.
 
-**Live-Demo:** https://witty-pond-0504bdc0f.7.azurestaticapps.net
+**Live-Demo:** https://witty-pond-0504bdc0f.7.azurestaticapps.net ·
+**Qualität live:** [/evals](https://witty-pond-0504bdc0f.7.azurestaticapps.net/evals)
 
 ## Screenshots
 
@@ -98,6 +101,13 @@ beiden aktiv entwickelten Apps).
 | Infrastruktur | Bicep, Azure Container Apps | Scale-to-Zero passt zu unregelmäßiger Portfolio-Nutzung; Infrastructure-as-Code statt Klick-Ops |
 
 ## Eval-Ergebnisse
+
+Der aktuelle Stand steht nicht hier, sondern live auf
+[`/evals`](https://witty-pond-0504bdc0f.7.azurestaticapps.net/evals): Verlauf
+der letzten 60 Nächte, Modellvergleich Groq vs. Anthropic und die zuletzt
+nicht bestandenen Szenarien. Jeder Nachtlauf hängt seine Kennzahlen an
+`history.json` im Branch `eval-data` an; Seite und Badge oben lesen die
+Datei direkt, ohne Deploy (Details: [evals/README.md](evals/README.md#historie-evals-und-badge)).
 
 Letzter Lauf gegen den echten Stack (`nightly-eval.yml`, Modell
 `groq/openai/gpt-oss-120b`), 11 Fragen im Golden Dataset (inkl. 3
@@ -315,7 +325,7 @@ wichtigsten Entscheidungen im Überblick:
 | `ci.yml` → `rag-lint-test` | Push/PR | Ruff, mypy (strict), pytest für `services/rag` - unabhängig vom Node-Job |
 | `ci.yml` → `docker-build` | Push/PR | Baut `apps/api`- und `services/rag`-Dockerfiles, bevor gemerged wird |
 | `ci.yml` → `e2e` | Push/PR | Playwright-Test gegen den kompletten Stack (siehe [E2E-Tests](#e2e-tests-e2e)) |
-| `nightly-eval.yml` | täglich 03:00 UTC + manuell | Eval-Harness gegen den echten Stack, Report als Artefakt. Übersprungen (nicht rot), solange kein `GROQ_API_KEY`-Secret gesetzt ist |
+| `nightly-eval.yml` | täglich 03:00 UTC + manuell | Eval-Harness gegen den echten Stack (Groq jede Nacht, Anthropic sonntags), Report als Artefakt, Historie und Badge in den Branch `eval-data` (Job `publish`). Übersprungen (nicht rot), solange kein `GROQ_API_KEY`-Secret gesetzt ist |
 | `deploy.yml` | Push auf `main` + manuell | Baut beide Images, deployt die Bicep-Templates, veröffentlicht das Frontend |
 
 ## E2E-Tests (`e2e`)

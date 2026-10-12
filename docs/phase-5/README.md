@@ -126,12 +126,53 @@ das Gast-Kontingent greift also nicht.
 
 Dazu ein Probelauf des ganzen Runners gegen einen Mock-Server (siehe oben).
 
-## Bewusst offen (5b)
+## Teil b: Historie, `/evals` und Modellvergleich
 
-- Verlauf `history.json` im Branch `eval-data`, Badge `badge.json`
-- Seite `/evals` mit Verlaufslinien, Modellvergleich und letzten
-  Fehlschlägen
-- Matrix Groq/Anthropic im Nightly (Anthropic nur sonntags)
+![Die Seite /evals mit Beispieldaten](evals-page.png)
+
+*Screenshot mit erzeugten Beispieldaten (45 Nächte), nicht mit echten
+Messwerten.*
+
+| | 5a | 5b |
+| --- | --- | --- |
+| Wo das Ergebnis liegt | Artefakt am Lauf, nach 90 Tagen weg | zusätzlich `history.json` im Branch `eval-data`, dauerhaft |
+| Wer es sieht | wer in GitHub Actions klickt | jeder auf `/evals` und im README-Badge |
+| Anbieter | Groq | Groq jede Nacht, Anthropic sonntags |
+| Wissens-Evals | nur Markdown | + JSON, Teil der Historie |
+
+**Ablauf:** Der Nightly läuft als Matrix pro Anbieter und lädt die
+JSON-Reports als `eval-report-<Anbieter>` hoch. Der Job `publish` sammelt
+sie ein, `evals/src/publish.ts` hängt einen Eintrag pro Lauf und Anbieter an
+`history.json` an und schreibt `badge.json`, dann wird `eval-data`
+gepusht. Die Seite `apps/web/src/app/evals/page.tsx` ist statisch und lädt
+die Historie im Browser von `raw.githubusercontent.com`.
+
+**Die Seite zeigt:**
+- Status des letzten Groq-Laufs, mit Commit und Link zum Lauf
+- sechs Verläufe der letzten 60 Tage (Szenarien bestanden, Plan-Judge,
+  Budget-Einhaltung, Regelverstöße, Recall@3, Tool-Genauigkeit), Schwelle
+  gestrichelt, Fadenkreuz mit Werten beider Anbieter (Maus oder
+  Pfeiltasten), jede Kennzahl auch als Tabelle
+- Modellvergleich: Qualität, Kosten pro Szenario, Tokens, Dauer p50/p95
+- nicht bestandene Szenarien mit Gründen
+
+**Entscheidungen:**
+- Feste Achsen (0–100 %, Judge 1–5): Ein Wert von 92 % statt 100 % soll
+  nicht wie ein Absturz aussehen.
+- Ein Punkt pro Anbieter und Tag: Groq und Anthropic derselben Nacht stehen
+  übereinander, obwohl sie zu verschiedenen Uhrzeiten laufen.
+- Farben pro Anbieter fest (Groq blau, Anthropic ocker), in Hell und Dunkel
+  auf Farbsehschwächen geprüft; Identität nie nur über Farbe (Legende,
+  Beschriftung, Tabelle).
+
+**Tests:** `evals/src/history.spec.ts` (Zusammenfassen, Mergen, Badge) und
+`apps/web/src/lib/eval-history.test.ts` (Zeitfenster, Reihen, Kennzahlen).
+Der ganze Weg Report → `publish.ts` → Seite wurde lokal mit 104
+erzeugten Reports durchgespielt.
+
+## Noch offen
+
 - Erster echter Nachtlauf: Erst dann zeigt sich, welche Schwellen realistisch
   sind. Verfehlt der erste Lauf Schwellen, ist das ein Befund zum Anschauen,
   kein Grund, die Schwellen blind zu senken.
+- Der Anthropic-Vergleich braucht das Secret `ANTHROPIC_API_KEY`.

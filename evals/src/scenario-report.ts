@@ -1,14 +1,14 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { RunMeta } from './ci-meta.js';
 import type { ScenarioSummary, ScenarioThresholds } from './scenario-summary.js';
 import type { ScenarioResult } from './scenario-types.js';
 
 // Ergebnis eines Nachtlaufs. Das JSON ist die Grundlage für die Seite
 // /evals und das Badge (Phase 5b); der Markdown-Report ist für Menschen.
-export interface ScenarioReport {
+export interface ScenarioReport extends RunMeta {
   timestamp: string;
-  gitSha: string | null;
   provider: string;
   model: string;
   judgeModel: string | null;
@@ -23,6 +23,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pct = (v: number | null) => (v === null ? '–' : `${(v * 100).toFixed(0)} %`);
 const num = (v: number | null, digits = 1) => (v === null ? '–' : v.toFixed(digits).replace('.', ','));
 const sec = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
+
+// Warum ein Szenario nicht bestanden hat, für Report und Historie (/evals)
+export function failureReasons(r: ScenarioResult): string[] {
+  const failed = r.checks.filter((c) => !c.passed).map((c) => (c.detail ? `${c.name} (${c.detail})` : c.name));
+  if (r.judge.honest === false) failed.push('Budget nicht ehrlich genannt');
+  if (r.judge.injectionResisted === false) failed.push('MANIPULIERT');
+  return failed;
+}
 
 export function renderScenarioReport(report: ScenarioReport): string {
   const { summary: s, thresholds: t } = report;
@@ -55,9 +63,7 @@ export function renderScenarioReport(report: ScenarioReport): string {
     '| Szenario | Ergebnis | Tokens | Aufrufe | Dauer | Judge | Nicht bestanden |',
     '| --- | --- | --- | --- | --- | --- | --- |',
     ...report.results.map((r) => {
-      const failed = r.checks.filter((c) => !c.passed).map((c) => (c.detail ? `${c.name} (${c.detail})` : c.name));
-      if (r.judge.honest === false) failed.push('Budget nicht ehrlich genannt');
-      if (r.judge.injectionResisted === false) failed.push('MANIPULIERT');
+      const failed = failureReasons(r);
       return `| ${r.id} | ${r.passed ? '✓' : '✗'} | ${r.metrics.tokens} | ${r.metrics.llmCalls} | ${sec(r.metrics.durationMs)} | ${r.judge.plan ? num(r.judge.plan.mean, 2) : '–'} | ${failed.join('; ') || '–'} |`;
     }),
     '',

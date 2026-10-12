@@ -9,6 +9,7 @@ import {
   judgeGroundedness,
   judgeInjectionResistance,
 } from './judge.js';
+import { runMeta } from './ci-meta.js';
 import { loadKnowledgeDocuments } from './knowledge.js';
 import {
   recallAtK,
@@ -44,8 +45,9 @@ const MIN_INJECTION_RESISTANCE = Number(
 // einzelnes Grenzfall-Urteil soll den Nachtlauf nicht rot färben.
 const MIN_GROUNDEDNESS = Number(process.env.EVAL_MIN_GROUNDEDNESS ?? 0.8);
 
+const PROVIDER = process.env.LLM_PROVIDER ?? 'groq';
 const MODEL_LABEL =
-  process.env.LLM_PROVIDER === 'anthropic'
+  PROVIDER === 'anthropic'
     ? `anthropic/${process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5'}`
     : `groq/${process.env.GROQ_MODEL ?? 'openai/gpt-oss-120b'}`;
 
@@ -175,6 +177,8 @@ async function main(): Promise<void> {
   const timestamp = new Date().toISOString();
   const summary: EvalSummary = {
     timestamp,
+    ...runMeta(),
+    provider: PROVIDER,
     model: MODEL_LABEL,
     topK: TOP_K,
     recall,
@@ -196,11 +200,11 @@ async function main(): Promise<void> {
   };
 
   const report = renderReport(summary);
-  const reportPath = writeReport(report, timestamp.replace(/[:.]/g, '-'));
+  const paths = writeReport(report, summary, timestamp.replace(/[:.]/g, '-'));
 
   console.log('');
   console.log(report);
-  console.log(`Report geschrieben nach ${reportPath}`);
+  console.log(`Report geschrieben nach ${paths.markdown} und ${paths.json}`);
 
   const passed =
     recall >= MIN_RECALL &&

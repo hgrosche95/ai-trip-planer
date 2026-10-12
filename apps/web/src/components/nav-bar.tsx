@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 const LINKS = [
   { href: '/', label: 'Chat' },
   { href: '/trips', label: 'Meine Reisen' },
+  { href: '/evals', label: 'Qualität' },
 ];
 
 export default function NavBar() {
