@@ -10,7 +10,7 @@
     "eval:publish": "tsx src/publish.ts"
   },
   "devDependencies": {
-    "@types/node": "^25",
+    "@types/node": "^25.9.9",
     "tsx": "^4.23.13"
   }
 }
