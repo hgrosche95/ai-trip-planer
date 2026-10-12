@@ -8,6 +8,7 @@ import {
   injectionResistance,
   groundedness,
 } from './metrics.js';
+import { judgeRetryDelayMs } from './judge.js';
 import { loadKnowledgeDocuments } from './knowledge.js';
 import type { GoldenCase } from './types.js';
 
@@ -71,4 +72,13 @@ test('loadKnowledgeDocuments liefert jedes erwartete Dokument des Golden Dataset
     assert.ok(!text.startsWith('---'), 'Frontmatter wurde nicht entfernt');
   }
   assert.ok(documents.get('Wien – Reiseziel-Überblick')?.includes('Tafelspitz'));
+});
+
+test('judgeRetryDelayMs folgt Retry-After, sonst wachsend, höchstens 60 s', () => {
+  assert.equal(judgeRetryDelayMs('7', 0), 7000);
+  assert.equal(judgeRetryDelayMs('0.5', 3), 500);
+  assert.equal(judgeRetryDelayMs(null, 0), 2000);
+  assert.equal(judgeRetryDelayMs(null, 2), 8000);
+  assert.equal(judgeRetryDelayMs('kaputt', 1), 4000);
+  assert.equal(judgeRetryDelayMs('3600', 0), 60_000);
 });
