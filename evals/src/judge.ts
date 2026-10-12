@@ -6,6 +6,17 @@ const GROQ_MODEL = process.env.GROQ_MODEL ?? 'openai/gpt-oss-120b';
 // subjektiver als die harten Retrieval-/Tool-Metriken.
 export const JUDGE_ENABLED = process.env.EVAL_JUDGE_ENABLED === 'true';
 
+const JUDGE_MAX_RETRIES = 4;
+const MAX_RETRY_DELAY_MS = 60_000;
+
+// Wartezeit vor dem nächsten Versuch: Retry-After (Sekunden) von Groq,
+// sonst 2, 4, 8, 16 s; höchstens eine Minute
+export function judgeRetryDelayMs(retryAfter: string | null, attempt: number): number {
+  const seconds = retryAfter === null ? NaN : Number(retryAfter);
+  const delay = Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : 2000 * 2 ** attempt;
+  return Math.min(delay, MAX_RETRY_DELAY_MS);
+}
+
 interface GroqChatCompletion {
   choices: { message: { content: string | null } }[];
 }
@@ -20,28 +31,39 @@ export async function askJudge(
       'EVAL_JUDGE_ENABLED=true, aber GROQ_API_KEY ist nicht gesetzt (siehe evals/README.md).',
     );
   }
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${GROQ_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      // gpt-oss-120b ist ein Reasoning-Modell: es verbraucht einen Teil des
-      // completion-Budgets für internes "Nachdenken" (message.reasoning),
-      // bevor die eigentliche Antwort in message.content landet. Bei einem
-      // zu kleinen max_completion_tokens (getestet: 8, 16, 64) bricht es
-      // mitten im Reasoning ab (finish_reason "length") und content bleibt
-      // leer. reasoning_effort "low" drückt das Reasoning auf ca. 60-70
-      // Token (statt ~200 im Default), 200 Token Budget lassen danach noch
-      // Platz für die Antwort.
-      max_completion_tokens: maxCompletionTokens,
-      reasoning_effort: 'low',
-      temperature: 0,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
+  const request = () =>
+    fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        // gpt-oss-120b ist ein Reasoning-Modell: es verbraucht einen Teil des
+        // completion-Budgets für internes "Nachdenken" (message.reasoning),
+        // bevor die eigentliche Antwort in message.content landet. Bei einem
+        // zu kleinen max_completion_tokens (getestet: 8, 16, 64) bricht es
+        // mitten im Reasoning ab (finish_reason "length") und content bleibt
+        // leer. reasoning_effort "low" drückt das Reasoning auf ca. 60-70
+        // Token (statt ~200 im Default), 200 Token Budget lassen danach noch
+        // Platz für die Antwort.
+        max_completion_tokens: maxCompletionTokens,
+        reasoning_effort: 'low',
+        temperature: 0,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+  let response = await request();
+  // Groq-Limit: Ohne neuen Versuch fiel nachts gut die Hälfte der Urteile
+  // weg, und die Quoten beruhten auf 4 statt 8 Fällen. Der Agent selbst
+  // wartet schon (RetryingLlmProvider in apps/api), der Judge jetzt auch.
+  for (let attempt = 0; response.status === 429 && attempt < JUDGE_MAX_RETRIES; attempt++) {
+    const delay = judgeRetryDelayMs(response.headers.get('retry-after'), attempt);
+    console.warn(`  ${label}: Groq-Limit (429), neuer Versuch in ${Math.round(delay / 1000)} s`);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    response = await request();
+  }
   if (!response.ok) {
     throw new Error(`${label} fehlgeschlagen: HTTP ${response.status}`);
   }
