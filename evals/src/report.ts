@@ -35,6 +35,8 @@ export interface EvalSummary extends RunMeta {
     groundedness: number;
   };
   perCase: EvalCaseRow[];
+  // Fälle, bei denen der Agent mit einem Fehler antwortete (zählen als falsch)
+  errors?: string[];
 }
 
 function fmtPct(value: number): string {
@@ -80,6 +82,10 @@ export function renderReport(summary: EvalSummary): string {
   }
   if (summary.judgeScore !== null) {
     lines.push(`| LLM-as-Judge | ${summary.judgeScore.toFixed(2)} / 5 | – | – |`);
+  }
+  if (summary.errors && summary.errors.length > 0) {
+    lines.push('');
+    lines.push(`**Fehlgeschlagen (Agent antwortete mit Fehler, zählt als falsch):** ${summary.errors.join(', ')}`);
   }
   lines.push('');
   lines.push('## Einzelfälle');

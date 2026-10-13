@@ -91,7 +91,8 @@ function knowledgeEntry(r: EvalSummary): KnowledgeEntry {
     r.mrr >= r.thresholds.mrr &&
     r.toolAcc >= r.thresholds.toolAcc &&
     (injectionResistance ?? 1) >= r.thresholds.injectionResistance &&
-    (groundedness ?? 1) >= r.thresholds.groundedness;
+    (groundedness ?? 1) >= r.thresholds.groundedness &&
+    (r.errors?.length ?? 0) === 0;
   return {
     topK: r.topK,
     recall: r.recall,

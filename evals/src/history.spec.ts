@@ -95,6 +95,9 @@ test('Nicht Geprüftes zählt nicht gegen die Wissens-Schwellen', () => {
   assert.equal(entry.knowledge?.passed, true);
   const [failed] = entriesFromReports([knowledge({ recall: 0.5 })]);
   assert.equal(failed.knowledge?.passed, false);
+  // Fehlgeschlagene Fälle machen den Lauf rot, auch bei erfüllten Quoten
+  const [errored] = entriesFromReports([knowledge({ errors: ['wien-essen'] })]);
+  assert.equal(errored.knowledge?.passed, false);
 });
 
 test('Fehlschläge tragen ihre Gründe, bestandene Szenarien fehlen', () => {
