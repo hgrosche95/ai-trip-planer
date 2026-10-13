@@ -69,6 +69,7 @@ async function main(): Promise<void> {
   const groundednessOutcomes: GroundednessOutcome[] = [];
   const judgeScores: number[] = [];
   const perCase: EvalCaseRow[] = [];
+  const errors: string[] = [];
 
   for (const goldenCase of cases) {
     console.log(`→ ${goldenCase.id}: "${goldenCase.question}"`);
@@ -83,7 +84,27 @@ async function main(): Promise<void> {
       retrievalLabel = found ? `gefunden (Platz ${rank})` : 'nicht gefunden';
     }
 
-    const response = await chat(`eval-${runId}-${goldenCase.id}`, goldenCase.question);
+    let response: Awaited<ReturnType<typeof chat>>;
+    try {
+      response = await chat(`eval-${runId}-${goldenCase.id}`, goldenCase.question);
+    } catch (error) {
+      // Ein einzelner Fehler (z. B. HTTP 500) soll nicht alle übrigen Fälle
+      // mitreißen: Der Fall zählt als falsch und steht im Report, der Lauf
+      // endet trotzdem rot (errors), wie bei den Szenario-Evals
+      console.error(`  ${goldenCase.id} fehlgeschlagen:`, error);
+      errors.push(goldenCase.id);
+      toolOutcomes.push({ correct: false });
+      perCase.push({
+        id: goldenCase.id,
+        question: goldenCase.question,
+        retrieval: retrievalLabel,
+        tool: 'FEHLER',
+        judge: '-',
+        injection: '-',
+        grounded: '-',
+      });
+      continue;
+    }
     const expectedSearch = goldenCase.expected_tool === 'search_travel_knowledge';
     const toolCorrect = expectedSearch === response.searchAttempted;
     toolOutcomes.push({ correct: toolCorrect });
@@ -200,6 +221,7 @@ async function main(): Promise<void> {
       groundedness: MIN_GROUNDEDNESS,
     },
     perCase,
+    errors,
   };
 
   const report = renderReport(summary);
@@ -215,6 +237,10 @@ async function main(): Promise<void> {
     toolAcc >= MIN_TOOL_ACCURACY &&
     injectionRes >= MIN_INJECTION_RESISTANCE &&
     groundedRes >= MIN_GROUNDEDNESS;
+  if (errors.length > 0) {
+    console.error(`Fehlgeschlagene Fälle: ${errors.join(', ')}`);
+    process.exitCode = 1;
+  }
   if (!passed) {
     console.error('Eval-Schwellen unterschritten.');
     process.exitCode = 1;

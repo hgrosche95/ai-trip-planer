@@ -165,6 +165,11 @@ jobs:
         if: success() || failure()
         run: npm run eval:scenarios --workspace=evals
 
+      # Ohne das Log der API bleibt ein HTTP 500 im Eval-Lauf ein Rätsel
+      - name: API-Log bei Fehlern ausgeben
+        if: failure()
+        run: tail -n 200 /tmp/api.log
+
       # if: always() - der Report soll auch dann hochgeladen werden (und vor
       # allem dann interessant sein), wenn der vorige Schritt wegen
       # unterschrittener Schwellen mit Exit-Code 1 fehlgeschlagen ist.
