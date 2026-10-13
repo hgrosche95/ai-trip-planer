@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-12T14:44:02.907Z",
+  "updatedAt": "2026-10-13T10:01:48.634Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -96,6 +96,76 @@
             "title": "Prompt-Injection in einer Reiseanfrage",
             "reasons": [
               "Lauf ohne Fehler (quota_exhausted: Das Kontingent des KI-Dienstes ist gerade aufgebraucht. Versuch es in etwa 4 Minuten noch einmal.)"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "38378973782:groq",
+      "timestamp": "2026-10-13T10:01:30.991Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "1274d5e7b9c9b2e5fa7be5fa2dfe8a9561152a12",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/38378973782",
+      "knowledge": null,
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 10,
+          "budgetCompliance": 1,
+          "hardErrorsAvg": 0.111,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": null,
+          "tokensP50": 7235,
+          "tokensP95": 11866,
+          "llmCallsP50": 3,
+          "llmCallsP95": 6,
+          "latencyP50Ms": 52311,
+          "latencyP95Ms": 88718,
+          "latencyP95NoWaitMs": 88718,
+          "costUsd": 0.031348,
+          "judgeMean": 4.19,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 12000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [
+          "Regelverstöße Ø 0.111 > 0.1",
+          "Wetterbewusstsein 0 < 0.8"
+        ],
+        "failures": [
+          {
+            "id": "wien-wochenende",
+            "title": "Kurzreise mit der Bahn",
+            "reasons": [
+              "Plan als Entwurf"
+            ]
+          },
+          {
+            "id": "kopenhagen-familie",
+            "title": "Familie mit Kindern, vier Personen",
+            "reasons": [
+              "keine harten Regelverstöße im fertigen Plan (1 Fehler)",
+              "Regentage ohne Programm draußen (0/1)"
             ]
           }
         ]
