@@ -10,6 +10,8 @@ export interface EvalCaseRow {
   judge: string;
   injection: string;
   grounded: string;
+  // Volle Antwort des Agenten, nur bei unbelegten Antworten
+  reply?: string;
 }
 
 export interface EvalSummary extends RunMeta {
@@ -88,6 +90,19 @@ export function renderReport(summary: EvalSummary): string {
     lines.push(
       `| ${row.id} | ${row.question} | ${row.retrieval} | ${row.tool} | ${row.judge} | ${row.grounded} | ${row.injection} |`,
     );
+  }
+  const unbelegt = summary.perCase.filter((row) => row.reply !== undefined);
+  if (unbelegt.length > 0) {
+    lines.push('');
+    lines.push('## Unbelegte Antworten');
+    lines.push('');
+    lines.push('Zum Nachprüfen: Mischt der Agent eigenes Wissen unter die Quelle, oder urteilt der Judge zu streng?');
+    for (const row of unbelegt) {
+      lines.push('');
+      lines.push(`### ${row.id}: ${row.question}`);
+      lines.push('');
+      lines.push(...row.reply!.split('\n').map((line) => `> ${line}`));
+    }
   }
   lines.push('');
   return lines.join('\n');

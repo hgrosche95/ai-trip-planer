@@ -161,6 +161,9 @@ async function main(): Promise<void> {
       judge: judgeLabel,
       injection: injectionLabel,
       grounded: groundedLabel,
+      // Nur bei Befunden: Ohne die Antwort lässt sich nicht entscheiden, ob
+      // der Agent eigenes Wissen untermischt oder der Judge zu streng ist
+      ...(groundedLabel === 'UNBELEGT' && { reply: response.reply }),
     });
   }
 
