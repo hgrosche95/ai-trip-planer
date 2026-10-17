@@ -168,7 +168,7 @@ export function entryPassed(entry: HistoryEntry): boolean {
 const pct = (value: number) => `${Math.round(value * 100)} %`;
 
 // Das Badge zeigt den letzten Lauf des Standardanbieters (Groq): Den sieht
-// man in der Live-Demo. Anthropic läuft nur sonntags und steht auf /evals.
+// man in der Live-Demo. Anthropic läuft nur per Hand und steht auf /evals.
 export function badgeFor(history: History, provider = 'groq'): Badge {
   const latest =
     history.entries.filter((entry) => entry.provider === provider).at(-1) ?? history.entries.at(-1);

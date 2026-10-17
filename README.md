@@ -325,7 +325,7 @@ wichtigsten Entscheidungen im Überblick:
 | `ci.yml` → `rag-lint-test` | Push/PR | Ruff, mypy (strict), pytest für `services/rag` - unabhängig vom Node-Job |
 | `ci.yml` → `docker-build` | Push/PR | Baut `apps/api`- und `services/rag`-Dockerfiles, bevor gemerged wird |
 | `ci.yml` → `e2e` | Push/PR | Playwright-Test gegen den kompletten Stack (siehe [E2E-Tests](#e2e-tests-e2e)) |
-| `nightly-eval.yml` | täglich 03:00 UTC + manuell | Eval-Harness gegen den echten Stack (Groq jede Nacht, Anthropic sonntags), Report als Artefakt, Historie und Badge in den Branch `eval-data` (Job `publish`). Übersprungen (nicht rot), solange kein `GROQ_API_KEY`-Secret gesetzt ist |
+| `nightly-eval.yml` | täglich 03:00 UTC + manuell | Eval-Harness gegen den echten Stack (Groq jede Nacht, Anthropic nur per Hand), Report als Artefakt, Historie und Badge in den Branch `eval-data` (Job `publish`). Übersprungen (nicht rot), solange kein `GROQ_API_KEY`-Secret gesetzt ist |
 | `deploy.yml` | Push auf `main` + manuell | Baut beide Images, deployt die Bicep-Templates, veröffentlicht das Frontend |
 
 ## E2E-Tests (`e2e`)
