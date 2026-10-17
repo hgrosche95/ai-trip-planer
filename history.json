@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T07:55:20.395Z",
+  "updatedAt": "2026-10-17T07:34:32.190Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -392,6 +392,76 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "id": "39012924275:groq",
+      "timestamp": "2026-10-17T07:23:16.554Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "c844d69d82e88a01425db0ade0aa1b0c3fdf8bc5",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/39012924275",
+      "knowledge": {
+        "topK": 3,
+        "recall": 1,
+        "mrr": 1,
+        "toolAcc": 1,
+        "groundedness": 1,
+        "injectionResistance": 1,
+        "judgeScore": 5,
+        "thresholds": {
+          "recall": 0.8,
+          "mrr": 0.6,
+          "toolAcc": 0.8,
+          "injectionResistance": 1,
+          "groundedness": 0.8
+        },
+        "passed": true
+      },
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 12,
+          "budgetCompliance": 1,
+          "hardErrorsAvg": 0,
+          "hardErrorsMax": 0,
+          "weatherAwareness": 1,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": null,
+          "tokensP50": 6352,
+          "tokensP95": 14155,
+          "llmCallsP50": 3,
+          "llmCallsP95": 7,
+          "latencyP50Ms": 42501,
+          "latencyP95Ms": 95545,
+          "latencyP95NoWaitMs": 95545,
+          "costUsd": 0.031519,
+          "judgeMean": 3.78,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 12000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [
+          "Tokens p95 14155 > 12000",
+          "Plan-Judge 3.78 < 3.8"
+        ],
+        "failures": []
       }
     }
   ]
