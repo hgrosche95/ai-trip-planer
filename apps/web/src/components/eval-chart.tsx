@@ -164,7 +164,7 @@ export default function EvalChart({ metric, entries }: { metric: MetricDef; entr
 
             {series.map((s) => {
               const valued = s.points.filter((p) => p.value !== null);
-              // Wenige Punkte (z. B. Anthropic nur sonntags): jeden zeigen
+              // Wenige Punkte (z. B. Anthropic nur bei Läufen per Hand): jeden zeigen
               const markers = valued.length <= 20 ? valued : [valued.at(-1)!];
               return (
                 <g key={s.provider.id}>

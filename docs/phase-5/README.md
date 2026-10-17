@@ -137,7 +137,7 @@ Messwerten.*
 | --- | --- | --- |
 | Wo das Ergebnis liegt | Artefakt am Lauf, nach 90 Tagen weg | zusätzlich `history.json` im Branch `eval-data`, dauerhaft |
 | Wer es sieht | wer in GitHub Actions klickt | jeder auf `/evals` und im README-Badge |
-| Anbieter | Groq | Groq jede Nacht, Anthropic sonntags |
+| Anbieter | Groq | Groq jede Nacht, Anthropic nur per Hand |
 | Wissens-Evals | nur Markdown | + JSON, Teil der Historie |
 
 **Ablauf:** Der Nightly läuft als Matrix pro Anbieter und lädt die

@@ -32,10 +32,11 @@ jobs:
   # run:-Schritt (dort ist secrets erlaubt) und gibt nur die Liste der
   # Anbieter weiter, nie einen Wert selbst.
   #
-  # Groq läuft jede Nacht, Anthropic nur sonntags (oder per Hand) - jeder
-  # Anthropic-Lauf kostet echtes Geld, für den Vergleich auf /evals reicht
-  # ein Punkt pro Woche. Ohne GROQ_API_KEY läuft gar nichts, weil der
-  # Judge immer Groq ist (gleicher Judge = vergleichbare Zahlen).
+  # Groq läuft jede Nacht. Anthropic nur, wenn man es per Hand startet
+  # (Run workflow mit provider anthropic oder beide): Jeder Anthropic-Lauf
+  # kostet echtes Geld und soll nie automatisch passieren. Ohne
+  # GROQ_API_KEY läuft gar nichts, weil der Judge immer Groq ist (gleicher
+  # Judge = vergleichbare Zahlen).
   plan:
     runs-on: ubuntu-latest
     outputs:
@@ -45,7 +46,6 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          EVENT: ${{ github.event_name }}
           INPUT_PROVIDER: ${{ inputs.provider }}
         run: |
           providers=()
@@ -53,9 +53,7 @@ jobs:
             if [ "$INPUT_PROVIDER" != "anthropic" ]; then
               providers+=('"groq"')
             fi
-            sunday=$([ "$(date -u +%u)" = 7 ] && echo true || echo false)
             if [ -n "$ANTHROPIC_API_KEY" ] && {
-              { [ "$EVENT" = schedule ] && [ "$sunday" = true ]; } ||
               [ "$INPUT_PROVIDER" = anthropic ] || [ "$INPUT_PROVIDER" = beide ]
             }; then
               providers+=('"anthropic"')

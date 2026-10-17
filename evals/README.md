@@ -232,10 +232,10 @@ publish
 
 ### Modellvergleich Groq vs. Anthropic
 
-Groq läuft jede Nacht, Anthropic nur sonntags (jeder Lauf kostet echtes
-Geld, ein Punkt pro Woche reicht für den Vergleich) und nur, wenn das
-Secret `ANTHROPIC_API_KEY` gesetzt ist. Per Hand: *Actions → Nightly Eval →
-Run workflow* mit `provider` = `groq`, `anthropic` oder `beide`. Die Läufe
+Groq läuft jede Nacht. Anthropic läuft **nie automatisch**, nur wenn man
+den Workflow von Hand startet (*Actions → Nightly Eval → Run workflow* mit
+`provider` = `anthropic` oder `beide`) und das Secret `ANTHROPIC_API_KEY`
+gesetzt ist: Jeder Anthropic-Lauf kostet echtes Geld. Die Läufe
 gehen nacheinander (`max-parallel: 1`), weil beide den Groq-Judge fragen.
 
 Der **Judge ist immer dasselbe Groq-Modell**, auch wenn Anthropic geprüft

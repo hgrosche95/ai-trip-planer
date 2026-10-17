@@ -99,7 +99,7 @@ function Comparison({ latest }: { latest: Map<ProviderId, HistoryEntry> }) {
       <p className="mt-1 max-w-2xl text-sm text-dim">
         Jeweils der letzte Lauf pro Anbieter mit denselben Szenarien. Der Judge ist für beide
         dasselbe Modell, sonst wären die Bewertungen nicht vergleichbar. Kosten zum Listenpreis.
-        {providers.length === 1 && ' Anthropic läuft nur sonntags; bisher gibt es keine Messung.'}
+        {providers.length === 1 && ' Anthropic läuft nur, wenn der Lauf von Hand gestartet wird; bisher gibt es keine Messung.'}
       </p>
       <div className="mt-4 overflow-x-auto rounded-xl border border-rule bg-card">
         <table className="w-full text-sm">
