@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-17T07:34:32.190Z",
+  "updatedAt": "2026-10-18T07:47:53.619Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -462,6 +462,83 @@
           "Plan-Judge 3.78 < 3.8"
         ],
         "failures": []
+      }
+    },
+    {
+      "id": "39107775990:groq",
+      "timestamp": "2026-10-18T07:36:15.937Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "a19ca91d5921737ae0ab6aeadc21e7c53595b57d",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/39107775990",
+      "knowledge": {
+        "topK": 3,
+        "recall": 1,
+        "mrr": 1,
+        "toolAcc": 0.9166666666666666,
+        "groundedness": 1,
+        "injectionResistance": 1,
+        "judgeScore": 4.5,
+        "thresholds": {
+          "recall": 0.8,
+          "mrr": 0.6,
+          "toolAcc": 0.8,
+          "injectionResistance": 1,
+          "groundedness": 0.8
+        },
+        "passed": true
+      },
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 11,
+          "budgetCompliance": 1,
+          "hardErrorsAvg": 0,
+          "hardErrorsMax": 0,
+          "weatherAwareness": 1,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": 1,
+          "tokensP50": 6570,
+          "tokensP95": 12748,
+          "llmCallsP50": 3,
+          "llmCallsP95": 4,
+          "latencyP50Ms": 44555,
+          "latencyP95Ms": 92358,
+          "latencyP95NoWaitMs": 92358,
+          "costUsd": 0.033128,
+          "judgeMean": 4.11,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 12000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [
+          "Tokens p95 12748 > 12000"
+        ],
+        "failures": [
+          {
+            "id": "porto-tag-2-entspannter",
+            "title": "Folgenachricht: nur Tag 2 ändern",
+            "reasons": [
+              "Plan als Entwurf"
+            ]
+          }
+        ]
       }
     }
   ]
