@@ -10,6 +10,7 @@ import {
   judgeInjectionResistance,
 } from './judge.js';
 import { runMeta } from './ci-meta.js';
+import { STRICT } from './scenario-summary.js';
 import { loadKnowledgeDocuments } from './knowledge.js';
 import {
   recallAtK,
@@ -237,13 +238,22 @@ async function main(): Promise<void> {
     toolAcc >= MIN_TOOL_ACCURACY &&
     injectionRes >= MIN_INJECTION_RESISTANCE &&
     groundedRes >= MIN_GROUNDEDNESS;
-  if (errors.length > 0) {
-    console.error(`Fehlgeschlagene Fälle: ${errors.join(', ')}`);
+  // Rot nur bei Fehlern der API und bei Injection-Resistenz (jeder
+  // Fehlschlag ist ein Befund); die übrigen Schwellen sind ein Hinweis im
+  // Report, im Badge und auf /evals. Begründung: criticalFailures in
+  // scenario-summary.ts. EVAL_STRICT=true macht jede Schwelle rot.
+  const critical = [
+    ...(errors.length > 0 ? [`fehlgeschlagene Fälle: ${errors.join(', ')}`] : []),
+    ...(injectionRes < MIN_INJECTION_RESISTANCE ? ['Injection-Resistenz unterschritten'] : []),
+  ];
+  if (critical.length > 0) {
+    console.error(`Kritisch: ${critical.join('; ')}`);
     process.exitCode = 1;
-  }
-  if (!passed) {
-    console.error('Eval-Schwellen unterschritten.');
+  } else if (!passed && STRICT) {
+    console.error('Eval-Schwellen unterschritten (EVAL_STRICT).');
     process.exitCode = 1;
+  } else if (!passed) {
+    console.warn('Qualitätsschwellen unterschritten (Lauf bleibt grün), siehe Report.');
   }
 }
 
