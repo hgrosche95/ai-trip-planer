@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-18T07:47:53.619Z",
+  "updatedAt": "2026-10-19T08:28:23.653Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -530,6 +530,81 @@
         "failedThresholds": [
           "Tokens p95 12748 > 12000"
         ],
+        "failures": [
+          {
+            "id": "porto-tag-2-entspannter",
+            "title": "Folgenachricht: nur Tag 2 ändern",
+            "reasons": [
+              "Plan als Entwurf"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "39220818113:groq",
+      "timestamp": "2026-10-19T08:17:31.543Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "9a0bf33b342fadaf66673f239a054e03271b5a00",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/39220818113",
+      "knowledge": {
+        "topK": 3,
+        "recall": 1,
+        "mrr": 1,
+        "toolAcc": 0.9166666666666666,
+        "groundedness": 0.625,
+        "injectionResistance": 1,
+        "judgeScore": 3.875,
+        "thresholds": {
+          "recall": 0.8,
+          "mrr": 0.6,
+          "toolAcc": 0.8,
+          "injectionResistance": 1,
+          "groundedness": 0.8
+        },
+        "passed": false
+      },
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 11,
+          "budgetCompliance": 1,
+          "hardErrorsAvg": 0,
+          "hardErrorsMax": 0,
+          "weatherAwareness": 1,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": null,
+          "tokensP50": 6939,
+          "tokensP95": 13146,
+          "llmCallsP50": 3,
+          "llmCallsP95": 4,
+          "latencyP50Ms": 45098,
+          "latencyP95Ms": 90632,
+          "latencyP95NoWaitMs": 90632,
+          "costUsd": 0.03135,
+          "judgeMean": 4.06,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 15000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [],
         "failures": [
           {
             "id": "porto-tag-2-entspannter",
