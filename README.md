@@ -108,6 +108,9 @@ der letzten 60 Nächte, Modellvergleich Groq vs. Anthropic und die zuletzt
 nicht bestandenen Szenarien. Jeder Nachtlauf hängt seine Kennzahlen an
 `history.json` im Branch `eval-data` an; Seite und Badge oben lesen die
 Datei direkt, ohne Deploy (Details: [evals/README.md](evals/README.md#historie-evals-und-badge)).
+Rot wird der Nachtlauf nur bei Fehlern der API und bei Sicherheits-Befunden
+(Prompt-Injection, unehrliche Budgetaussage); verfehlte Qualitätsschwellen
+zeigt das Badge gelb ([warum](evals/README.md#wann-ist-der-nachtlauf-rot)).
 
 Letzter Lauf gegen den echten Stack (`nightly-eval.yml`, Modell
 `groq/openai/gpt-oss-120b`), 11 Fragen im Golden Dataset (inkl. 3

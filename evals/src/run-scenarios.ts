@@ -6,7 +6,7 @@ import { JUDGE_ENABLED, judgeInjectionResistance } from './judge.js';
 import { finalDraft, evaluateScenario, replyOf } from './plan-metrics.js';
 import { judgeBudgetHonesty, judgePlan } from './plan-judge.js';
 import { runMulti } from './run-client.js';
-import { failedThresholds, scenarioThresholds, summarize } from './scenario-summary.js';
+import { criticalFailures, failedThresholds, scenarioThresholds, STRICT, summarize } from './scenario-summary.js';
 import { renderScenarioReport, writeScenarioReport } from './scenario-report.js';
 import type { JudgeResult, RunCapture, Scenario, ScenarioResult } from './scenario-types.js';
 
@@ -137,9 +137,16 @@ async function main(): Promise<void> {
   console.log('');
   console.log(renderScenarioReport(report));
   console.log(`Report geschrieben nach ${paths.markdown} und ${paths.json}`);
-  if (failed.length > 0) {
-    console.error('Szenario-Schwellen verfehlt.');
+  const critical = criticalFailures(summary, results, thresholds);
+  if (critical.length > 0) {
+    console.error(`Kritisch: ${critical.join('; ')}`);
     process.exitCode = 1;
+  } else if (failed.length > 0 && STRICT) {
+    console.error('Szenario-Schwellen verfehlt (EVAL_STRICT).');
+    process.exitCode = 1;
+  } else if (failed.length > 0) {
+    // Hinweis statt Fehler: steht im Report, im Badge und auf /evals
+    console.warn(`Qualitätsschwellen verfehlt (Lauf bleibt grün): ${failed.join('; ')}`);
   }
 }
 
