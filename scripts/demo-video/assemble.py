@@ -6,7 +6,9 @@ import json, os, subprocess, sys
 here = os.path.dirname(os.path.abspath(__file__))
 os.chdir(os.path.join(here, 'out'))
 raw = 'raw'; name = 'trip-planer'
-TARGET = {'Eingabe': 0, 'Agenten': 10, 'Antwort': 21, 'Ablauf': 34, 'Speichern': 42, 'Ende': 47.5}
+# Speichern hat mehr Zeit als früher: Am Ende steht die gespeicherte Reise
+# mit Budget und Annahmen in der Kopfkarte
+TARGET = {'Eingabe': 0, 'Agenten': 9.5, 'Antwort': 20, 'Ablauf': 31, 'Speichern': 38.5, 'Ende': 48}
 data = json.load(open(os.path.join(raw, 'frames.json')))
 frames, marks = data['frames'], {m['name']: m['t'] for m in data['marks']}
 order = list(TARGET)

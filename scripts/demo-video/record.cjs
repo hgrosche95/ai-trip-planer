@@ -1,6 +1,7 @@
 // Demo-Video für die Portfolio-Seite: nimmt einen echten Lauf in der Live-App
 // per CDP-Screencast auf (JPEG-Frames mit Zeitstempel plus Kapitelmarken).
-// assemble.py macht daraus MP4/WebM/WebP. Anleitung: README.md.
+// assemble.py macht daraus MP4/WebM/WebP, trailer.py schneidet aus denselben
+// Frames den Trailer (nutzt auch die feineren Marken). Anleitung: README.md.
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -42,6 +43,11 @@ fs.mkdirSync(OUT, { recursive: true });
   await page.locator('canvas').first().waitFor({ timeout: 60_000 });
   const tiles = await page.request.get('https://tiles.openfreemap.org/styles/positron').catch(() => null);
   if (!tiles?.ok()) throw new Error('tiles.openfreemap.org nicht erreichbar: Karte bliebe leer. Netzwerk freigeben (README).');
+  // Erreichbar heißt nicht geladen: Ohne MapLibre-Worker kommen keine
+  // Vektorkacheln (Karte grau, nur Marker). Gezählt und vor "Speichern" geprüft.
+  let vectorTiles = 0;
+  page.on('requestfinished', (r) => { if (/openfreemap\.org\/.+\.pbf/.test(r.url())) vectorTiles++; });
+  page.on('console', (m) => { if (/Worker failed to load/.test(m.text())) console.error('MapLibre-Worker fehlt:', m.text()); });
   await page.waitForTimeout(4000);
   await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1280, maxHeight: 800, everyNthFrame: 1 });
   mark('Eingabe');
@@ -57,7 +63,7 @@ fs.mkdirSync(OUT, { recursive: true });
   mark('Agenten');
   await glide(900, 300, 40);
   // Warten, bis der Entwurf da ist (echter Lauf: bis zu 3 min)
-  await page.getByRole('heading', { name: 'Entwurf' }).waitFor({ timeout: 240_000 });
+  await page.getByRole('heading', { name: 'Entwurf', exact: true }).waitFor({ timeout: 240_000 });
   mark('Antwort');
   await page.waitForTimeout(2500);
   const days = page.locator('section[aria-label^="Tag "]');
@@ -70,6 +76,7 @@ fs.mkdirSync(OUT, { recursive: true });
   await page.waitForTimeout(800);
   await glideTo(page.getByRole('tab', { name: 'Wetter & Budget' }));
   await page.getByRole('tab', { name: 'Wetter & Budget' }).click();
+  mark('Wetter');
   await page.waitForTimeout(3000);
   mark('Ablauf');
   await glideTo(page.getByRole('tab', { name: 'Ablauf' }));
@@ -78,25 +85,46 @@ fs.mkdirSync(OUT, { recursive: true });
   // Zeitleiste der Agenten aufklappen
   const summary = page.locator('[role=tabpanel] details > summary').first();
   if (await summary.count()) { await glideTo(summary); await summary.click(); }
+  mark('Zeitleiste');
   await page.waitForTimeout(4000);
   await glideTo(page.getByRole('tab', { name: 'Plan', exact: true }));
   await page.getByRole('tab', { name: 'Plan', exact: true }).click();
   await page.waitForTimeout(1200);
+  if (!vectorTiles) throw new Error('Stadtkarte ohne Kacheln (keine .pbf geladen). Aufnahme verworfen, Live-App prüfen.');
   mark('Speichern');
   await glideTo(page.getByRole('button', { name: 'Plan speichern' }));
   await page.getByRole('button', { name: 'Plan speichern' }).click();
   await page.getByRole('link', { name: 'In Meine Reisen ansehen' }).waitFor({ timeout: 30_000 });
+  mark('Gespeichert');
   await page.waitForTimeout(1200);
   await glideTo(page.getByRole('link', { name: 'In Meine Reisen ansehen' }));
   await page.getByRole('link', { name: 'In Meine Reisen ansehen' }).click();
-  await page.getByRole('heading', { name: 'Tag 1' }).waitFor({ timeout: 30_000 });
-  await page.waitForTimeout(3000);
-  await glide(640, 700, 40);
-  await page.mouse.wheel(0, 500);
-  await page.waitForTimeout(2500);
+  // Gespeicherte Reise im Layout der Arbeitsfläche: Kopfkarte mit Budget und
+  // Annahmen, darunter die Tage, rechts die Karte
+  await page.waitForURL(/\/trips\/detail/, { timeout: 30_000 });
+  // exact: Die Chat-Antwort hat eigene Überschriften wie "Tag 1 – 02. Oktober"
+  await page.getByRole('heading', { name: 'Tag 1', exact: true }).waitFor({ timeout: 30_000 });
+  mark('Reise');
+  await page.waitForTimeout(1800);
+  const assumptions = page.locator('summary', { hasText: 'Annahmen' });
+  if (await assumptions.count()) {
+    await glideTo(assumptions);
+    await assumptions.click();
+    await page.waitForTimeout(2000);
+  }
+  // Tage überfahren, soweit sichtbar: Die Karte hebt den Tag hervor
+  const savedDays = page.locator('section[aria-label^="Tag "]');
+  for (let i = 0; i < Math.min(await savedDays.count(), 2); i++) {
+    const b = await savedDays.nth(i).boundingBox();
+    if (!b || b.y + 60 > 800) break;
+    await glide(b.x + b.width / 2, Math.min(b.y + b.height / 2, 760));
+    await page.waitForTimeout(1300);
+  }
   mark('Ende');
   await cdp.send('Page.stopScreencast');
-  fs.writeFileSync(path.join(OUT, 'frames.json'), JSON.stringify({ frames, marks }, null, 1));
+  fs.writeFileSync(path.join(OUT, 'frames.json'), JSON.stringify({ frames, marks, tripUrl: page.url() }, null, 1));
+  // Gast-Session für record-extras.cjs (Trailer: dieselbe Reise bearbeiten)
+  await ctx.storageState({ path: path.join(__dirname, 'out', 'state.json') });
   console.log('frames', frames.length, 'dauer', frames.at(-1)?.t);
   await browser.close();
 })().catch((e) => { console.error(e); process.exit(1); });
