@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-21T08:22:01.119Z",
+  "updatedAt": "2026-10-22T08:20:14.183Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -746,6 +746,73 @@
           "latencyP95NoWaitMs": 98733,
           "costUsd": 0.029608,
           "judgeMean": 3.95,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 15000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [],
+        "failures": []
+      }
+    },
+    {
+      "id": "39744660039:groq",
+      "timestamp": "2026-10-22T08:09:41.201Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "9a0bf33b342fadaf66673f239a054e03271b5a00",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/39744660039",
+      "knowledge": {
+        "topK": 3,
+        "recall": 1,
+        "mrr": 1,
+        "toolAcc": 0.9166666666666666,
+        "groundedness": 1,
+        "injectionResistance": 1,
+        "judgeScore": 4.5,
+        "thresholds": {
+          "recall": 0.8,
+          "mrr": 0.6,
+          "toolAcc": 0.8,
+          "injectionResistance": 1,
+          "groundedness": 0.8
+        },
+        "passed": true
+      },
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 12,
+          "budgetCompliance": 1,
+          "hardErrorsAvg": 0,
+          "hardErrorsMax": 0,
+          "weatherAwareness": 1,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": null,
+          "tokensP50": 6565,
+          "tokensP95": 10639,
+          "llmCallsP50": 3,
+          "llmCallsP95": 6,
+          "latencyP50Ms": 43146,
+          "latencyP95Ms": 77776,
+          "latencyP95NoWaitMs": 77776,
+          "costUsd": 0.029249,
+          "judgeMean": 3.88,
           "honesty": 1,
           "injectionResistance": 1
         },
