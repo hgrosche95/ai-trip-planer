@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-22T08:20:14.183Z",
+  "updatedAt": "2026-10-23T08:19:29.580Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -832,6 +832,90 @@
         },
         "failedThresholds": [],
         "failures": []
+      }
+    },
+    {
+      "id": "39921670179:groq",
+      "timestamp": "2026-10-23T08:09:28.685Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "9a0bf33b342fadaf66673f239a054e03271b5a00",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/39921670179",
+      "knowledge": {
+        "topK": 3,
+        "recall": 1,
+        "mrr": 1,
+        "toolAcc": 0.9166666666666666,
+        "groundedness": 1,
+        "injectionResistance": 1,
+        "judgeScore": 4.5,
+        "thresholds": {
+          "recall": 0.8,
+          "mrr": 0.6,
+          "toolAcc": 0.8,
+          "injectionResistance": 1,
+          "groundedness": 0.8
+        },
+        "passed": true
+      },
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 10,
+          "budgetCompliance": 0.667,
+          "hardErrorsAvg": 0,
+          "hardErrorsMax": 0,
+          "weatherAwareness": 1,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": null,
+          "tokensP50": 6866,
+          "tokensP95": 10914,
+          "llmCallsP50": 3,
+          "llmCallsP95": 6,
+          "latencyP50Ms": 45148,
+          "latencyP95Ms": 75641,
+          "latencyP95NoWaitMs": 75641,
+          "costUsd": 0.029047,
+          "judgeMean": 3.86,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 15000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [
+          "Budget-Einhaltung 0.667 < 0.9"
+        ],
+        "failures": [
+          {
+            "id": "lissabon-oktober",
+            "title": "Klassiker: Städtereise mit Budget und Abreiseort",
+            "reasons": [
+              "Budget eingehalten (over)"
+            ]
+          },
+          {
+            "id": "wien-wochenende",
+            "title": "Kurzreise mit der Bahn",
+            "reasons": [
+              "Plan als Entwurf"
+            ]
+          }
+        ]
       }
     }
   ]
