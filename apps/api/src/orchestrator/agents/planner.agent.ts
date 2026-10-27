@@ -46,7 +46,11 @@ import {
 // Obergrenzen der Ausgabe pro Schritt. Großzügig, weil Reasoning-Modelle
 // (gpt-oss) ihr Nachdenken mit in die Ausgabe zählen; abgerechnet und vom
 // Groq-Limit abgezogen wird nur, was tatsächlich erzeugt wird.
-export const TRIAGE_MAX_TOKENS = 1024;
+// triage: 1024 reichten nicht, gpt-oss dachte das Limit oft voll und das
+// JSON brach ab (Nachtläufe: genau Prompt + 1024 Tokens, dann Rückfrage).
+export const TRIAGE_MAX_TOKENS = 2048;
+// Einmaliger zweiter Versuch, wenn die Ausgabe am Limit abgeschnitten wurde
+export const TRIAGE_RETRY_MAX_TOKENS = 4096;
 export const COMPOSE_MAX_TOKENS = 3072;
 export const FINAL_MAX_TOKENS = 2048;
 // Überarbeitung: nur die geänderten Tage, deshalb kleinere Grenzen
@@ -156,23 +160,33 @@ export class PlannerAgent {
       const system = input.current
         ? triageRevisePrompt(ctx.today, draftDigest(input.current))
         : triagePrompt(ctx.today);
-      const result = await this.callLlm(
-        ctx,
-        stepId,
-        [
-          { role: 'system', content: system },
-          ...dialog,
-          { role: 'user', content: input.message },
-        ],
-        TRIAGE_MAX_TOKENS,
-      );
+      const messages: LlmMessage[] = [
+        { role: 'system', content: system },
+        ...dialog,
+        { role: 'user', content: input.message },
+      ];
+      let result = await this.callLlm(ctx, stepId, messages, TRIAGE_MAX_TOKENS);
 
       let output: ReturnType<typeof parseTriageOutput>;
       try {
         output = parseTriageOutput(result.content);
       } catch {
-        // Kaputtes JSON: lieber einmal nachfragen als raten
         output = { status: 'ask' };
+        // Am Limit abgeschnitten: Das ist kein Grund zur Rückfrage, also
+        // einmal mit mehr Platz wiederholen
+        if (result.finishReason === 'length') {
+          result = await this.callLlm(
+            ctx,
+            stepId,
+            messages,
+            TRIAGE_RETRY_MAX_TOKENS,
+          );
+          try {
+            output = parseTriageOutput(result.content);
+          } catch {
+            // Weiter kaputt: lieber einmal nachfragen als raten
+          }
+        }
       }
       if (output.status === 'revise' && input.current) {
         const parsed = parseRevision(

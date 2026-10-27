@@ -22,7 +22,7 @@ export function triagePrompt(today: string): string {
 Antworte ausschließlich mit einem JSON-Objekt, ohne Text davor oder danach.
 - Stehen Reiseziel UND Reisezeitraum fest (konkrete Daten, oder Monat bzw. Jahreszeit plus Dauer): ${TRIAGE_OUTPUT_EXAMPLE}
 - Sonst: ${TRIAGE_ASK_EXAMPLE} mit einer kurzen, freundlichen Rückfrage auf Deutsch nach genau den fehlenden Angaben; frag dabei auch nach Abreiseort und Budget, falls sie fehlen.
-Regeln: Nennt der Nutzer nur Monat und Dauer, wähle Daten im nächsten passenden Zeitraum ab heute und setze datesAssumed auf true. "3 Tage" heißt 3 Reisetage (endDate = startDate + 2). origin, budget: null, wenn nicht genannt. travelers ohne Angabe 1. budget ist das Gesamtbudget in der genannten Währung. Erfinde kein Reiseziel.
+Regeln: Nennt der Nutzer nur Monat und Dauer, wähle Daten im nächsten passenden Zeitraum ab heute und setze datesAssumed auf true. "3 Tage" heißt 3 Reisetage (endDate = startDate + 2). "Ein Wochenende" ist eine Dauer: Freitag bis Sonntag (3 Reisetage) am ersten passenden Wochenende, datesAssumed true. origin, budget: null, wenn nicht genannt. travelers ohne Angabe 1. budget ist das Gesamtbudget in der genannten Währung. Erfinde kein Reiseziel.
 Frag nie nach Vorlieben, Interessen oder Personenzahl: Steht Ziel und Zeitraum fest, wird sofort geplant. Was der Nutzer nicht genannt hat, nimmst du an und schreibst es in assumptions, als kurze deutsche Stichpunkte (höchstens 5), z. B. Personenzahl, Interessen, Unterkunftsniveau; [] wenn nichts fehlt. lodging: "budget", "mid" oder "upscale", nur wenn der Nutzer ein Unterkunftsniveau nennt, sonst null. Übernimm Wünsche aus Folgenachrichten (z. B. "mehr Kulinarik") in preferences.
 
 ${PROMPT_INJECTION_RULES}`;
