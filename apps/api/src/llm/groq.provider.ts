@@ -14,6 +14,15 @@ import { parseRateLimitHeaders } from './rate-limit-headers';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 
+// gpt-oss hängt aus dem Training Quellenmarker wie 【0†source】 oder
+// 【3†L10-L20】 an Sätze. Sie verweisen auf nichts, was es hier gibt, und
+// landeten sonst wörtlich in der Antwort an den Nutzer.
+const CITATION_MARKER = /[ \t]*【[^】\n]*†[^】\n]*】/g;
+
+export function stripCitationMarkers(content: string): string {
+  return content.replace(CITATION_MARKER, '');
+}
+
 // Welches Modell ein Aufruf tatsächlich nutzt. Auch der Rate-Limiter braucht
 // das schon VOR dem Aufruf, weil Groq die Limits pro Modell zählt.
 export function resolveGroqModel(model?: string): string {
@@ -119,7 +128,10 @@ export class GroqProvider implements LlmProvider {
       }));
 
     return {
-      content: choice.message.content ?? null,
+      content:
+        choice.message.content == null
+          ? null
+          : stripCitationMarkers(choice.message.content),
       toolCalls,
       finishReason: this.mapFinishReason(choice.finish_reason),
       usage: {

@@ -1,4 +1,4 @@
-import { GroqProvider } from './groq.provider';
+import { GroqProvider, stripCitationMarkers } from './groq.provider';
 
 // Groq ist aus Tests nicht erreichbar: das OpenAI-SDK wird ersetzt. create()
 // liefert wie das echte SDK ein Objekt mit withResponse().
@@ -72,5 +72,47 @@ describe('GroqProvider', () => {
     );
 
     expect(result.rateLimit).toBeUndefined();
+  });
+
+  it('entfernt Quellenmarker aus der Antwort', async () => {
+    create.mockReturnValue({
+      withResponse: () =>
+        Promise.resolve({
+          data: {
+            ...completion,
+            choices: [
+              {
+                message: { content: 'Belém lohnt sich 【0†source】.' },
+                finish_reason: 'stop',
+              },
+            ],
+          },
+          response: new Response(null),
+          request_id: null,
+        }),
+    });
+
+    const result = await new GroqProvider().chat(
+      [{ role: 'user', content: 'Hi' }],
+      [],
+      { maxTokens: 100 },
+    );
+
+    expect(result.content).toBe('Belém lohnt sich.');
+  });
+});
+
+describe('stripCitationMarkers', () => {
+  it('entfernt Marker samt Leerzeichen davor', () => {
+    expect(
+      stripCitationMarkers(
+        'Tram 28 【0†source】 fährt durch die Alfama【3†L10-L20】.\nZeile 2',
+      ),
+    ).toBe('Tram 28 fährt durch die Alfama.\nZeile 2');
+  });
+
+  it('lässt normale Klammern und JSON unverändert', () => {
+    const text = '【Hinweis】 {"title":"Museu【1】"} † Kreuz';
+    expect(stripCitationMarkers(text)).toBe(text);
   });
 });

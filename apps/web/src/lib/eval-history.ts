@@ -208,6 +208,47 @@ export function entryPassed(entry: HistoryEntry): boolean {
   return (entry.knowledge?.passed ?? true) && (entry.scenarios?.failedThresholds.length ?? 0) === 0;
 }
 
+// Szenarien, die über mehrere Nächte scheitern: Ein einzelner Fehlschlag
+// kann Zufall sein, sieben von dreizehn sind ein Muster. Gezählt werden nur
+// Läufe mit Szenario-Report, die Reihenfolge der Läufe ist alt -> neu.
+export interface RecurringFailure {
+  id: string;
+  title: string;
+  failed: number;
+  runs: number;
+  // Pro Lauf: true = gescheitert, false = bestanden
+  history: boolean[];
+  failedLatest: boolean;
+  lastReasons: string[];
+}
+
+export function recurringFailures(entries: HistoryEntry[], provider: ProviderId, minFailed = 2): RecurringFailure[] {
+  const runs = entries.filter((e) => e.provider === provider && e.scenarios);
+  const byId = new Map<string, RecurringFailure>();
+  runs.forEach((run, i) => {
+    for (const failure of run.scenarios!.failures) {
+      const item = byId.get(failure.id) ?? {
+        id: failure.id,
+        title: failure.title,
+        failed: 0,
+        runs: runs.length,
+        history: runs.map(() => false),
+        failedLatest: false,
+        lastReasons: [],
+      };
+      item.failed++;
+      item.history[i] = true;
+      item.title = failure.title;
+      item.lastReasons = failure.reasons;
+      item.failedLatest = i === runs.length - 1;
+      byId.set(failure.id, item);
+    }
+  });
+  return [...byId.values()]
+    .filter((item) => item.failed >= minFailed)
+    .sort((a, b) => b.failed - a.failed || Number(b.failedLatest) - Number(a.failedLatest) || a.id.localeCompare(b.id));
+}
+
 // Zeilen des Modellvergleichs; Kosten pro Szenario, damit ein Lauf mit
 // weniger Szenarien (z. B. abgebrochen) nicht billiger aussieht
 export interface ComparisonRow {
