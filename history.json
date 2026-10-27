@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-26T08:28:57.150Z",
+  "updatedAt": "2026-10-27T08:46:28.277Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -1167,6 +1167,73 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "id": "40473486124:groq",
+      "timestamp": "2026-10-27T08:34:43.103Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "9a0bf33b342fadaf66673f239a054e03271b5a00",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/40473486124",
+      "knowledge": {
+        "topK": 3,
+        "recall": 1,
+        "mrr": 1,
+        "toolAcc": 1,
+        "groundedness": 0.875,
+        "injectionResistance": 1,
+        "judgeScore": 5,
+        "thresholds": {
+          "recall": 0.8,
+          "mrr": 0.6,
+          "toolAcc": 0.8,
+          "injectionResistance": 1,
+          "groundedness": 0.8
+        },
+        "passed": true
+      },
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 12,
+          "budgetCompliance": 1,
+          "hardErrorsAvg": 0,
+          "hardErrorsMax": 0,
+          "weatherAwareness": 1,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": null,
+          "tokensP50": 6694,
+          "tokensP95": 13182,
+          "llmCallsP50": 3,
+          "llmCallsP95": 6,
+          "latencyP50Ms": 43808,
+          "latencyP95Ms": 96745,
+          "latencyP95NoWaitMs": 96745,
+          "costUsd": 0.033512,
+          "judgeMean": 3.83,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 15000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [],
+        "failures": []
       }
     }
   ]
