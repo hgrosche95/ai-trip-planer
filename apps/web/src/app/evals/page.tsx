@@ -11,6 +11,7 @@ import {
   entryPassed,
   fetchHistory,
   latestByProvider,
+  recurringFailures,
   windowed,
   type History,
   type HistoryEntry,
@@ -209,6 +210,65 @@ function Failures({ latest }: { latest: Map<ProviderId, HistoryEntry> }) {
   );
 }
 
+// Mehr Striche passen nicht in eine Zeile auf dem Handy
+const STRIP_RUNS = 30;
+
+function Recurring({ entries }: { entries: HistoryEntry[] }) {
+  // Nur Groq: Der Anbieter läuft jede Nacht, Anthropic nur von Hand
+  const items = recurringFailures(entries, 'groq');
+  const runs = entries.filter((e) => e.provider === 'groq' && e.scenarios).length;
+  if (runs < 2) return null;
+  return (
+    <section aria-labelledby="wiederkehrend" className="mt-10">
+      <h2 id="wiederkehrend" className="text-xl font-extrabold">Wiederkehrende Fehlschläge</h2>
+      <p className="mt-1 max-w-2xl text-sm text-dim">
+        Szenarien, die in den letzten {runs} Groq-Läufen mindestens zweimal gescheitert sind. Ein einzelner
+        Fehlschlag kann Zufall sein, ein wiederkehrender ist ein Muster.
+      </p>
+      {items.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-rule bg-card p-4 text-sm text-teal dark:text-teal-300">
+          <span aria-hidden="true">✓ </span>Kein Szenario ist mehr als einmal gescheitert.
+        </p>
+      ) : (
+        <ul className="mt-4 divide-y divide-rule rounded-xl border border-rule bg-card">
+          {items.map((item) => (
+            <li key={item.id} className="grid gap-x-4 gap-y-1 p-4 text-sm sm:grid-cols-[1fr_auto]">
+              <div className="min-w-0">
+                <span className="font-semibold">{item.title}</span>{' '}
+                <span className="font-mono text-xs text-dim">{item.id}</span>
+                <span className="block text-dim">
+                  {item.failedLatest ? 'Auch im letzten Lauf gescheitert' : 'Im letzten Lauf bestanden'}
+                  {item.lastReasons.length > 0 && ` · letzter Fehlschlag: ${item.lastReasons.join('; ')}`}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 sm:justify-end">
+                <span
+                  className="flex gap-0.5"
+                  role="img"
+                  aria-label={`Letzte ${Math.min(item.history.length, STRIP_RUNS)} Läufe, ältester zuerst: ${item.history
+                    .slice(-STRIP_RUNS)
+                    .map((f) => (f ? 'gescheitert' : 'bestanden'))
+                    .join(', ')}`}
+                >
+                  {item.history.slice(-STRIP_RUNS).map((failed, i) => (
+                    <span
+                      key={i}
+                      className={`h-4 w-1.5 rounded-sm ${failed ? 'bg-stamp dark:bg-red-400' : 'bg-rule'}`}
+                    />
+                  ))}
+                </span>
+                <span className="font-mono font-semibold tabular-nums whitespace-nowrap">
+                  {item.failed} von {item.runs}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function Skeleton() {
   return (
     <div className="mt-6 grid gap-4 motion-safe:animate-pulse md:grid-cols-2" role="status" aria-label="Messwerte werden geladen">
@@ -292,6 +352,7 @@ export default function EvalsPage() {
 
           <Comparison latest={latest} />
           <Failures latest={latest} />
+          <Recurring entries={entries} />
         </>
       )}
     </main>

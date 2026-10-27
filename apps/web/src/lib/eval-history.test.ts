@@ -6,6 +6,7 @@ import {
   entryPassed,
   latestByProvider,
   nearestIndex,
+  recurringFailures,
   seriesFor,
   timeTicks,
   windowed,
@@ -108,4 +109,40 @@ test('timeTicks und nearestIndex', () => {
   assert.deepEqual(timeTicks(5, 5), [5]);
   assert.equal(nearestIndex([0, 10, 20], 14), 1);
   assert.equal(nearestIndex([0, 10, 20], 99), 2);
+});
+
+test('recurringFailures zählt Fehlschläge pro Szenario über die Läufe', () => {
+  const failing = (timestamp: string, ids: string[], provider = 'groq') => {
+    const base = entry(timestamp, provider);
+    return {
+      ...base,
+      scenarios: {
+        ...base.scenarios!,
+        failures: ids.map((id) => ({ id, title: `Titel ${id}`, reasons: [`Grund ${timestamp}`] })),
+      },
+    };
+  };
+  const entries = [
+    failing('2026-10-01T03:00:00Z', ['wien', 'porto']),
+    failing('2026-10-02T03:00:00Z', ['wien']),
+    // Ohne Szenario-Report zählt der Lauf nicht mit
+    entry('2026-10-03T03:00:00Z', 'groq', { scenarios: null }),
+    failing('2026-10-03T03:00:00Z', ['wien', 'lissabon'], 'anthropic'),
+    failing('2026-10-04T03:00:00Z', ['porto']),
+    failing('2026-10-05T03:00:00Z', []),
+  ];
+
+  const result = recurringFailures(entries, 'groq');
+
+  // lissabon: anderer Anbieter; einmalige Fehlschläge fallen weg
+  assert.deepEqual(
+    result.map((r) => [r.id, r.failed, r.runs, r.failedLatest]),
+    [
+      ['porto', 2, 4, false],
+      ['wien', 2, 4, false],
+    ],
+  );
+  assert.deepEqual(result[0].history, [true, false, true, false]);
+  assert.deepEqual(result[0].lastReasons, ['Grund 2026-10-04T03:00:00Z']);
+  assert.equal(recurringFailures(entries, 'groq', 3).length, 0);
 });
