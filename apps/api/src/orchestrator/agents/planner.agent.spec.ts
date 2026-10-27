@@ -10,6 +10,8 @@ import { emptyFindings, parseTripBrief } from '../trip-draft';
 import type { ResearchFindings } from '../trip-draft';
 import {
   PlannerAgent,
+  TRIAGE_MAX_TOKENS,
+  TRIAGE_RETRY_MAX_TOKENS,
   buildRevisionPlan,
   buildTaskPlan,
   draftDigest,
@@ -170,6 +172,54 @@ describe('PlannerAgent', () => {
 
       expect(result.kind).toBe('ask');
       expect(llm.chat).toHaveBeenCalledTimes(1);
+    });
+
+    it('wiederholt einmal mit mehr Platz, wenn die Ausgabe am Limit abbricht', async () => {
+      const chat = jest.fn<
+        Promise<LlmChatResult>,
+        [LlmMessage[], unknown[], { maxTokens: number }]
+      >();
+      chat
+        .mockResolvedValueOnce({
+          ...reply('{"status":"ready","destination":"Lis'),
+          finishReason: 'length',
+        })
+        .mockResolvedValueOnce(reply(READY));
+      const { ctx } = testContext(() => ({ chat }));
+
+      const result = await planner().agent.triage(
+        {
+          message: '3 Tage Lissabon im Oktober, 800 €, ab Berlin',
+          history: [],
+        },
+        ctx,
+      );
+
+      expect(result).toEqual({ kind: 'ready', brief: LISBON_BRIEF });
+      expect(chat).toHaveBeenCalledTimes(2);
+      expect(chat.mock.calls.map((call) => call[2].maxTokens)).toEqual([
+        TRIAGE_MAX_TOKENS,
+        TRIAGE_RETRY_MAX_TOKENS,
+      ]);
+    });
+
+    it('fragt nach, wenn auch der zweite Versuch abbricht', async () => {
+      const cut = {
+        ...reply('{"status":"re'),
+        finishReason: 'length' as const,
+      };
+      const chat = jest
+        .fn<Promise<LlmChatResult>, [LlmMessage[], unknown[]]>()
+        .mockResolvedValue(cut);
+      const { ctx } = testContext(() => ({ chat }));
+
+      const result = await planner().agent.triage(
+        { message: 'Lissabon im Oktober', history: [] },
+        ctx,
+      );
+
+      expect(result.kind).toBe('ask');
+      expect(chat).toHaveBeenCalledTimes(2);
     });
 
     it('bekommt die letzten Dialog-Nachrichten ohne Tool-Runden mit', async () => {
