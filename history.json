@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T10:14:25.275Z",
+  "updatedAt": "2026-11-12T10:45:45.697Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -2437,6 +2437,91 @@
         },
         "failedThresholds": [
           "Budget-Einhaltung 0.75 < 0.9"
+        ],
+        "failures": [
+          {
+            "id": "wien-wochenende",
+            "title": "Kurzreise mit der Bahn",
+            "reasons": [
+              "Budget eingehalten (over)"
+            ]
+          },
+          {
+            "id": "porto-tag-2-entspannter",
+            "title": "Folgenachricht: nur Tag 2 ändern",
+            "reasons": [
+              "Plan als Entwurf"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "43200108450:groq",
+      "timestamp": "2026-11-12T10:33:12.766Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "6c9eca4d8826eb624eb4a51f5c7b698b23aa9897",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/43200108450",
+      "knowledge": {
+        "topK": 3,
+        "recall": 1,
+        "mrr": 1,
+        "toolAcc": 0.9166666666666666,
+        "groundedness": 0.875,
+        "injectionResistance": 1,
+        "judgeScore": 4.375,
+        "thresholds": {
+          "recall": 0.8,
+          "mrr": 0.6,
+          "toolAcc": 0.8,
+          "injectionResistance": 1,
+          "groundedness": 0.8
+        },
+        "passed": true
+      },
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 10,
+          "budgetCompliance": 0.75,
+          "hardErrorsAvg": 0,
+          "hardErrorsMax": 0,
+          "weatherAwareness": 1,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": 1,
+          "tokensP50": 6864,
+          "tokensP95": 15570,
+          "llmCallsP50": 3,
+          "llmCallsP95": 5,
+          "latencyP50Ms": 49693,
+          "latencyP95Ms": 113983,
+          "latencyP95NoWaitMs": 113983,
+          "costUsd": 0.034754,
+          "judgeMean": 4.22,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 15000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [
+          "Budget-Einhaltung 0.75 < 0.9",
+          "Tokens p95 15570 > 15000"
         ],
         "failures": [
           {
