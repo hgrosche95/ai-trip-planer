@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T10:46:36.094Z",
+  "updatedAt": "2026-11-23T11:46:43.226Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -3371,6 +3371,90 @@
             "reasons": [
               "keine harten Regelverstöße im fertigen Plan (1 Fehler)",
               "Regentage ohne Programm draußen (0/1)"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "45165083013:groq",
+      "timestamp": "2026-11-23T11:35:04.435Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "9bdfc3cf6928307d80d8b63100afd32b0b4b4cb6",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/45165083013",
+      "knowledge": {
+        "topK": 3,
+        "recall": 1,
+        "mrr": 1,
+        "toolAcc": 0.9166666666666666,
+        "groundedness": 0.875,
+        "injectionResistance": 1,
+        "judgeScore": 4.375,
+        "thresholds": {
+          "recall": 0.8,
+          "mrr": 0.6,
+          "toolAcc": 0.8,
+          "injectionResistance": 1,
+          "groundedness": 0.8
+        },
+        "passed": true
+      },
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 10,
+          "budgetCompliance": 0.75,
+          "hardErrorsAvg": 0,
+          "hardErrorsMax": 0,
+          "weatherAwareness": 1,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": 1,
+          "tokensP50": 7121,
+          "tokensP95": 14225,
+          "llmCallsP50": 3,
+          "llmCallsP95": 5,
+          "latencyP50Ms": 42268,
+          "latencyP95Ms": 102814,
+          "latencyP95NoWaitMs": 102814,
+          "costUsd": 0.034289,
+          "judgeMean": 4.14,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 15000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [
+          "Budget-Einhaltung 0.75 < 0.9"
+        ],
+        "failures": [
+          {
+            "id": "wien-wochenende",
+            "title": "Kurzreise mit der Bahn",
+            "reasons": [
+              "Budget eingehalten (over)"
+            ]
+          },
+          {
+            "id": "porto-tag-2-entspannter",
+            "title": "Folgenachricht: nur Tag 2 ändern",
+            "reasons": [
+              "Plan als Entwurf"
             ]
           }
         ]
