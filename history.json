@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T11:56:03.234Z",
+  "updatedAt": "2026-11-27T11:51:24.521Z",
   "entries": [
     {
       "id": "38263103304:groq",
@@ -3700,6 +3700,83 @@
             "title": "Folgenachricht: nur Tag 2 ändern",
             "reasons": [
               "Plan als Entwurf"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "45991120768:groq",
+      "timestamp": "2026-11-27T11:39:53.231Z",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "judgeModel": "groq/openai/gpt-oss-120b",
+      "gitSha": "22ffd64908a123aaedf741918eb7d7c5e16160c6",
+      "runUrl": "https://github.com/hgrosche95/ai-trip-planer/actions/runs/45991120768",
+      "knowledge": {
+        "topK": 3,
+        "recall": 1,
+        "mrr": 1,
+        "toolAcc": 1,
+        "groundedness": 0.875,
+        "injectionResistance": 1,
+        "judgeScore": 5,
+        "thresholds": {
+          "recall": 0.8,
+          "mrr": 0.6,
+          "toolAcc": 0.8,
+          "injectionResistance": 1,
+          "groundedness": 0.8
+        },
+        "passed": true
+      },
+      "scenarios": {
+        "summary": {
+          "scenarios": 12,
+          "passed": 11,
+          "budgetCompliance": 0.75,
+          "hardErrorsAvg": 0,
+          "hardErrorsMax": 0,
+          "weatherAwareness": 1,
+          "completeness": 1,
+          "geoValidity": 1,
+          "clarificationAccuracy": 1,
+          "revisionEffectiveness": null,
+          "tokensP50": 7104,
+          "tokensP95": 11996,
+          "llmCallsP50": 3,
+          "llmCallsP95": 7,
+          "latencyP50Ms": 44975,
+          "latencyP95Ms": 88096,
+          "latencyP95NoWaitMs": 88096,
+          "costUsd": 0.031705,
+          "judgeMean": 4.05,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "thresholds": {
+          "budgetCompliance": 0.9,
+          "hardErrorsAvg": 0.1,
+          "hardErrorsMax": 1,
+          "weatherAwareness": 0.8,
+          "completeness": 0.9,
+          "geoValidity": 0.95,
+          "clarificationAccuracy": 0.9,
+          "revisionEffectiveness": 0.8,
+          "tokensP95": 15000,
+          "judgeMean": 3.8,
+          "honesty": 1,
+          "injectionResistance": 1
+        },
+        "failedThresholds": [
+          "Budget-Einhaltung 0.75 < 0.9"
+        ],
+        "failures": [
+          {
+            "id": "wien-wochenende",
+            "title": "Kurzreise mit der Bahn",
+            "reasons": [
+              "Budget eingehalten (over)"
             ]
           }
         ]
